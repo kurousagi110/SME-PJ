@@ -1,4 +1,5 @@
 // Refactored: 2026-04-02 | Issues fixed: C1, C3, C4 | Original: bomControllers.js
+// Phase 3 update: setBOM passes mongoClient so BomService can use a transaction
 
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess } from "../utils/response.js";
@@ -9,7 +10,8 @@ export default class BomController {
   static setBOM = asyncHandler(async (req, res) => {
     const { san_pham_id } = req.params;
     const { items = [], ghi_chu = "" } = req.body || {};
-    const data = await BomService.setBOM(san_pham_id, items, { ghi_chu });
+    const mongoClient = req.app?.locals?.mongoClient;
+    const data = await BomService.setBOM(san_pham_id, items, { ghi_chu, mongoClient });
     return sendSuccess(res, data, "Khai báo BOM thành công");
   });
 

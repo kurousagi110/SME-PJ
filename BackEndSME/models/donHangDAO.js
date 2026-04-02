@@ -76,7 +76,7 @@ export default class DonHangDAO {
   static async injectDB(conn) {
     if (don_hang && san_pham_col && nguyen_lieu_col) return;
     try {
-      const db = conn.db(process.env.DB_NAME);
+      const db = conn.db(process.env.SME_DB_NAME || process.env.DB_NAME);
 
       don_hang = db.collection("don_hang");
       san_pham_col = db.collection("san_pham");
@@ -98,10 +98,20 @@ export default class DonHangDAO {
       await don_hang.createIndex({ nha_cung_cap_ten: 1 });
       await don_hang.createIndex({ nguoi_lap_id: 1 });
 
-      await don_hang.createIndex({ "san_pham.ten_sp": "text" });
-      await don_hang.createIndex({ "san_pham.ten_nl": "text" });
-      await don_hang.createIndex({ khach_hang_ten: "text" });
-      await don_hang.createIndex({ nha_cung_cap_ten: "text" });
+      // Phase 2 fix: merge 4 text indexes into 1 (MongoDB allows only 1 text index per collection)
+      const existingIndexes = await don_hang.indexes();
+      const hasTextIndex = existingIndexes.some(i => i.key?._fts || Object.values(i.key || {}).includes("text"));
+      if (!hasTextIndex) {
+        await don_hang.createIndex(
+          {
+            "san_pham.ten_sp": "text",
+            "san_pham.ten_nl": "text",
+            khach_hang_ten:    "text",
+            nha_cung_cap_ten:  "text",
+          },
+          { name: "search_text", default_language: "none" }
+        );
+      }
     } catch (e) {
       console.error(`Unable to establish collection handles: ${e}`);
     }
@@ -569,6 +579,71 @@ export default class DonHangDAO {
   }
 
   /* ====================== Inventory helpers ====================== */
+
+  // Phase 2: batch-fetch helpers to eliminate N+1 queries
+
+  /** Batch-fetch san_pham by _id and/or ma_sp, returns { byId: Map, byMa: Map } */
+  static async _batchFetchSanPham(lines, { session } = {}) {
+    const ids   = [];
+    const maSps = [];
+    for (const ln of lines) {
+      if (ln?.san_pham_id) { const oid = toObjectId(ln.san_pham_id); if (oid) ids.push(oid); }
+      if (ln?.ma_sp)       maSps.push(ln.ma_sp);
+    }
+    const $or = [];
+    if (ids.length)   $or.push({ _id: { $in: ids } });
+    if (maSps.length) $or.push({ ma_sp: { $in: maSps } });
+    if (!$or.length)  return { byId: new Map(), byMa: new Map() };
+
+    const docs = await san_pham_col.find({ $or }, { session }).toArray();
+    return {
+      byId: new Map(docs.map(s => [s._id.toString(), s])),
+      byMa: new Map(docs.filter(s => s.ma_sp).map(s => [s.ma_sp, s])),
+    };
+  }
+
+  static _lookupSanPham({ byId, byMa }, ln) {
+    if (ln?.san_pham_id) {
+      const key = toObjectId(ln.san_pham_id)?.toString();
+      if (key && byId.has(key)) return byId.get(key);
+    }
+    if (ln?.ma_sp && byMa.has(ln.ma_sp)) return byMa.get(ln.ma_sp);
+    return null;
+  }
+
+  /** Batch-fetch nguyen_lieu by _id and/or ma_nl, returns { byId: Map, byMa: Map } */
+  static async _batchFetchNguyenLieu(lines, { session } = {}) {
+    const ids   = [];
+    const maNLs = [];
+    for (const ln of lines) {
+      if (ln?.nguyen_lieu_id) { const oid = toObjectId(ln.nguyen_lieu_id); if (oid) ids.push(oid); }
+      if (ln?.ma_nl)          maNLs.push(String(ln.ma_nl).trim());
+    }
+    const $or = [];
+    if (ids.length)   $or.push({ _id: { $in: ids } });
+    if (maNLs.length) $or.push({ ma_nl: { $in: maNLs } });
+    if (!$or.length)  return { byId: new Map(), byMa: new Map() };
+
+    const docs = await nguyen_lieu_col.find({ $or }, { session }).toArray();
+    return {
+      byId: new Map(docs.map(nl => [nl._id.toString(), nl])),
+      byMa: new Map(docs.filter(nl => nl.ma_nl).map(nl => [String(nl.ma_nl).trim(), nl])),
+    };
+  }
+
+  static _lookupNguyenLieu({ byId, byMa }, ln) {
+    if (ln?.nguyen_lieu_id) {
+      const key = toObjectId(ln.nguyen_lieu_id)?.toString();
+      if (key && byId.has(key)) return byId.get(key);
+    }
+    if (ln?.ma_nl) {
+      const key = String(ln.ma_nl).trim();
+      if (byMa.has(key)) return byMa.get(key);
+    }
+    return null;
+  }
+
+  // Keep single-item helpers for backward-compat with any callers outside _applyInventory
   static async _findSanPhamRef(line, { session } = {}) {
     if (line?.san_pham_id) {
       const sp = await san_pham_col.findOne({ _id: new ObjectId(line.san_pham_id) }, { session });
@@ -605,18 +680,21 @@ export default class DonHangDAO {
   }
 
   /* ====================== Inventory logic ====================== */
+  // Phase 2 fix: N+1 eliminated — all read lookups are batch-fetched before the update loop
   static async _applyInventoryOnCompleted(doc, { session } = {}) {
     const loai_don = this._ensureOrderType(doc.loai_don);
-    const lines = Array.isArray(doc.san_pham) ? doc.san_pham : [];
+    const lines    = Array.isArray(doc.san_pham) ? doc.san_pham : [];
 
     // (1) SALE: trừ thành phẩm
     if (loai_don === ORDER_TYPE.SALE) {
-      for (const ln of lines) {
-        if (ln.loai_hang !== ITEM_TYPE.SAN_PHAM) continue;
-        const qty = Number(ln.so_luong) || 0;
-        if (qty <= 0) continue;
+      const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
+      if (!spLines.length) return;
 
-        const sp = await this._findSanPhamRef(ln, { session });
+      const spMap = await this._batchFetchSanPham(spLines, { session });
+
+      for (const ln of spLines) {
+        const qty = Number(ln.so_luong);
+        const sp  = this._lookupSanPham(spMap, ln);
         if (!sp) throw new Error(`Không tìm thấy sản phẩm để xuất kho: ${ln.ma_sp || ln.ten_sp}`);
 
         const res = await san_pham_col.updateOne(
@@ -629,58 +707,65 @@ export default class DonHangDAO {
       return;
     }
 
-    // (3) PURCHASE_RECEIPT: cộng tồn NL/SP
+    // (2) PURCHASE_RECEIPT: cộng tồn NL/SP
     if (loai_don === ORDER_TYPE.PURCHASE_RECEIPT) {
-      for (const ln of lines) {
-        const qty = Number(ln.so_luong) || 0;
-        if (qty <= 0) continue;
+      const nlLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.NGUYEN_LIEU && Number(ln.so_luong) > 0);
+      const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM   && Number(ln.so_luong) > 0);
 
-        if (ln.loai_hang === ITEM_TYPE.NGUYEN_LIEU) {
-          let nl = null;
-          if (ln.nguyen_lieu_id) nl = await nguyen_lieu_col.findOne({ _id: new ObjectId(ln.nguyen_lieu_id) }, { session });
-          if (!nl && ln.ma_nl) nl = await nguyen_lieu_col.findOne({ ma_nl: ln.ma_nl }, { session });
-          if (!nl && ln.ten_nl) {
-            nl = await nguyen_lieu_col.findOne(
-              { ten_nl: { $regex: `^${escapeRegex(ln.ten_nl)}$`, $options: "i" } },
-              { session }
-            );
-          }
-          if (!nl) throw new Error(`Không tìm thấy nguyên liệu để nhập kho: ${ln.ma_nl || ln.ten_nl}`);
+      const nlMap = nlLines.length ? await this._batchFetchNguyenLieu(nlLines, { session }) : { byId: new Map(), byMa: new Map() };
+      const spMap = spLines.length ? await this._batchFetchSanPham(spLines, { session })   : { byId: new Map(), byMa: new Map() };
 
-          await nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: qty } }, { session });
-        } else if (ln.loai_hang === ITEM_TYPE.SAN_PHAM) {
-          const sp = await this._findSanPhamRef(ln, { session });
-          if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập kho: ${ln.ma_sp || ln.ten_sp}`);
+      for (const ln of nlLines) {
+        const qty = Number(ln.so_luong);
+        const nl  = this._lookupNguyenLieu(nlMap, ln);
+        if (!nl) throw new Error(`Không tìm thấy nguyên liệu để nhập kho: ${ln.ma_nl || ln.ten_nl}`);
+        await nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: qty } }, { session });
+      }
 
-          await san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: qty } }, { session });
-        }
+      for (const ln of spLines) {
+        const qty = Number(ln.so_luong);
+        const sp  = this._lookupSanPham(spMap, ln);
+        if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập kho: ${ln.ma_sp || ln.ten_sp}`);
+        await san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: qty } }, { session });
       }
       return;
     }
 
-    // (2) ✅ PROD_RECEIPT: cộng TP + trừ NL theo BOM = san_pham.nguyen_lieu
+    // (3) PROD_RECEIPT: cộng TP + trừ NL theo BOM = san_pham.nguyen_lieu
     if (loai_don === ORDER_TYPE.PROD_RECEIPT) {
-      for (const ln of lines) {
-        if (ln.loai_hang !== ITEM_TYPE.SAN_PHAM) continue;
+      const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
+      if (!spLines.length) return;
 
-        const qtyTP = Number(ln.so_luong) || 0;
-        if (qtyTP <= 0) continue;
+      // Batch fetch all san_pham
+      const spMap = await this._batchFetchSanPham(spLines, { session });
 
-        const sp = await this._findSanPhamRef(ln, { session });
+      // Collect all ma_nl from all BOMs (batch fetch nguyen_lieu once)
+      const maNLSet = new Set();
+      for (const ln of spLines) {
+        const sp = this._lookupSanPham(spMap, ln);
         if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập thành phẩm: ${ln.ma_sp || ln.ten_sp}`);
-
         const bomList = this._bomFromSanPhamDoc(sp);
-        if (!bomList.length) {
-          // ✅ đây là lỗi bạn đang gặp SP046 không có nguyen_lieu
-          throw new Error(`Chưa khai báo BOM cho sản phẩm: ${sp.ma_sp || sp.ten_sp}`);
-        }
+        if (!bomList.length) throw new Error(`Chưa khai báo BOM cho sản phẩm: ${sp.ma_sp || sp.ten_sp}`);
+        for (const b of bomList) if (b.ma_nl) maNLSet.add(String(b.ma_nl).trim());
+      }
 
-        // 1) trừ kho nguyên liệu trước (để fail thì không cộng TP)
+      const maNLs  = Array.from(maNLSet);
+      const nlDocs = maNLs.length
+        ? await nguyen_lieu_col.find({ ma_nl: { $in: maNLs } }, { session }).toArray()
+        : [];
+      const nlByMa = new Map(nlDocs.map(nl => [String(nl.ma_nl).trim(), nl]));
+
+      for (const ln of spLines) {
+        const qtyTP  = Number(ln.so_luong);
+        const sp     = this._lookupSanPham(spMap, ln);
+        const bomList = this._bomFromSanPhamDoc(sp);
+
+        // Trừ kho nguyên liệu trước (fail ở đây thì không cộng TP)
         for (const b of bomList) {
-          const need = (Number(b.dinh_muc) || 0) * qtyTP; // định mức * số lượng TP
+          const need = (Number(b.dinh_muc) || 0) * qtyTP;
           if (need <= 0) continue;
 
-          const nl = await this._findNguyenLieuByMaNL(b.ma_nl, { session });
+          const nl = nlByMa.get(String(b.ma_nl).trim());
           if (!nl) throw new Error(`BOM không map được nguyên liệu: ${b.ma_nl || b.ten_nl || "?"}`);
 
           const res = await nguyen_lieu_col.updateOne(
@@ -697,7 +782,7 @@ export default class DonHangDAO {
           }
         }
 
-        // 2) cộng kho thành phẩm
+        // Cộng kho thành phẩm
         await san_pham_col.updateOne(
           { _id: sp._id },
           { $inc: { so_luong: qtyTP } },
@@ -721,13 +806,18 @@ export default class DonHangDAO {
       const lines = Array.isArray(doc.san_pham) ? doc.san_pham : [];
       const map = new Map(); // ma_nl -> {ma_nl, ten_nl, don_vi, so_luong_can}
 
-      for (const ln of lines) {
-        if ((ln?.loai_hang || ITEM_TYPE.SAN_PHAM) !== ITEM_TYPE.SAN_PHAM) continue;
+      // Phase 2 fix: batch-fetch all san_pham before the loop (was N+1)
+      const activeLines = lines.filter(ln =>
+        (ln?.loai_hang || ITEM_TYPE.SAN_PHAM) === ITEM_TYPE.SAN_PHAM && Number(ln?.so_luong) > 0
+      );
+      const spMap = activeLines.length
+        ? await this._batchFetchSanPham(activeLines, { session })
+        : { byId: new Map(), byMa: new Map() };
 
+      for (const ln of activeLines) {
         const qtyTP = Number(ln?.so_luong) || 0;
-        if (qtyTP <= 0) continue;
 
-        const sp = await this._findSanPhamRef(ln, { session });
+        const sp = this._lookupSanPham(spMap, ln);
         if (!sp) return { error: new Error(`Không tìm thấy sản phẩm: ${ln?.ma_sp || ln?.ten_sp}`) };
 
         const bomList = this._bomFromSanPhamDoc(sp);

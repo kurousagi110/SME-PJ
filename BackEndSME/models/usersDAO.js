@@ -12,7 +12,7 @@ export default class UsersDAO {
   static async injectDB(conn) {
     if (users) return;
     try {
-      users = await conn.db(process.env.DB_NAME).collection("users");
+      users = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("users");
       await users.createIndex({ tai_khoan: 1 }, { unique: true });
       await users.createIndex({ ho_ten: "text" });
       await users.createIndex({ trang_thai: 1 });
@@ -48,7 +48,10 @@ export default class UsersDAO {
   static async getUserById(id) {
     try {
       if (!ObjectId.isValid(id)) return { error: new Error("Invalid user id") };
-      const user = await users.findOne({ _id: new ObjectId(id) });
+      const user = await users.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { mat_khau: 0, tokens: 0 } }
+      );
       if (!user) return { error: new Error("User not found") };
       return user;
     } catch (e) {

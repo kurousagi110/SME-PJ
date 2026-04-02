@@ -530,7 +530,7 @@ export default class NguyenLieuDAO {
         },
       });
 
-      const [res] = await nguyen_lieu.aggregate(pipeline).toArray();
+      const [res] = await nguyen_lieu.aggregate(pipeline, { allowDiskUse: true }).toArray();
       const items = res?.data || [];
       const total = res?.total?.[0]?.count || 0;
       const total_pages = Math.ceil(total / limit) || 1;

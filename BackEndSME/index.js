@@ -1,4 +1,5 @@
 // Refactored: 2026-04-02 | Issues fixed: M4, M5, W5 | Original: index.js
+// Phase 4 update: replaced all console.* calls with winston logger
 // M4: Standardized env vars → SME_DB_URI / SME_DB_NAME (matching actual .env)
 // M5: SanXuatService.injectDB now called (was dead code before)
 // W5: verifyToken.js (now auth.js) uses injectAuthDB with correct DB key
@@ -8,6 +9,7 @@ dotenv.config();
 
 import app from "./server.js";
 import mongodb from "mongodb";
+import logger from "./utils/logger.js";
 
 import UsersDAO           from "./models/usersDAO.js";
 import NguyenLieuDAO      from "./models/nguyenLieuDAO.js";
@@ -23,30 +25,36 @@ import { injectAuthDB } from "./middleware/auth.js";
 async function main() {
   // M4: use SME_DB_URI / SME_DB_NAME (matching .env)
   // Fallback to MOVIEREVIEWS_* keys for backward compatibility
-  const uri    = process.env.SME_DB_URI    || process.env.MOVIEREVIEWS_DB_URI;
-  const dbName = process.env.SME_DB_NAME   || process.env.MOVIEREVIEWS_DB_NAME || process.env.DB_NAME;
+  const uri    = process.env.MONGO_URI      || process.env.SME_DB_URI    || process.env.MOVIEREVIEWS_DB_URI;
+  const dbName = process.env.SME_DB_NAME    || process.env.MOVIEREVIEWS_DB_NAME || process.env.DB_NAME;
 
-  if (!uri)    { console.error("❌ Missing env SME_DB_URI");    process.exit(1); }
-  if (!dbName) { console.error("❌ Missing env SME_DB_NAME");   process.exit(1); }
+  if (!uri)    { logger.error("Missing env: MONGO_URI or SME_DB_URI");  process.exit(1); }
+  if (!dbName) { logger.error("Missing env: SME_DB_NAME");              process.exit(1); }
 
-  const port     = Number(process.env.PORT)      || 8000;
-  const hostName = process.env.HOST_NAME         || "http://localhost";
+  const port     = Number(process.env.PORT)  || 8000;
+  const hostName = process.env.HOST_NAME     || "http://localhost";
 
-  const client = new mongodb.MongoClient(uri);
+  const client = new mongodb.MongoClient(uri, {
+    maxPoolSize:              Number(process.env.DB_POOL_MAX) || 10,
+    minPoolSize:              Number(process.env.DB_POOL_MIN) || 2,
+    maxIdleTimeMS:            Number(process.env.DB_IDLE_MS)  || 30_000,
+    connectTimeoutMS:         10_000,
+    serverSelectionTimeoutMS: 10_000,
+  });
   let server;
 
   const shutdown = async (signal) => {
+    logger.info(`Received ${signal} — initiating graceful shutdown`);
     try {
-      console.log(`\n🟡 Received ${signal}. Shutting down...`);
       if (server) {
         await new Promise((resolve) => server.close(resolve));
-        console.log("✅ HTTP server closed");
+        logger.info("HTTP server closed");
       }
       await client.close();
-      console.log("✅ MongoDB connection closed");
+      logger.info("MongoDB connection closed");
       process.exit(0);
     } catch (e) {
-      console.error("❌ Shutdown error:", e);
+      logger.error("Shutdown error", { error: e.message });
       process.exit(1);
     }
   };
@@ -54,11 +62,11 @@ async function main() {
   try {
     await client.connect();
     await client.db(dbName).command({ ping: 1 });
-    console.log(`✅ MongoDB connected & ping ok (db=${dbName})`);
+    logger.info(`MongoDB connected & ping ok`, { db: dbName });
 
     app.locals.mongoClient = client;
 
-    // W5 fix: injectAuthDB now imported from middleware/auth.js (standardized)
+    // W5 fix: injectAuthDB imported from middleware/auth.js (standardized)
     injectAuthDB(client);
 
     await Promise.all([
@@ -72,18 +80,21 @@ async function main() {
       SanXuatService.injectDB(client), // M5 fix: was never called before (dead code)
     ]);
 
+    logger.info("All DAOs initialised");
+
     server = app.listen(port, "0.0.0.0", () => {
-      console.log(`🚀 Server running on ${hostName}:${port}`);
-      console.log(`📖 Swagger docs: ${hostName}:${port}/api-docs`);
-      console.log(`🔗 API v1 base:  ${hostName}:${port}/api/v1`);
+      logger.info(`Server running`, { url: `${hostName}:${port}` });
+      logger.info(`Swagger docs`, { url: `${hostName}:${port}/api-docs` });
+      logger.info(`API v1 base`, { url: `${hostName}:${port}/api/v1` });
+      logger.info(`Health check`, { url: `${hostName}:${port}/api/v1/health` });
     });
 
     process.on("SIGINT",  () => shutdown("SIGINT"));
     process.on("SIGTERM", () => shutdown("SIGTERM"));
-    process.on("unhandledRejection", (reason) => console.error("unhandledRejection:", reason));
-    process.on("uncaughtException",  (err)    => console.error("uncaughtException:",  err));
+    process.on("unhandledRejection", (reason) => logger.error("unhandledRejection", { reason: String(reason) }));
+    process.on("uncaughtException",  (err)    => logger.error("uncaughtException",  { error: err.message, stack: err.stack }));
   } catch (e) {
-    console.error("❌ Startup error:", e);
+    logger.error("Startup failed", { error: e.message, stack: e.stack });
     try { await client.close(); } catch {}
     process.exit(1);
   }

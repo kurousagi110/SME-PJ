@@ -1,0 +1,37 @@
+# Dependencies — reinstalled inside the image by npm install
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Environment secrets — injected at runtime via docker-compose / K8s secrets
+.env
+.env.*
+!.env.example
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Docker files themselves (no need to copy into the image)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Editor / OS artefacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode
+.idea
+
+# Backup / original files generated during refactoring
+*.original.js
+*.bak
+*.tmp
+
+# Documentation (not needed at runtime)
+README.md
+API_DOCUMENTATION.md
+PERFORMANCE_REPORT.md

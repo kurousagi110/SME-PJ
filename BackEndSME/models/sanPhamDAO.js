@@ -583,7 +583,7 @@ export default class SanPhamDAO {
         },
       });
 
-      const [res] = await sanPham.aggregate(pipeline).toArray();
+      const [res] = await sanPham.aggregate(pipeline, { allowDiskUse: true }).toArray();
       const items = res?.data || [];
       const total = res?.total?.[0]?.count || 0;
       const total_pages = Math.ceil(total / limit) || 1;

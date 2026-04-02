@@ -13,7 +13,7 @@ export default class LuongDAO {
   static async injectDB(conn) {
     if (luongCol && usersCol) return;
     try {
-      const db = conn.db(process.env.DB_NAME);
+      const db = conn.db(process.env.SME_DB_NAME || process.env.DB_NAME);
       luongCol = db.collection("luong");
       usersCol = db.collection("users");
 
@@ -269,9 +269,91 @@ export default class LuongDAO {
     }
   }
 
-  // tinhLuongThang: giữ nguyên phần bạn đang dùng (không đụng)
-  static async tinhLuongThang(args) {
-    // ... giữ nguyên như bạn gửi ...
-    return await (await import("./_keep_tinhLuongThang.js")).default.tinhLuongThang.call(this, args);
+  // tinhLuongThang: aggregate chamcong theo tháng/năm, tính lương theo hệ số
+  // Phase 2 fix: replaced missing dynamic import (_keep_tinhLuongThang.js) with inline implementation
+  static async tinhLuongThang({ thang, nam, ma_nv } = {}) {
+    try {
+      const thangNum = Number(thang);
+      const namNum = Number(nam);
+      if (!Number.isInteger(thangNum) || thangNum < 1 || thangNum > 12) {
+        return { error: new Error("thang không hợp lệ (1–12)") };
+      }
+      if (!Number.isInteger(namNum) || namNum < 2000) {
+        return { error: new Error("nam không hợp lệ") };
+      }
+
+      const startDate = new Date(namNum, thangNum - 1, 1);
+      const endDate   = new Date(namNum, thangNum, 1); // exclusive
+
+      const filter = {
+        trang_thai: { $ne: STATUS.DELETED },
+        ngay_thang: { $gte: startDate, $lt: endDate },
+      };
+      if (ma_nv) filter.ma_nv = String(ma_nv);
+
+      // Aggregate chamcong by ma_nv
+      const chamCongsRaw = await luongCol.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$ma_nv",
+            tong_gio: { $sum: "$so_gio_lam" },
+            so_ngay:  { $sum: 1 },
+            so_ngay_di_tre: { $sum: { $cond: ["$di_tre", 1, 0] } },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]).toArray();
+
+      if (!chamCongsRaw.length) return { ok: true, thang: thangNum, nam: namNum, items: [] };
+
+      // Batch fetch employees (try ObjectId first, fallback ma_nv string)
+      const maNVs = chamCongsRaw.map(r => r._id);
+      const oids  = maNVs.map(id => { try { return new ObjectId(String(id)); } catch { return null; } }).filter(Boolean);
+      const nhanVienDocs = await usersCol.find(
+        { $or: [
+          ...(oids.length ? [{ _id: { $in: oids } }] : []),
+          { ma_nv: { $in: maNVs } },
+        ] },
+        { projection: { ho_ten: 1, chuc_vu: 1, phong_ban: 1, ma_nv: 1 } }
+      ).toArray();
+
+      const nvMap = new Map();
+      for (const nv of nhanVienDocs) {
+        nvMap.set(nv._id.toString(), nv);
+        if (nv.ma_nv) nvMap.set(String(nv.ma_nv), nv);
+      }
+
+      const GIO_TIEU_CHUAN = 160; // 8h × 20 ngày công chuẩn/tháng
+      const LUONG_CO_SO    = 1_000_000; // 1 triệu đồng/hệ số
+
+      const items = chamCongsRaw.map(r => {
+        const nv        = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
+        const heSoluong = Math.max(0, Number(nv.chuc_vu?.heSoluong ?? 1)) || 1;
+        const luong_co_ban    = Math.round(heSoluong * LUONG_CO_SO);
+        const ty_le_lam_viec  = Math.min(1, r.tong_gio / GIO_TIEU_CHUAN);
+        const luong_thuc_nhan = Math.round(luong_co_ban * ty_le_lam_viec);
+
+        return {
+          ma_nv:         r._id,
+          ho_ten:        nv.ho_ten        || null,
+          phong_ban:     nv.phong_ban?.ten || null,
+          chuc_vu:       nv.chuc_vu?.ten  || null,
+          thang:         thangNum,
+          nam:           namNum,
+          so_ngay_cong:  r.so_ngay,
+          tong_gio_lam:  r.tong_gio,
+          so_ngay_di_tre: r.so_ngay_di_tre,
+          he_so_luong:   heSoluong,
+          luong_co_ban,
+          luong_thuc_nhan,
+        };
+      });
+
+      return { ok: true, thang: thangNum, nam: namNum, items };
+    } catch (e) {
+      console.error(`tinhLuongThang error: ${e}`);
+      return { error: e };
+    }
   }
 }

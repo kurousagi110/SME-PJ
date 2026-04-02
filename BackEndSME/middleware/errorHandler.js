@@ -1,6 +1,8 @@
 // Refactored: 2026-04-02 | Issues fixed: G2, W2, C4 | Phase 1 – Foundation
+// Phase 4 update: replaced console.error with winston logger
 
 import ApiError from "../utils/ApiError.js";
+import logger from "../utils/logger.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -14,9 +16,17 @@ const isDev = process.env.NODE_ENV !== "production";
  *   4. Unknown errors      → 500 with safe message (no stack trace leak in prod)
  */
 export default function errorHandler(err, req, res, _next) {
-  /* ── Log full error in development ── */
-  if (isDev) {
-    console.error("[errorHandler]", err);
+  /* ── Log the error with context ── */
+  const logMeta = {
+    method:  req.method,
+    url:     req.originalUrl,
+    status:  err.statusCode || 500,
+    ...(isDev && err.stack ? { stack: err.stack } : {}),
+  };
+  if (err instanceof ApiError && err.isOperational) {
+    logger.warn(`[errorHandler] ${err.message}`, logMeta);
+  } else {
+    logger.error(`[errorHandler] ${err.message || err}`, logMeta);
   }
 
   /* ── ApiError (operational) ── */

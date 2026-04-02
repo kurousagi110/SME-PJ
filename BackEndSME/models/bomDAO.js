@@ -1,4 +1,8 @@
+// Phase 3 update: setBOM accepts { session } for transaction support
+//                 setBOM syncs san_pham.nguyen_lieu to keep PROD_RECEIPT logic consistent
+// Phase 4 update: replaced console.error with logger
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let bom;         // collection: bom_san_pham
 let san_pham;    // đọc sản phẩm
@@ -7,7 +11,7 @@ let nguyen_lieu; // đọc nguyên liệu (tham chiếu id)
 export default class BomDAO {
   static async injectDB(conn) {
     if (bom && san_pham && nguyen_lieu) return;
-    const db = await conn.db(process.env.DB_NAME);
+    const db = conn.db(process.env.SME_DB_NAME || process.env.DB_NAME);
 
     bom = db.collection("bom_san_pham");
     san_pham = db.collection("san_pham");
@@ -56,25 +60,40 @@ export default class BomDAO {
 
   /* ====================== Set / Get BOM ====================== */
   // items: [{ nguyen_lieu_id, qty, unit, waste_rate? (0..1) }]
-  static async setBOM(san_pham_id, items = [], { ghi_chu = "" } = {}) {
+  // Phase 3: accepts { session } for atomic execution inside a transaction.
+  // Phase 3: after updating bom_san_pham, syncs san_pham.nguyen_lieu so that
+  //          PROD_RECEIPT inventory logic (_bomFromSanPhamDoc) stays consistent.
+  static async setBOM(san_pham_id, items = [], { ghi_chu = "", session } = {}) {
     try {
       if (!san_pham_id) return { error: new Error("Thiếu san_pham_id") };
 
-      // đảm bảo sản phẩm tồn tại
-      const sp = await san_pham.findOne({ _id: new ObjectId(san_pham_id), trang_thai: { $ne: "deleted" } });
+      const spOid = new ObjectId(san_pham_id);
+
+      // Ensure product exists (inside session if provided)
+      const sp = await san_pham.findOne(
+        { _id: spOid, trang_thai: { $ne: "deleted" } },
+        { session }
+      );
       if (!sp) return { error: new Error("Không tìm thấy sản phẩm") };
 
       const normalized = this._normalizeItems(items);
 
-      // (tuỳ chọn) check nguyên liệu có tồn tại
+      // Validate + fetch nguyen_lieu docs in one $in query
+      let nlDocs = [];
       if (normalized.length) {
         const ids = normalized.map((i) => i.nguyen_lieu_id);
-        const count = await nguyen_lieu.countDocuments({ _id: { $in: ids }, trang_thai: { $ne: "deleted" } });
-        if (count !== ids.length) return { error: new Error("Có nguyên liệu không tồn tại hoặc đã bị xóa") };
+        nlDocs = await nguyen_lieu
+          .find({ _id: { $in: ids }, trang_thai: { $ne: "deleted" } }, { session })
+          .toArray();
+        if (nlDocs.length !== ids.length) {
+          return { error: new Error("Có nguyên liệu không tồn tại hoặc đã bị xóa") };
+        }
       }
+      const nlMap = new Map(nlDocs.map((nl) => [nl._id.toString(), nl]));
 
+      // 1) Update bom_san_pham collection
       const res = await bom.updateOne(
-        { san_pham_id: new ObjectId(san_pham_id) },
+        { san_pham_id: spOid },
         {
           $set: {
             items: normalized,
@@ -82,23 +101,43 @@ export default class BomDAO {
             updateAt: new Date(),
           },
           $setOnInsert: {
-            san_pham_id: new ObjectId(san_pham_id),
+            san_pham_id: spOid,
             createAt: new Date(),
           },
         },
-        { upsert: true }
+        { upsert: true, session }
+      );
+
+      // 2) Sync san_pham.nguyen_lieu so PROD_RECEIPT reads the updated BOM
+      //    _bomFromSanPhamDoc() in donHangDAO reads from san_pham.nguyen_lieu
+      const syncedNguyenLieu = normalized.map((it) => {
+        const nl = nlMap.get(it.nguyen_lieu_id.toString()) || {};
+        return {
+          ma_nl:    nl.ma_nl    || "",
+          ten:      nl.ten_nl   || nl.ten || "",
+          ten_nl:   nl.ten_nl   || "",
+          don_vi:   it.unit     || nl.don_vi || "",
+          so_luong: it.qty,      // dinh_muc per unit of finished product
+          dinh_muc: it.qty,
+        };
+      });
+
+      await san_pham.updateOne(
+        { _id: spOid },
+        { $set: { nguyen_lieu: syncedNguyenLieu, updateAt: new Date() } },
+        { session }
       );
 
       return { upserted: res.upsertedCount === 1, modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`setBOM error: ${e}`);
+      logger.error(`bomDAO.setBOM error`, { error: e.message });
       return { error: e };
     }
   }
 
-  static async getBOM(san_pham_id) {
+  static async getBOM(san_pham_id, { session } = {}) {
     try {
-      const doc = await bom.findOne({ san_pham_id: new ObjectId(san_pham_id) });
+      const doc = await bom.findOne({ san_pham_id: new ObjectId(san_pham_id) }, { session });
       return doc || { error: new Error("Chưa khai báo BOM cho sản phẩm") };
     } catch (e) {
       return { error: e };
