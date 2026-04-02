@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Global loading bar animation (used by QueryProvider) */
+@keyframes sme-loading-bar {
+  0%   { opacity: 0.6; transform: scaleX(0.3) translateX(-60%); }
+  100% { opacity: 1;   transform: scaleX(1)   translateX(0); }
+}
+
 @custom-variant dark (&:is(.dark *));
 body {
   margin: 0;

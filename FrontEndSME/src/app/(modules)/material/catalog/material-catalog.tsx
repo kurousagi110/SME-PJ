@@ -4,14 +4,6 @@ import { MoreHorizontal } from "lucide-react";
 // import { IconEdit } from "@tabler/icons-react";
 import React, { useMemo, useState } from "react";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -40,6 +32,8 @@ import {
 } from "@/hooks/use-material";
 import { useMyProfile } from "@/hooks/use-account";
 import { useForm } from "react-hook-form";
+import { DataTable } from "@/components/shared/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 /* ===================== Types ===================== */
 type CreateMaterialForm = {
@@ -63,6 +57,7 @@ type UpdateMaterialForm = {
 export default function MaterialCatalog() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
@@ -81,16 +76,16 @@ export default function MaterialCatalog() {
   const { data, isLoading } = useMaterialCatalog({
     name: search,
     page,
-    limit: 10,
+    limit,
   });
 
   const materialList = data?.items || [];
-  const totalPages = data?.totalPages || 1;
-
-  // NOTE: nếu backend đã filter theo name/search rồi thì đoạn này có thể bỏ
-  const filteredList = materialList.filter((item: any) =>
-    (item.ten_nl || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const pagination = {
+    page,
+    limit,
+    total: (data as any)?.total ?? 0,
+    totalPages: (data as any)?.totalPages ?? 1,
+  };
 
   /* ===================== Forms ===================== */
   const createForm = useForm<CreateMaterialForm>({
@@ -202,6 +197,62 @@ export default function MaterialCatalog() {
     });
   };
 
+  /* ===================== Columns ===================== */
+  const columns = useMemo<ColumnDef<any>[]>(() => {
+    const base: ColumnDef<any>[] = [
+      { accessorKey: "ma_nl", header: "Mã nguyên liệu", size: 160 },
+      { accessorKey: "ten_nl", header: "Tên nguyên liệu" },
+      { accessorKey: "mo_ta", header: "Mô tả" },
+      { accessorKey: "don_vi", header: "Đơn vị", size: 100 },
+      {
+        accessorKey: "gia_nhap",
+        header: () => <div className="text-right">Giá nhập</div>,
+        cell: ({ getValue }) => (
+          <div className="text-right">
+            {(getValue<number>() ?? 0).toLocaleString("vi-VN")}
+          </div>
+        ),
+      },
+    ];
+
+    if (!isDirectorDept) return base;
+
+    return [
+      ...base,
+      {
+        id: "actions",
+        header: () => <div className="text-right">Thao tác</div>,
+        cell: ({ row }) => {
+          const s = row.original;
+          return (
+            <div className="text-right">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleOpenUpdate(s)}>
+                    Chỉnh sửa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDelete(s._id)}
+                    className="text-red-500"
+                  >
+                    Xóa
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          );
+        },
+      },
+    ];
+  }, [isDirectorDept, handleOpenUpdate, handleDelete]);
+
   /* ===================== Render ===================== */
   return (
     <div className="p-6 space-y-5">
@@ -226,105 +277,14 @@ export default function MaterialCatalog() {
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Mã nguyên liệu</TableHead>
-              <TableHead>Tên nguyên liệu</TableHead>
-              <TableHead>Mô tả</TableHead>
-              <TableHead>Đơn vị</TableHead>
-              <TableHead className="text-right">Giá nhập</TableHead>
-              {isDirectorDept ? (
-                <TableHead className="text-right">Thao tác</TableHead>
-              ) : null}
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center p-6">
-                  Đang tải...
-                </TableCell>
-              </TableRow>
-            ) : filteredList.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center p-6">
-                  Không có dữ liệu
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredList.map((s: any) => (
-                <TableRow key={s._id}>
-                  <TableCell>{s.ma_nl}</TableCell>
-                  <TableCell>{s.ten_nl}</TableCell>
-                  <TableCell>{s.mo_ta}</TableCell>
-                  <TableCell>{s.don_vi}</TableCell>
-                  <TableCell className="text-right">{s.gia_nhap}</TableCell>
-                  {isDirectorDept ? (
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem onClick={() => handleOpenUpdate(s)}>
-                            Chỉnh sửa
-                          </DropdownMenuItem>
-
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(s._id)}
-                            className="text-red-500"
-                          >
-                            Xóa
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  ) : null}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* PAGINATION */}
-      <div className="flex justify-center items-center gap-3">
-        <Button
-          variant="outline"
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          ← Trước
-        </Button>
-
-        {Array.from({ length: totalPages }).map((_, index) => (
-          <Button
-            key={index}
-            variant={page === index + 1 ? "default" : "outline"}
-            onClick={() => setPage(index + 1)}
-          >
-            {index + 1}
-          </Button>
-        ))}
-
-        <Button
-          variant="outline"
-          disabled={page === totalPages}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Sau →
-        </Button>
-      </div>
+      <DataTable
+        columns={columns}
+        data={materialList}
+        pagination={pagination}
+        onPageChange={(p) => setPage(p)}
+        onLimitChange={(l) => { setLimit(l); setPage(1); }}
+        loading={isLoading}
+      />
 
       {/* CREATE MODAL */}
       <Dialog

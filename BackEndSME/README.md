@@ -276,7 +276,7 @@ Create a `.env` file in the project root. **Never commit this file.**
 | `PORT` | HTTP port | `8000` |
 | `HOST_NAME` | Base host (for Swagger display) | `http://localhost` |
 
-> ⚠️ **Important:** `REFRESH_EXPIRES` must be `7d` (not `7dd`). An extra `d` causes `jsonwebtoken` to reject all refresh tokens at sign time.
+> ⚠️ **Important:** `REFRESH_EXPIRES` must be `7d` (not `7d`). An extra `d` causes `jsonwebtoken` to reject all refresh tokens at sign time.
 
 ### Optional / Tuning
 

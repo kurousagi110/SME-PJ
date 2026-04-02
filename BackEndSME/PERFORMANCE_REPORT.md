@@ -36,7 +36,7 @@
 
 | Location | Bug | Fix |
 |---|---|---|
-| `.env` | `REFRESH_EXPIRES=7dd` (extra `d`) | Manual fix required: change to `7d` |
+| `.env` | `REFRESH_EXPIRES=7d` (extra `d`) | Manual fix required: change to `7d` |
 | `usersDAO._hasRefreshToken` | `bcrypt.compare()` in loop — blocks event loop | Bounded by token array size (typically 1–3); noted as acceptable for now |
 
 ---
@@ -145,7 +145,7 @@ RATE_LIMIT_AUTH_MAX=20
 ### Manual Fix Required
 ```
 # Current (broken):
-REFRESH_EXPIRES=7dd
+REFRESH_EXPIRES=7d
 
 # Fix to:
 REFRESH_EXPIRES=7d
@@ -166,7 +166,7 @@ REFRESH_EXPIRES=7d
 | `getUserById` exposes `mat_khau`/`tokens` | Security: sensitive data leak | High | Fixed |
 | `allowDiskUse` on `$facet` pipelines | OOM risk on large datasets | High | Fixed |
 | Env var `DB_NAME` vs `SME_DB_NAME` | Wrong DB connected | High | Fixed |
-| `REFRESH_EXPIRES=7dd` typo | All refresh tokens rejected | High | **Manual fix needed in .env** |
+| `REFRESH_EXPIRES=7d` typo | All refresh tokens rejected | High | **Manual fix needed in .env** |
 | No connection pooling config | Default pool (5) too small for prod | Medium | Fixed |
 | No gzip compression | Large JSON payloads | Medium | Fixed |
 | No rate limiting | Brute-force / DDoS exposure | Medium | Fixed |
