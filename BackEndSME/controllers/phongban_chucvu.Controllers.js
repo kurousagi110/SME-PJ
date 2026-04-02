@@ -1,270 +1,83 @@
-import phongban_chucvuDAO from "../models/phongban_chucvuDAO.js";
+// Refactored: 2026-04-02 | Issues fixed: C1, C2, C3, C4 | Original: phongban_chucvu.Controllers.js
+
+import asyncHandler from "../middleware/asyncHandler.js";
+import { sendSuccess, buildPagination } from "../utils/response.js";
+import PhongBanService from "../services/phongBanService.js";
 
 export default class PhongBanChucVuController {
-  /* ============ CREATE PHÒNG BAN ============ */
-  static async create(req, res) {
-    try {
-      const { ten_phong_ban, mo_ta, chuc_vu } = req.body || {};
-      if (!ten_phong_ban) {
-        return res.status(400).json({ message: "Thiếu ten_phong_ban" });
-      }
+  /* ─── CREATE PHÒNG BAN ─── */
+  static create = asyncHandler(async (req, res) => {
+    const { ten_phong_ban, mo_ta, chuc_vu } = req.body || {};
+    const data = await PhongBanService.create({ ten_phong_ban, mo_ta, chuc_vu });
+    return sendSuccess(res, data, "Tạo phòng ban thành công", 201);
+  });
 
-      const result = await phongban_chucvuDAO.addPhongBanChucVu(
-        ten_phong_ban,
-        mo_ta,
-        chuc_vu
-      );
+  /* ─── LIST ─── */
+  static list = asyncHandler(async (req, res) => {
+    const { q = "", status, page = 1, limit = 20 } = req.query;
+    const result = await PhongBanService.list({ q, status, page: Number(page), limit: Number(limit) });
+    const pagination = buildPagination(result.page ?? page, result.limit ?? limit, result.total ?? 0);
+    return sendSuccess(res, result.phong_ban ?? result.items ?? result, "Lấy danh sách phòng ban thành công", 200, pagination);
+  });
 
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Thêm phòng ban thất bại" });
-      }
+  /* ─── GET BY ID ─── */
+  static getById = asyncHandler(async (req, res) => {
+    const doc = await PhongBanService.getById(req.params.id);
+    return sendSuccess(res, doc, "Lấy phòng ban thành công");
+  });
 
-      return res.status(201).json({ insertedId: result.insertedId });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Tạo phòng ban thất bại", error: e.message });
-    }
-  }
+  /* ─── GET ALL PHÒNG BAN ─── */
+  static getAllPhongBan = asyncHandler(async (req, res) => {
+    const includeDeleted = req.query.includeDeleted === "true";
+    const items = await PhongBanService.getAllPhongBan({ includeDeleted });
+    return sendSuccess(res, items, "Lấy toàn bộ phòng ban thành công");
+  });
 
-  /* ============ LIST ============ */
-  static async list(req, res) {
-    try {
-      const { q = "", status, page = 1, limit = 20 } = req.query;
+  /* ─── UPDATE ─── */
+  static updatePhongBan = asyncHandler(async (req, res) => {
+    const data = await PhongBanService.updatePhongBan(req.params.id, req.body || {});
+    return sendSuccess(res, data, "Cập nhật phòng ban thành công");
+  });
 
-      const result = await phongban_chucvuDAO.list({
-        q,
-        status,
-        page: Number(page),
-        limit: Number(limit),
-      });
+  /* ─── SOFT DELETE / RESTORE / HARD DELETE ─── */
+  static softDelete = asyncHandler(async (req, res) => {
+    const data = await PhongBanService.softDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa mềm phòng ban thành công");
+  });
 
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Lấy danh sách phòng ban thất bại" });
-      }
+  static restore = asyncHandler(async (req, res) => {
+    const data = await PhongBanService.restore(req.params.id);
+    return sendSuccess(res, data, "Khôi phục phòng ban thành công");
+  });
 
-      return res.json(result);
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Lấy danh sách phòng ban thất bại", error: e.message });
-    }
-  }
+  static hardDelete = asyncHandler(async (req, res) => {
+    const data = await PhongBanService.hardDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa vĩnh viễn phòng ban thành công");
+  });
 
-  /* ============ GET BY ID ============ */
-  static async getById(req, res) {
-    try {
-      const { id } = req.params;
-      const doc = await phongban_chucvuDAO.getById(id);
-      if (doc?.error) {
-        return res.status(404).json({ message: doc.error.message });
-      }
-      return res.json(doc);
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Lấy phòng ban theo id thất bại", error: e.message });
-    }
-  }
+  /* ─── CHỨC VỤ ─── */
+  static addChucVu = asyncHandler(async (req, res) => {
+    const { ten_chuc_vu, mo_ta, he_so_luong } = req.body || {};
+    const data = await PhongBanService.addChucVu(req.params.id, { ten_chuc_vu, mo_ta, he_so_luong });
+    return sendSuccess(res, data, "Thêm chức vụ thành công");
+  });
 
-  /* ============ GET ALL PHÒNG BAN ============ */
-  static async getAllPhongBan(req, res) {
-    try {
-      const { includeDeleted = false } = req.query;
-      const items = await phongban_chucvuDAO.getAllPhongBan({
-        includeDeleted: includeDeleted === "true",
-      });
-      if (items?.error) {
-        return res
-          .status(400)
-          .json({ message: items.error.message || "Lấy toàn bộ phòng ban thất bại" });
-      }
-      return res.json(items);
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Lấy toàn bộ phòng ban thất bại", error: e.message });
-    }
-  }
+  static updateChucVu = asyncHandler(async (req, res) => {
+    const { id, chucVuId } = req.params;
+    const data = await PhongBanService.updateChucVu(id, chucVuId, req.body || {});
+    return sendSuccess(res, data, "Cập nhật chức vụ thành công");
+  });
 
-  /* ============ UPDATE PHÒNG BAN ============ */
-  static async updatePhongBan(req, res) {
-    try {
-      const { id } = req.params;
-      const payload = {};
-      ["ten_phong_ban", "mo_ta", "trang_thai"].forEach((k) => {
-        if (req.body?.[k] !== undefined) payload[k] = req.body[k];
-      });
+  static removeChucVu = asyncHandler(async (req, res) => {
+    const { id, chucVuId } = req.params;
+    const data = await PhongBanService.removeChucVu(id, chucVuId);
+    return sendSuccess(res, data, "Xóa chức vụ thành công");
+  });
 
-      const result = await phongban_chucvuDAO.updatePhongBan(id, payload);
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Cập nhật phòng ban thất bại" });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Cập nhật phòng ban thất bại", error: e.message });
-    }
-  }
-
-  /* ============ SOFT DELETE / RESTORE / HARD DELETE ============ */
-  static async softDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await phongban_chucvuDAO.softDeletePhongBan(id);
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Xóa mềm phòng ban thất bại" });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Xóa mềm phòng ban thất bại", error: e.message });
-    }
-  }
-
-  static async restore(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await phongban_chucvuDAO.restorePhongBan(id);
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Khôi phục phòng ban thất bại" });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Khôi phục phòng ban thất bại", error: e.message });
-    }
-  }
-
-  static async hardDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await phongban_chucvuDAO.hardDeletePhongBan(id);
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Xóa vĩnh viễn phòng ban thất bại" });
-      }
-      return res.json({ deletedCount: result.deletedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Xóa vĩnh viễn phòng ban thất bại", error: e.message });
-    }
-  }
-
-  /* ============ CHỨC VỤ ============ */
-  static async addChucVu(req, res) {
-    try {
-      const { id } = req.params;
-      const { ten_chuc_vu, mo_ta, he_so_luong } = req.body || {};
-      if (!ten_chuc_vu) {
-        return res.status(400).json({ message: "Thiếu ten_chuc_vu" });
-      }
-
-      const result = await phongban_chucvuDAO.addChucVu(id, {
-        ten_chuc_vu,
-        mo_ta,
-        he_so_luong,
-      });
-
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Thêm chức vụ thất bại" });
-      }
-      return res.json({
-        modifiedCount: result.modifiedCount,
-        chuc_vu_id: result.chuc_vu_id,
-      });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Thêm chức vụ thất bại", error: e.message });
-    }
-  }
-
-  static async updateChucVu(req, res) {
-    try {
-      const { id, chucVuId } = req.params;
-      const payload = {};
-      ["ten_chuc_vu", "mo_ta", "he_so_luong", "trang_thai"].forEach((k) => {
-        if (req.body?.[k] !== undefined) payload[k] = req.body[k];
-      });
-
-      const result = await phongban_chucvuDAO.updateChucVu(
-        id,
-        chucVuId,
-        payload
-      );
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Cập nhật chức vụ thất bại" });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Cập nhật chức vụ thất bại", error: e.message });
-    }
-  }
-
-  static async removeChucVu(req, res) {
-    try {
-      const { id, chucVuId } = req.params;
-      const result = await phongban_chucvuDAO.removeChucVu(id, chucVuId);
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({ message: result.error.message || "Xóa chức vụ thất bại" });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res
-        .status(500)
-        .json({ message: "Xóa chức vụ thất bại", error: e.message });
-    }
-  }
-
-  static async setTrangThaiChucVu(req, res) {
-    try {
-      const { id, chucVuId } = req.params;
-      const { trang_thai } = req.body || {};
-      if (!trang_thai) {
-        return res.status(400).json({ message: "Thiếu trang_thai" });
-      }
-      const result = await phongban_chucvuDAO.setTrangThaiChucVu(
-        id,
-        chucVuId,
-        trang_thai
-      );
-      if (result?.error) {
-        return res
-          .status(400)
-          .json({
-            message: result.error.message || "Cập nhật trạng thái chức vụ thất bại",
-          });
-      }
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({
-        message: "Cập nhật trạng thái chức vụ thất bại",
-        error: e.message,
-      });
-    }
-  }
+  static setTrangThaiChucVu = asyncHandler(async (req, res) => {
+    const { id, chucVuId } = req.params;
+    const { trang_thai } = req.body || {};
+    const data = await PhongBanService.setTrangThaiChucVu(id, chucVuId, trang_thai);
+    return sendSuccess(res, data, "Cập nhật trạng thái chức vụ thành công");
+  });
 }

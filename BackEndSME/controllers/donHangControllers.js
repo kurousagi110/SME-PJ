@@ -1,296 +1,128 @@
-import DonHangDAO from "../models/donHangDAO.js";
+// Refactored: 2026-04-02 | Issues fixed: C1, C2, C3, C4, C5 | Original: donHangControllers.js
+// C5: MongoDB session/transaction logic REMOVED from here → moved to DonHangService
 
-function getUserId(req) {
-  return (
-    req.user?._id ||
-    req.user?.id ||
-    req.userId ||
-    req.user_id ||
-    req.auth?.userId ||
-    req.auth?.user_id ||
-    null
-  );
-}
+import asyncHandler from "../middleware/asyncHandler.js";
+import { sendSuccess, buildPagination } from "../utils/response.js";
+import DonHangService from "../services/donHangService.js";
 
 export default class DonHangController {
-  static async create(req, res) {
-    try {
-      const body = req.body || {};
-      if (!body.loai_don) body.loai_don = "sale";
+  /* ─── CREATE ─── */
+  static create = asyncHandler(async (req, res) => {
+    const body = { ...(req.body || {}) };
+    const nguoi_lap_id = req.user?._id || req.user?.id || null;
+    const data = await DonHangService.create(body, nguoi_lap_id);
+    return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
+  });
 
-      const uid = getUserId(req);
-      body.nguoi_lap_id = body.nguoi_lap_id || uid;
+  /* ─── GET BY ID ─── */
+  static getById = asyncHandler(async (req, res) => {
+    const doc = await DonHangService.getById(req.params.id);
+    return sendSuccess(res, doc, "Lấy chứng từ thành công");
+  });
 
-      const result = await DonHangDAO.taoDonHang(body);
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Tạo chứng từ thất bại" });
-      }
-      return res.status(201).json({ insertedId: result.insertedId, ma_dh: result.ma_dh });
-    } catch (e) {
-      return res.status(500).json({ message: "Tạo chứng từ thất bại", error: e.message });
-    }
-  }
+  /* ─── GET BY CODE ─── */
+  static getByCode = asyncHandler(async (req, res) => {
+    const doc = await DonHangService.getByCode(req.params.ma_dh);
+    return sendSuccess(res, doc, "Lấy chứng từ theo mã thành công");
+  });
 
-  static async getById(req, res) {
-    try {
-      const { id } = req.params;
-      const doc = await DonHangDAO.getDonHangById(id);
-      if (doc?.error) return res.status(404).json({ message: doc.error.message });
-      return res.json(doc);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy chứng từ thất bại", error: e.message });
-    }
-  }
+  /* ─── LIST ─── */
+  static list = asyncHandler(async (req, res) => {
+    const { q = "", loai_don, khach_hang_ten, nha_cung_cap_ten, nguoi_lap_id,
+            trang_thai, date_from, date_to, page = 1, limit = 20,
+            sortBy = "created_at", order = "desc", includeDeleted } = req.query;
 
-  static async getByCode(req, res) {
-    try {
-      const { ma_dh } = req.params;
-      const doc = await DonHangDAO.getByCode(ma_dh);
-      if (doc?.error) return res.status(404).json({ message: doc.error.message });
-      return res.json(doc);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy chứng từ theo mã thất bại", error: e.message });
-    }
-  }
+    const result = await DonHangService.list({
+      q, loai_don, khach_hang_ten, nha_cung_cap_ten, nguoi_lap_id,
+      trang_thai, date_from, date_to,
+      page: Number(page), limit: Number(limit), sortBy, order,
+      includeDeleted: includeDeleted === "true" || includeDeleted === true,
+    });
+    const pagination = buildPagination(result.page ?? page, result.limit ?? limit, result.total ?? 0);
+    return sendSuccess(res, result.don_hang ?? result.items ?? result, "Lấy danh sách thành công", 200, pagination);
+  });
 
-  static async list(req, res) {
-    try {
-      const {
-        q = "",
-        loai_don,
-        khach_hang_ten,
-        nha_cung_cap_ten,
-        nguoi_lap_id,
-        trang_thai,
-        date_from,
-        date_to,
-        page = 1,
-        limit = 20,
-        sortBy = "created_at",
-        order = "desc",
-        includeDeleted,
-      } = req.query;
+  /* ─── PRODUCTION NEEDS ─── */
+  static productionNeeds = asyncHandler(async (req, res) => {
+    const data = await DonHangService.productionNeeds(req.params.id);
+    return sendSuccess(res, data, "Lấy nhu cầu nguyên liệu thành công");
+  });
 
-      const result = await DonHangDAO.listDonHang({
-        q,
-        loai_don,
-        khach_hang_ten,
-        nha_cung_cap_ten,
-        nguoi_lap_id,
-        trang_thai,
-        date_from,
-        date_to,
-        page: Number(page),
-        limit: Number(limit),
-        sortBy,
-        order,
-        includeDeleted: String(includeDeleted) === "true",
-      });
+  /* ─── ITEMS ─── */
+  static updateItems = asyncHandler(async (req, res) => {
+    const { san_pham } = req.body || {};
+    const data = await DonHangService.updateItems(req.params.id, san_pham);
+    return sendSuccess(res, data, "Cập nhật sản phẩm trong đơn thành công");
+  });
 
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Lấy danh sách thất bại" });
-      }
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy danh sách thất bại", error: e.message });
-    }
-  }
+  static addItem = asyncHandler(async (req, res) => {
+    const data = await DonHangService.addItem(req.params.id, req.body || {});
+    return sendSuccess(res, data, "Thêm sản phẩm vào đơn thành công");
+  });
 
-  // ✅ needs: tính NL cần + tồn kho
-  static async productionNeeds(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await DonHangDAO.getProductionNeeds(id);
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Không lấy được needs" });
-      }
-      return res.json({ items: result.items || [] });
-    } catch (e) {
-      return res.status(500).json({ message: "Không lấy được needs", error: e.message });
-    }
-  }
+  static removeItem = asyncHandler(async (req, res) => {
+    const { idx, code } = req.body || {};
+    const data = await DonHangService.removeItem(req.params.id, { idx, code });
+    return sendSuccess(res, data, "Xóa sản phẩm khỏi đơn thành công");
+  });
 
-  static async updateItems(req, res) {
-    try {
-      const { id } = req.params;
-      const { san_pham } = req.body || {};
-      if (!Array.isArray(san_pham) || san_pham.length === 0) {
-        return res.status(400).json({ message: "san_pham phải là mảng và có ít nhất 1 phần tử" });
-      }
-      const result = await DonHangDAO.capNhatSanPham(id, san_pham);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Cập nhật thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật thất bại", error: e.message });
-    }
-  }
+  /* ─── PRICING ─── */
+  static applyDiscount = asyncHandler(async (req, res) => {
+    const data = await DonHangService.applyDiscount(req.params.id, req.body?.giam_gia);
+    return sendSuccess(res, data, "Áp dụng giảm giá thành công");
+  });
 
-  static async addItem(req, res) {
-    try {
-      const { id } = req.params;
-      const item = req.body || {};
-      if (!item || (!item.san_pham_id && !item.ma_sp && !item.nguyen_lieu_id && !item.ma_nl)) {
-        return res.status(400).json({ message: "Thiếu san_pham_id/ma_sp hoặc nguyen_lieu_id/ma_nl" });
-      }
-      const result = await DonHangDAO.themSanPham(id, item);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Thêm thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Thêm thất bại", error: e.message });
-    }
-  }
+  static applyTax = asyncHandler(async (req, res) => {
+    const data = await DonHangService.applyTax(req.params.id, req.body?.thue_rate);
+    return sendSuccess(res, data, "Áp dụng thuế thành công");
+  });
 
-  static async removeItem(req, res) {
-    try {
-      const { id } = req.params;
-      const { idx, code } = req.body || {};
-      if (idx === undefined && !code) {
-        return res.status(400).json({ message: "Cần idx hoặc code(ma_sp/ma_nl) để xóa" });
-      }
-      const key = idx !== undefined ? Number(idx) : code;
-      const result = await DonHangDAO.xoaSanPham(id, key);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Xóa thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Xóa thất bại", error: e.message });
-    }
-  }
+  static setShippingFee = asyncHandler(async (req, res) => {
+    const data = await DonHangService.setShippingFee(req.params.id, req.body?.phi_vc);
+    return sendSuccess(res, data, "Cập nhật phí vận chuyển thành công");
+  });
 
-  static async applyDiscount(req, res) {
-    try {
-      const { id } = req.params;
-      const { giam_gia } = req.body || {};
-      const result = await DonHangDAO.apDungGiamGia(id, giam_gia);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Áp dụng giảm giá thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Áp dụng giảm giá thất bại", error: e.message });
-    }
-  }
+  /* ─── PAYMENT / NOTE ─── */
+  static updatePayment = asyncHandler(async (req, res) => {
+    const data = await DonHangService.updatePayment(req.params.id, req.body || {});
+    return sendSuccess(res, data, "Cập nhật thanh toán thành công");
+  });
 
-  static async applyTax(req, res) {
-    try {
-      const { id } = req.params;
-      const { thue_rate } = req.body || {};
-      const result = await DonHangDAO.apDungThue(id, thue_rate);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Áp dụng thuế thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Áp dụng thuế thất bại", error: e.message });
-    }
-  }
+  static updateNote = asyncHandler(async (req, res) => {
+    const data = await DonHangService.updateNote(req.params.id, req.body?.ghi_chu);
+    return sendSuccess(res, data, "Cập nhật ghi chú thành công");
+  });
 
-  static async setShippingFee(req, res) {
-    try {
-      const { id } = req.params;
-      const { phi_vc } = req.body || {};
-      const result = await DonHangDAO.setPhiVanChuyen(id, phi_vc);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Cập nhật phí VC thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật phí VC thất bại", error: e.message });
-    }
-  }
-
-  static async updatePayment(req, res) {
-    try {
-      const { id } = req.params;
-      const thanh_toan = req.body || {};
-      const result = await DonHangDAO.capNhatThanhToan(id, thanh_toan);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Cập nhật thanh toán thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật thanh toán thất bại", error: e.message });
-    }
-  }
-
-  static async updateNote(req, res) {
-    try {
-      const { id } = req.params;
-      const { ghi_chu } = req.body || {};
-      const result = await DonHangDAO.capNhatGhiChu(id, ghi_chu);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Cập nhật ghi chú thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật ghi chú thất bại", error: e.message });
-    }
-  }
-
-  static async updateStatus(req, res) {
+  /* ─── UPDATE STATUS (transaction managed in service) ─── */
+  static updateStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { trang_thai } = req.body || {};
-    if (!trang_thai) return res.status(400).json({ message: "Thiếu trang_thai" });
+    const mongoClient = req.app?.locals?.mongoClient;
+    const nguoi_thao_tac_id = req.user?._id || req.user?.id || null;
+    const data = await DonHangService.updateStatus(id, trang_thai, { mongoClient, nguoi_thao_tac_id });
+    return sendSuccess(res, data, "Cập nhật trạng thái đơn hàng thành công");
+  });
 
-    const client = req.app?.locals?.mongoClient;
-    const uid = getUserId(req);
+  /* ─── DELETE / RESTORE ─── */
+  static softDelete = asyncHandler(async (req, res) => {
+    const data = await DonHangService.softDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa mềm chứng từ thành công");
+  });
 
-    try {
-      if (client?.startSession) {
-        const session = client.startSession();
-        try {
-          const result = await session.withTransaction(async () => {
-            const r = await DonHangDAO.capNhatTrangThaiVaTonKho(id, trang_thai, {
-              session,
-              nguoi_thao_tac_id: uid,
-            });
-            if (r?.error) throw r.error;
-            return r;
-          });
-          return res.json({ modifiedCount: result?.modifiedCount || 0 });
-        } finally {
-          await session.endSession();
-        }
-      }
+  static restore = asyncHandler(async (req, res) => {
+    const data = await DonHangService.restore(req.params.id);
+    return sendSuccess(res, data, "Khôi phục chứng từ thành công");
+  });
 
-      const result = await DonHangDAO.capNhatTrangThaiVaTonKho(id, trang_thai, { nguoi_thao_tac_id: uid });
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Cập nhật trạng thái thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(400).json({ message: e.message || "Cập nhật trạng thái thất bại" });
-    }
-  }
+  static hardDelete = asyncHandler(async (req, res) => {
+    const data = await DonHangService.hardDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa vĩnh viễn chứng từ thành công");
+  });
 
-  static async softDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await DonHangDAO.softDeleteDonHang(id);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Xóa mềm thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Xóa mềm thất bại", error: e.message });
-    }
-  }
-
-  static async restore(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await DonHangDAO.restoreDonHang(id);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Khôi phục thất bại" });
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Khôi phục thất bại", error: e.message });
-    }
-  }
-
-  static async hardDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await DonHangDAO.hardDeleteDonHang(id);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Xóa vĩnh viễn thất bại" });
-      return res.json({ deletedCount: result.deletedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Xóa vĩnh viễn thất bại", error: e.message });
-    }
-  }
-
-  static async revenueStats(req, res) {
-    try {
-      const { date_from, date_to } = req.query;
-      const result = await DonHangDAO.thongKeDoanhThu({ date_from, date_to });
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Thống kê thất bại" });
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Thống kê thất bại", error: e.message });
-    }
-  }
+  /* ─── REVENUE STATS ─── */
+  static revenueStats = asyncHandler(async (req, res) => {
+    const { date_from, date_to } = req.query;
+    const data = await DonHangService.revenueStats({ date_from, date_to });
+    return sendSuccess(res, data, "Thống kê doanh thu thành công");
+  });
 }

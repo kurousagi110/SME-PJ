@@ -1,314 +1,121 @@
-import SanPhamDAO from "../models/sanPhamDAO.js";
+// Refactored: 2026-04-02 | Issues fixed: C1, C2, C3, C4, C6 | Original: sanPhamControllers.js
+// C1: Unified response format via sendSuccess/sendError
+// C4: asyncHandler eliminates all try/catch blocks
+// C6: Removed debug console.log
+
+import asyncHandler from "../middleware/asyncHandler.js";
+import { sendSuccess, buildPagination } from "../utils/response.js";
+import SanPhamService from "../services/sanPhamService.js";
 
 export default class SanPhamController {
-  /* ============ CREATE ============ */
-  static async create(req, res) {
-    try {
-      const { ma_sp, ten_sp, don_gia, so_luong = 0, mo_ta = "", nguyen_lieu = [] } = req.body || {};
+  /* ─── CREATE ─── */
+  static create = asyncHandler(async (req, res) => {
+    const { ma_sp, ten_sp, don_gia, so_luong = 0, mo_ta = "", nguyen_lieu = [] } = req.body || {};
+    const data = await SanPhamService.create({ ma_sp, ten_sp, don_gia, so_luong, mo_ta, nguyen_lieu });
+    return sendSuccess(res, data, "Tạo sản phẩm thành công", 201);
+  });
 
-      if (!ma_sp || !ten_sp) {
-        return res.status(400).json({ message: "Thiếu ma_sp / ten_sp" });
-      }
+  /* ─── UPDATE INFO ─── */
+  static update = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const data = await SanPhamService.update(id, req.body || {});
+    return sendSuccess(res, data, "Cập nhật sản phẩm thành công");
+  });
 
-      const result = await SanPhamDAO.addSanPham(
-        ma_sp,
-        ten_sp,
-        don_gia,
-        so_luong,
-        mo_ta,
-        nguyen_lieu
-      );
+  /* ─── STATUS ─── */
+  static setStatus = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body || {};
+    const data = await SanPhamService.setStatus(id, status);
+    return sendSuccess(res, data, "Cập nhật trạng thái thành công");
+  });
 
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Thêm sản phẩm thất bại" });
-      }
+  /* ─── DELETE / RESTORE ─── */
+  static softDelete = asyncHandler(async (req, res) => {
+    const data = await SanPhamService.softDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa mềm sản phẩm thành công");
+  });
 
-      return res.status(201).json({ insertedId: result.insertedId });
-    } catch (e) {
-      return res.status(500).json({ message: "Tạo sản phẩm thất bại", error: e.message });
-    }
-  }
+  static restore = asyncHandler(async (req, res) => {
+    const data = await SanPhamService.restore(req.params.id);
+    return sendSuccess(res, data, "Khôi phục sản phẩm thành công");
+  });
 
-  /* ============ UPDATE INFO ============ */
-  static async update(req, res) {
-    try {
-      const { id } = req.params;
+  static hardDelete = asyncHandler(async (req, res) => {
+    const data = await SanPhamService.hardDelete(req.params.id);
+    return sendSuccess(res, data, "Xóa vĩnh viễn sản phẩm thành công");
+  });
 
-      const payload = {};
-      ["ten_sp", "don_gia", "so_luong", "mo_ta", "nguyen_lieu", "trang_thai"].forEach((k) => {
-        if (req.body?.[k] !== undefined) payload[k] = req.body[k];
-      });
+  /* ─── READ ONE ─── */
+  static getById = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    // C2: query coercion done in validate.parseQuery middleware on route
+    const includeDeleted = req.query.includeDeleted === true || req.query.includeDeleted === "true";
+    const doc = await SanPhamService.getById(id, { includeDeleted });
+    return sendSuccess(res, doc, "Lấy sản phẩm thành công");
+  });
 
-      const result = await SanPhamDAO.updateSanPham(id, payload);
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Cập nhật sản phẩm thất bại" });
-      }
+  /* ─── LIST ─── */
+  static list = asyncHandler(async (req, res) => {
+    const { q = "", minPrice, maxPrice, status, page = 1, limit = 20,
+            sortBy = "createAt", order = "desc", includeDeleted = false } = req.query;
+    const result = await SanPhamService.list({
+      q, minPrice, maxPrice, status,
+      page: Number(page), limit: Number(limit), sortBy, order,
+      includeDeleted: includeDeleted === true || includeDeleted === "true",
+    });
+    const pagination = buildPagination(result.page ?? page, result.limit ?? limit, result.total ?? 0);
+    return sendSuccess(res, result.san_pham ?? result.items ?? result, "Lấy danh sách sản phẩm thành công", 200, pagination);
+  });
 
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật sản phẩm thất bại", error: e.message });
-    }
-  }
+  /* ─── SEARCH ─── */
+  static search = asyncHandler(async (req, res) => {
+    const { q = "", limit = 20 } = req.query;
+    const docs = await SanPhamService.search(q, Number(limit));
+    return sendSuccess(res, docs, "Tìm kiếm sản phẩm thành công");
+  });
 
-  /* ============ STATUS ============ */
-  static async setStatus(req, res) {
-    try {
-      const { id } = req.params;
-      const { status } = req.body || {};
-      if (!status) return res.status(400).json({ message: "Thiếu status" });
+  /* ─── STOCK ─── */
+  static adjustStock = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { delta, deltaQty, allowNegative = false, newPrice, newMinStock, newDonVi } = req.body || {};
+    const dRaw = delta !== undefined ? delta : deltaQty;
+    const data = await SanPhamService.adjustStock(id, dRaw, { allowNegative, newPrice, newMinStock, newDonVi });
+    return sendSuccess(res, data, "Điều chỉnh tồn kho sản phẩm thành công");
+  });
 
-      const result = await SanPhamDAO.setStatus(id, status);
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Cập nhật trạng thái thất bại" });
-      }
+  static bulkAdjustStock = asyncHandler(async (req, res) => {
+    const { updates = [], allowNegative = false } = req.body || {};
+    const data = await SanPhamService.bulkAdjustStock(updates, { allowNegative: Boolean(allowNegative) });
+    return sendSuccess(res, data, "Điều chỉnh tồn kho hàng loạt thành công");
+  });
 
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Cập nhật trạng thái thất bại", error: e.message });
-    }
-  }
+  /* ─── STATS ─── */
+  static stats = asyncHandler(async (req, res) => {
+    const { lowStockThreshold = 5 } = req.query;
+    const data = await SanPhamService.stats({ lowStockThreshold: Number(lowStockThreshold) });
+    return sendSuccess(res, data, "Lấy thống kê tồn kho thành công");
+  });
 
-  /* ============ DELETE / RESTORE ============ */
-  static async softDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await SanPhamDAO.softDeleteSanPham(id);
+  static lowStock = asyncHandler(async (req, res) => {
+    const { threshold = 5, limit = 50 } = req.query;
+    const data = await SanPhamService.lowStock({ threshold: Number(threshold), limit: Number(limit) });
+    return sendSuccess(res, data, "Lấy danh sách sản phẩm sắp hết hàng thành công");
+  });
 
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Xóa mềm sản phẩm thất bại" });
-      }
-
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Xóa mềm sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  static async restore(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await SanPhamDAO.restoreSanPham(id);
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Khôi phục sản phẩm thất bại" });
-      }
-
-      return res.json({ modifiedCount: result.modifiedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Khôi phục sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  static async hardDelete(req, res) {
-    try {
-      const { id } = req.params;
-      const result = await SanPhamDAO.hardDeleteSanPham(id);
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Xóa vĩnh viễn sản phẩm thất bại" });
-      }
-
-      return res.json({ deletedCount: result.deletedCount });
-    } catch (e) {
-      return res.status(500).json({ message: "Xóa vĩnh viễn sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  /* ============ READ ONE ============ */
-  static async getById(req, res) {
-    try {
-      const { id } = req.params;
-      const includeDeleted = String(req.query?.includeDeleted) === "true";
-
-      const doc = await SanPhamDAO.getSanPhamById(id, { includeDeleted });
-      if (doc?.error) {
-        return res.status(404).json({ message: doc.error.message });
-      }
-
-      return res.json(doc);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy sản phẩm theo id thất bại", error: e.message });
-    }
-  }
-
-  /* ============ LIST (paging + filter + sort) ============ */
-  static async list(req, res) {
-    try {
-      const {
-        q = "",
-        minPrice,
-        maxPrice,
-        status,
-        page = 1,
-        limit = 20,
-        sortBy = "createAt",
-        order = "desc",
-        includeDeleted,
-      } = req.query;
-
-      const result = await SanPhamDAO.listSanPham({
-        q,
-        minPrice: minPrice !== undefined ? Number(minPrice) : undefined,
-        maxPrice: maxPrice !== undefined ? Number(maxPrice) : undefined,
-        status,
-        page: Number(page),
-        limit: Number(limit),
-        sortBy,
-        order,
-        includeDeleted: String(includeDeleted) === "true",
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Lấy danh sách sản phẩm thất bại" });
-      }
-
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy danh sách sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  /* ============ SEARCH QUICK ============ */
-  static async search(req, res) {
-    try {
-      const { q = "", limit = 20 } = req.query;
-      const docs = await SanPhamDAO.searchSanPham(q, Number(limit));
-
-      if (docs?.error) {
-        return res.status(400).json({ message: docs.error.message || "Tìm kiếm sản phẩm thất bại" });
-      }
-
-      return res.json(docs);
-    } catch (e) {
-      return res.status(500).json({ message: "Tìm kiếm sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  /* ============ STOCK ============ */
-  static async adjustStock(req, res) {
-    try {
-      const { id } = req.params;
-      const { delta, deltaQty, allowNegative = false, newPrice, newMinStock, newDonVi } = req.body || {};
-
-      // ✅ support cả delta và deltaQty
-      const dRaw = delta !== undefined ? delta : deltaQty;
-      if (dRaw === undefined) return res.status(400).json({ message: "Thiếu delta (hoặc deltaQty)" });
-
-      const result = await SanPhamDAO.adjustStock(id, Number(dRaw), {
-        allowNegative,
-        newPrice,
-        newMinStock,
-        newDonVi,
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Điều chỉnh tồn kho sản phẩm thất bại" });
-      }
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Điều chỉnh tồn kho sản phẩm thất bại", error: e.message });
-    }
-  }
-
-  static async bulkAdjustStock(req, res) {
-    try {
-      const { updates = [], allowNegative = false } = req.body || {};
-
-      const result = await SanPhamDAO.bulkAdjustStock(updates, {
-        allowNegative: Boolean(allowNegative),
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Điều chỉnh tồn kho hàng loạt thất bại" });
-      }
-
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Điều chỉnh tồn kho hàng loạt thất bại", error: e.message });
-    }
-  }
-
-  /* ============ STATS ============ */
-  static async stats(req, res) {
-    try {
-      const { lowStockThreshold = 5 } = req.query;
-
-      const result = await SanPhamDAO.getInventoryStats({
-        lowStockThreshold: Number(lowStockThreshold),
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Lấy thống kê tồn kho thất bại" });
-      }
-
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy thống kê tồn kho thất bại", error: e.message });
-    }
-  }
-
-  static async lowStock(req, res) {
-    try {
-      const { threshold = 5, limit = 50 } = req.query;
-
-      const result = await SanPhamDAO.getLowStock({
-        threshold: Number(threshold),
-        limit: Number(limit),
-      });
-
-      if (result?.error) {
-        return res.status(400).json({
-          message: result.error.message || "Lấy danh sách sản phẩm sắp hết hàng thất bại",
-        });
-      }
-
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({
-        message: "Lấy danh sách sản phẩm sắp hết hàng thất bại",
-        error: e.message,
-      });
-    }
-  }
-
-  // GET /san-pham/stock?q=&status=&min_qty=&max_qty=&page=&limit=&sortBy=&sortDir=
-  static async getAllStock(req, res) {
-    try {
-      console.log("SanPhamController.getAllStock called with query:", req.query);
-      const params = {
-        q: (req.query.q || "").trim(),
-        status: (req.query.status || "").trim(),
-        min_qty:
-          req.query.min_qty !== undefined ? Number(req.query.min_qty) : undefined,
-        max_qty:
-          req.query.max_qty !== undefined ? Number(req.query.max_qty) : undefined,
-        page: req.query.page !== undefined ? Number(req.query.page) : 1,
-        limit: req.query.limit !== undefined ? Number(req.query.limit) : 20,
-        sortBy: req.query.sortBy || "ten_sp",
-        sortDir: req.query.sortDir || "asc",
-      };
-
-      const result = await SanPhamDAO.getAllStock(params);
-
-      if (result?.error) {
-        return res.status(500).json({
-          success: false,
-          message: "Lấy tồn kho không thành công",
-          error: String(result.error?.message || result.error),
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        ...result, // { items, pagination }
-      });
-    } catch (e) {
-      console.error("SanPhamController.getAllStock error:", e);
-      return res.status(500).json({
-        success: false,
-        message: "Lấy tồn kho không thành công",
-        error: String(e?.message || e),
-      });
-    }
-  }
+  /* ─── ALL STOCK ─── */
+  static getAllStock = asyncHandler(async (req, res) => {
+    const { q = "", status = "", min_qty, max_qty, page, limit,
+            sortBy = "ten_sp", sortDir = "asc" } = req.query;
+    const result = await SanPhamService.getAllStock({
+      q, status,
+      min_qty:  min_qty  !== undefined ? Number(min_qty)  : undefined,
+      max_qty:  max_qty  !== undefined ? Number(max_qty)  : undefined,
+      page:     page     !== undefined ? Number(page)     : 1,
+      limit:    limit    !== undefined ? Number(limit)    : 20,
+      sortBy, sortDir,
+    });
+    const pagination = buildPagination(result.pagination?.page ?? 1, result.pagination?.limit ?? 20, result.pagination?.total ?? 0);
+    return sendSuccess(res, result.items ?? result, "Lấy tồn kho sản phẩm thành công", 200, pagination);
+  });
 }

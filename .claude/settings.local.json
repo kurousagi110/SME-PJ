@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /mnt/c/Users/hoatt/Documents/GitHub/pjgame/SME-PJ/BackEndSME -type f -exec wc -l {} +)",
+      "Bash(sort -k2)"
+    ]
+  }
+}

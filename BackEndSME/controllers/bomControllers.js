@@ -1,42 +1,29 @@
-import BomDAO from "../models/bomDAO.js";
+// Refactored: 2026-04-02 | Issues fixed: C1, C3, C4 | Original: bomControllers.js
+
+import asyncHandler from "../middleware/asyncHandler.js";
+import { sendSuccess } from "../utils/response.js";
+import BomService from "../services/bomService.js";
 
 export default class BomController {
-  // POST /bom/:san_pham_id
-  static async setBOM(req, res) {
-    try {
-      const { san_pham_id } = req.params;
-      const { items = [], ghi_chu = "" } = req.body || {};
+  /* ─── SET BOM ─── */
+  static setBOM = asyncHandler(async (req, res) => {
+    const { san_pham_id } = req.params;
+    const { items = [], ghi_chu = "" } = req.body || {};
+    const data = await BomService.setBOM(san_pham_id, items, { ghi_chu });
+    return sendSuccess(res, data, "Khai báo BOM thành công");
+  });
 
-      const result = await BomDAO.setBOM(san_pham_id, items, { ghi_chu });
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Khai báo BOM thất bại" });
+  /* ─── GET BOM ─── */
+  static getBOM = asyncHandler(async (req, res) => {
+    const { san_pham_id } = req.params;
+    const doc = await BomService.getBOM(san_pham_id);
+    return sendSuccess(res, doc, "Lấy BOM thành công");
+  });
 
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Khai báo BOM thất bại", error: e.message });
-    }
-  }
-
-  // GET /bom/:san_pham_id
-  static async getBOM(req, res) {
-    try {
-      const { san_pham_id } = req.params;
-      const doc = await BomDAO.getBOM(san_pham_id);
-      if (doc?.error) return res.status(404).json({ message: doc.error.message });
-      return res.json(doc);
-    } catch (e) {
-      return res.status(500).json({ message: "Lấy BOM thất bại", error: e.message });
-    }
-  }
-
-  // GET /bom/:san_pham_id/unit-cost
-  static async calcUnitCost(req, res) {
-    try {
-      const { san_pham_id } = req.params;
-      const result = await BomDAO.calcUnitCost(san_pham_id);
-      if (result?.error) return res.status(400).json({ message: result.error.message || "Tính giá thành thất bại" });
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Tính giá thành thất bại", error: e.message });
-    }
-  }
+  /* ─── CALC UNIT COST ─── */
+  static calcUnitCost = asyncHandler(async (req, res) => {
+    const { san_pham_id } = req.params;
+    const data = await BomService.calcUnitCost(san_pham_id);
+    return sendSuccess(res, data, "Tính giá thành thành công");
+  });
 }

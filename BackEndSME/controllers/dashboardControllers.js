@@ -1,97 +1,39 @@
-import DashboardDAO from "../models/dashbroadDAO.js";
+// Refactored: 2026-04-02 | Issues fixed: C1, C2, C3, C4 | Original: dashboardControllers.js
+
+import asyncHandler from "../middleware/asyncHandler.js";
+import { sendSuccess } from "../utils/response.js";
+import DashboardService from "../services/dashboardService.js";
 
 export default class DashboardController {
-  // GET /dashboard/orders/compare
-  static async ordersCompare(req, res) {
-    try {
-      const {
-        metric = "ban_sp",
-        yearA,
-        yearB = "none",
-        range = "90d",
-        to,
-        trang_thai,
-        includeCancelled = "true",
-      } = req.query;
+  /* ─── ORDERS COMPARE ─── */
+  static ordersCompare = asyncHandler(async (req, res) => {
+    const { metric = "ban_sp", yearA, yearB = "none", range = "90d",
+            to, trang_thai, includeCancelled = "true" } = req.query;
+    const data = await DashboardService.ordersCompare({
+      metric, yearA, yearB, range, to, trang_thai,
+      includeCancelled: String(includeCancelled) !== "false",
+    });
+    return sendSuccess(res, data, "Lấy biểu đồ so sánh thành công");
+  });
 
-      const result = await DashboardDAO.getOrdersCompare({
-        metric,
-        yearA,
-        yearB,
-        range,
-        to,
-        trang_thai,
-        includeCancelled: String(includeCancelled) !== "false",
-      });
+  /* ─── ORDERS OVERVIEW ─── */
+  static ordersOverview = asyncHandler(async (req, res) => {
+    const { yearA, yearB = "none", range = "90d", to, trang_thai, includeCancelled = "true" } = req.query;
+    const data = await DashboardService.ordersOverview({
+      yearA, yearB, range, to, trang_thai,
+      includeCancelled: String(includeCancelled) !== "false",
+    });
+    return sendSuccess(res, data, "Lấy tổng quan thành công");
+  });
 
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Không lấy được chart" });
-      }
-
-      return res.json({ rows: result.rows || [] });
-    } catch (e) {
-      return res.status(500).json({ message: "Không lấy được chart", error: e.message });
-    }
-  }
-
-  // GET /dashboard/orders/overview
-  static async ordersOverview(req, res) {
-    try {
-      const {
-        yearA,
-        yearB = "none",
-        range = "90d",
-        to,
-        trang_thai,
-        includeCancelled = "true",
-      } = req.query;
-
-      const result = await DashboardDAO.getOrdersOverview({
-        yearA,
-        yearB,
-        range,
-        to,
-        trang_thai,
-        includeCancelled: String(includeCancelled) !== "false",
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Không lấy được overview" });
-      }
-
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Không lấy được overview", error: e.message });
-    }
-  }
-
-  // GET /dashboard/orders/table
-  static async ordersTable(req, res) {
-    try {
-      const {
-        page = 1,
-        limit = 20,
-        q = "",
-        loai_don,
-        trang_thai,
-        includeDeleted = "false",
-      } = req.query;
-
-      const result = await DashboardDAO.getOrdersTable({
-        page: Number(page),
-        limit: Number(limit),
-        q,
-        loai_don,
-        trang_thai,
-        includeDeleted: String(includeDeleted) === "true",
-      });
-
-      if (result?.error) {
-        return res.status(400).json({ message: result.error.message || "Không lấy được bảng" });
-      }
-      return res.json(result);
-    } catch (e) {
-      return res.status(500).json({ message: "Không lấy được bảng", error: e.message });
-    }
-  }
+  /* ─── ORDERS TABLE ─── */
+  static ordersTable = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 20, q = "", loai_don, trang_thai, includeDeleted = "false" } = req.query;
+    const data = await DashboardService.ordersTable({
+      page: Number(page), limit: Number(limit), q,
+      loai_don, trang_thai,
+      includeDeleted: String(includeDeleted) === "true",
+    });
+    return sendSuccess(res, data, "Lấy bảng đơn hàng thành công");
+  });
 }
