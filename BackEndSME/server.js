@@ -79,18 +79,6 @@ app.use(globalLimiter);
 
 app.use(express.json());
 
-/* ─── NoSQL Injection Sanitisation ───────────────────────────────────────────
- * Strips keys starting with '$' or containing '.' from req.body only.
- * Custom implementation — express-mongo-sanitize reassigns req.query which
- * Express v5 does not allow (req.query is a getter-only property).
- */
-app.use((req, _res, next) => {
-  if (req.body) {
-    req.body = JSON.parse(JSON.stringify(req.body).replace(/\$|\./g, "_"));
-  }
-  next();
-});
-
 /* ─── Health check ─── */
 app.get("/", (_req, res) => {
   res.send("<h1>SME Back-End API — v1 ready</h1>");

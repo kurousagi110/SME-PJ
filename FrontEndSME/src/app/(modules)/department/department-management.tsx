@@ -117,8 +117,8 @@ export function DepartmentManagement() {
     limit,
   });
 
-  const departmentList = data?.data?.items || [];
-  const totalPages = data?.data?.totalPages || 1;
+  const departmentList = data?.data || [];
+  const totalPages = data?.pagination?.totalPages || 1;
 
   const { data: departmentData } = useDepartmentById(
     selectedDepartment?._id || ""

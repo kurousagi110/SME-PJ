@@ -16,7 +16,7 @@ export async function fetchDepartments(params?: {
     });
 
     const result = await http.get(`/phongban-chucvu?${query.toString()}`);
-    return { success: true, data: result.data };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(err.message || "Lấy danh sách phòng ban không thành công");
   }
