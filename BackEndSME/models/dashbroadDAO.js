@@ -75,7 +75,7 @@ export default class DashboardDAO {
   static async injectDB(conn) {
     if (don_hang && users) return;
     try {
-      const dbName = process.env.DB_NAME || process.env.MOVIEREVIEWS_DB_NAME;
+      const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
       const db = conn.db(dbName);
 
       don_hang = db.collection("don_hang");

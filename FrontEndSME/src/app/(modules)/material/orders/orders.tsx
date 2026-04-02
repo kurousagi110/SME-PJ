@@ -64,8 +64,7 @@ export default function CreateOrder() {
   const [openPopover, setOpenPopover] = React.useState<number | null>(null);
 
   const stockQuery = useMaterialStockList({ name: "", page: 1, limit: 200 });
-  const nlList: NguyenLieuStock[] =
-    stockQuery.data?.items ?? stockQuery.data?.data?.items ?? [];
+  const nlList: NguyenLieuStock[] = stockQuery.data?.items ?? [];
 
   const [items, setItems] = React.useState<ReceiptItem[]>([
     { so_luong: 1, don_gia: 0 },

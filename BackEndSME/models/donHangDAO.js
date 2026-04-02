@@ -720,6 +720,7 @@ export default class DonHangDAO {
         const nl  = this._lookupNguyenLieu(nlMap, ln);
         if (!nl) throw new Error(`Không tìm thấy nguyên liệu để nhập kho: ${ln.ma_nl || ln.ten_nl}`);
         await nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: qty } }, { session });
+        console.log(`✅ Cộng kho: +${qty} [${nl.ma_nl || ln.ma_nl}] ${nl.ten_nl || ln.ten_nl || ""}`);
       }
 
       for (const ln of spLines) {
@@ -727,6 +728,7 @@ export default class DonHangDAO {
         const sp  = this._lookupSanPham(spMap, ln);
         if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập kho: ${ln.ma_sp || ln.ten_sp}`);
         await san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: qty } }, { session });
+        console.log(`✅ Cộng kho (SP): +${qty} [${sp.ma_sp || ln.ma_sp}] ${sp.ten_sp || ln.ten_sp || ""}`);
       }
       return;
     }
@@ -900,7 +902,21 @@ export default class DonHangDAO {
       return { error: new Error(`Không thể chuyển từ '${doc.trang_thai}' sang '${trang_thai_moi}'`) };
     }
 
-    if (trang_thai_moi === STATUS.COMPLETED) {
+    // PURCHASE_RECEIPT: cộng kho ngay khi "confirmed" (duyệt nhập hàng).
+    // SALE / PROD_RECEIPT: vẫn xử lý kho khi "completed" như cũ.
+    // Double-count guard: nếu PURCHASE_RECEIPT đã qua confirmed/paid → bỏ qua lần completed.
+    const isPurchase = doc.loai_don === ORDER_TYPE.PURCHASE_RECEIPT;
+    const purchaseAlreadyApplied =
+      isPurchase &&
+      trang_thai_moi === STATUS.COMPLETED &&
+      [STATUS.CONFIRMED, STATUS.PAID].includes(doc.trang_thai);
+
+    const shouldApplyInventory =
+      !purchaseAlreadyApplied &&
+      (trang_thai_moi === STATUS.COMPLETED ||
+        (trang_thai_moi === STATUS.CONFIRMED && isPurchase));
+
+    if (shouldApplyInventory) {
       await this._applyInventoryOnCompleted(doc, { session });
     }
 

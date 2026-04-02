@@ -52,6 +52,10 @@ export function useUpdatePurchaseReceiptStatus() {
     ) => updatePurchaseReceiptStatus(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase-receipts"] });
+      // Completing a purchase receipt adds raw materials (and possibly finished goods)
+      qc.invalidateQueries({ queryKey: ["material-stock"] });
+      qc.invalidateQueries({ queryKey: ["nguyen-lieu-stock-map"] });
+      qc.invalidateQueries({ queryKey: ["product-stock"] });
     },
   });
 }

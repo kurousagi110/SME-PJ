@@ -14,9 +14,18 @@ import {
 import type { Product, ProductListParams } from "@/types";
 
 export function useProductList(params: ProductListParams) {
-  return useQuery<{ data: Product[]; pagination?: unknown }>({
+  return useQuery({
     queryKey: ["product-catalog", params],
-    queryFn: () => fetchProductList(params as any),
+    queryFn: async () => {
+      const res = await fetchProductList(params as any);
+      return {
+        data: {
+          items: res.data,
+          total: (res as any).pagination?.total ?? 0,
+          totalPages: (res as any).pagination?.totalPages ?? 1,
+        },
+      };
+    },
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -52,6 +61,7 @@ export function useUpdateProduct() {
     onSuccess: () => {
       toast.success("Cập nhật sản phẩm thành công");
       queryClient.invalidateQueries({ queryKey: ["product-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stock"] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Cập nhật sản phẩm thất bại");
@@ -92,7 +102,13 @@ export function useDeleteProduct() {
 export function useProductStockList(params: { name: string; page: number; limit: number }) {
   return useQuery({
     queryKey: ["product-stock", params],
-    queryFn: () => fetchProductStockList(params),
+    queryFn: async () => {
+      const res = await fetchProductStockList(params);
+      return {
+        items: (res as any).data ?? [],
+        pagination: (res as any).pagination ?? null,
+      };
+    },
     staleTime: 5 * 60 * 1000,
   });
 }

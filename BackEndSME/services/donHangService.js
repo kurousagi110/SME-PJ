@@ -146,12 +146,16 @@ export default class DonHangService {
           outcome = r;
         });
         return { modifiedCount: outcome?.modifiedCount || 0 };
+      } catch (e) {
+        // MongoDB standalone (non-replica-set) does not support transactions.
+        // Fall through to the non-transactional path below.
+        if (!e?.message?.includes("Transaction numbers are only allowed")) throw e;
       } finally {
         await session.endSession();
       }
     }
 
-    // Fallback: no session support
+    // Fallback: no transaction support (standalone MongoDB)
     const result = await DonHangDAO.capNhatTrangThaiVaTonKho(id, trang_thai, { nguoi_thao_tac_id });
     this._daoError(result, "Cập nhật trạng thái thất bại", "STATUS_UPDATE_FAILED");
     return { modifiedCount: result.modifiedCount };

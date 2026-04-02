@@ -21,6 +21,7 @@ import DashboardDAO       from "./models/dashbroadDAO.js";
 import SanXuatService     from "./service/sanXuatService.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
+import { seedIfEmpty } from "./seed.js";
 
 async function main() {
   // M4: use SME_DB_URI / SME_DB_NAME (matching .env)
@@ -81,6 +82,12 @@ async function main() {
     ]);
 
     logger.info("All DAOs initialised");
+
+    try {
+      await seedIfEmpty(client);
+    } catch (seedErr) {
+      logger.warn("Auto-seed warning (non-fatal)", { error: seedErr.message });
+    }
 
     server = app.listen(port, "0.0.0.0", () => {
       logger.info(`Server running`, { url: `${hostName}:${port}` });

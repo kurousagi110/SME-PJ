@@ -13,7 +13,7 @@ export default class phongban_chucvuDAO {
     if (phongban_chucvu) return;
     try {
       phongban_chucvu = await conn
-        .db(process.env.DB_NAME)
+        .db(process.env.SME_DB_NAME || process.env.DB_NAME)
         .collection("phongban_chucvu");
 
       // Tên phòng ban không trùng

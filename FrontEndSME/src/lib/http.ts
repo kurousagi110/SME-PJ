@@ -3,7 +3,11 @@
 import { cookies } from "next/headers";
 import { refreshTokenAction } from "@/app/actions/auth"; // cập đúng đường dẫn
 async function request(path: string, options: RequestInit = {}, retry = false) {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
+  // API_INTERNAL_URL is a runtime-only env var (not NEXT_PUBLIC_*) set in docker-compose.
+  // It points to the Express container directly (http://api:5000/api/v1) so that
+  // server-side fetch works inside Docker — Node.js fetch requires an absolute URL.
+  // NEXT_PUBLIC_API_URL is a relative path (/api/v1) baked at build time for browser use.
+  const baseUrl = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL;
   const url = `${baseUrl}${path}`;
 
   const cookieStore = await cookies();

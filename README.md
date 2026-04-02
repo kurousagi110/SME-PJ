@@ -1,131 +1,126 @@
-# 🚀 Hệ thống Quản trị Doanh nghiệp SME (Full-Stack)
+# SME Management System
 
-Dự án này là một giải pháp quản trị toàn diện dành cho các Doanh nghiệp Vừa và Nhỏ (SME). Hệ thống được thiết kế theo kiến trúc Micro-services cơ bản, tối ưu hóa hiệu năng, đảm bảo tính toàn vẹn dữ liệu và sẵn sàng triển khai thực tế (Production-ready).
+Hệ thống quản lý doanh nghiệp vừa và nhỏ (SME) — full-stack, chạy hoàn toàn qua Docker.
 
----
+## Tech Stack
 
-## 💎 Những "Tinh túy" của dự án (Key Highlights)
+| Layer | Công nghệ |
+|---|---|
+| Frontend | Next.js 16 · React 19 · TypeScript · Tailwind CSS · TanStack Query |
+| Backend | Node.js ESM · Express 5 · JWT Auth |
+| Database | MongoDB 7 |
+| Infrastructure | Docker · Nginx reverse proxy |
 
-Dự án không chỉ là CRUD cơ bản mà được áp dụng các tiêu chuẩn thiết kế phần mềm doanh nghiệp:
+## Yêu cầu
 
-### 1. Kiến trúc & Toàn vẹn dữ liệu (Backend)
-- **Service-Oriented Architecture (SOA):** Tách biệt hoàn toàn Controller (tiếp nhận request), Service (xử lý logic nghiệp vụ) và Model (truy xuất DB). Không có "Fat Controllers".
-- **MongoDB Transactions:** Sử dụng Session/Transaction nguyên bản (Native Driver) cho các luồng rủi ro cao (ví dụ: Tạo Đơn hàng + Trừ Kho). Đảm bảo tính ACID: Nếu lỗi một bước, toàn bộ giao dịch sẽ Rollback, không bao giờ có tình trạng lệch kho.
-- **Bảo mật & Chuẩn hóa:** Global Error Handling, Response format thống nhất 100%, bảo mật bằng Helmet, XSS/NoSQL Injection prevention và Winston Logging.
+**Chỉ cần Docker Desktop.** Không cần cài Node.js, npm, hay MongoDB trên máy.
 
-### 2. Tối ưu Trải nghiệm & Hiệu năng (Frontend)
-- **Feature-Based Structure:** Tổ chức thư mục Next.js theo từng phân hệ nghiệp vụ (Inventory, Orders, Payroll), giúp dễ dàng scale dự án khi có thêm tính năng mới.
-- **TanStack Query (React Query):** Quản lý State Server hoàn hảo. Cache dữ liệu thông minh, tự động cập nhật ngầm (background refetch), loại bỏ hoàn toàn tình trạng Stale Data và giảm tải tối đa cho Backend.
-- **Strict Type Safety & UI:** Sử dụng TypeScript 100%, kết hợp Zod Validation cho các form phức tạp (BOM). Giao diện hiện đại, tái sử dụng cao với Tailwind CSS và Shadcn/UI.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows / macOS / Linux)
 
-### 3. Vận hành & Triển khai (DevOps)
-- **Dockerized Full-Stack:** Đóng gói hoàn chỉnh Frontend, Backend và Database thành các containers độc lập.
-- **Nginx Reverse Proxy:** Nginx đóng vai trò là cửa ngõ duy nhất (Cổng 80). Tự động điều hướng file tĩnh cho Frontend và uỷ quyền (proxy pass) các request `/api/v1/*` vào Backend bảo mật bên trong, giải quyết triệt để lỗi CORS.
+## Khởi động nhanh
 
----
+```bash
+git clone <repo-url>
+cd SME-PJ
+docker compose up -d
+```
 
-## 📁 Cấu trúc Thư mục Tổng quan
+Lần đầu chạy: Docker build image và tự động seed dữ liệu mẫu. Chờ ~1–2 phút, sau đó truy cập:
 
-```text
+**http://localhost**
+
+## URL truy cập
+
+| Service | URL | Mô tả |
+|---|---|---|
+| Ứng dụng web | http://localhost | Giao diện chính (qua Nginx) |
+| API Backend | http://localhost/api/v1 | REST API (qua Nginx) |
+| Swagger Docs | http://localhost/api-docs | Tài liệu API tương tác |
+| MongoDB | localhost:27017 | Chỉ dùng cho dev / GUI tool |
+
+## Tài khoản mẫu
+
+Tất cả tài khoản dùng mật khẩu: **`123456`**
+
+| Tài khoản | Phòng ban | Chức vụ |
+|---|---|---|
+| `admin` | Phòng giám đốc | Giám đốc (toàn quyền) |
+| `truongkd` | Phòng kinh doanh | Trưởng phòng kinh doanh |
+| `sale` | Phòng kinh doanh | Nhân viên kinh doanh |
+| `ketoantr` | Phòng kế toán | Kế toán trưởng |
+| `ketoan` | Phòng kế toán | Nhân viên kế toán |
+| `nhansutr` | Phòng nhân sự | Trưởng phòng nhân sự |
+| `nhansu` | Phòng nhân sự | Nhân viên nhân sự |
+| `thukho` | Phòng kho | Thủ kho |
+| `nhanvienkho` | Phòng kho | Nhân viên kho |
+| `truongxuong` | Phòng sản xuất | Trưởng xưởng |
+| `sanxuat` | Phòng sản xuất | Công nhân sản xuất |
+
+## Cấu trúc dự án
+
+```
 SME-PJ/
-├── BackEndSME/               # Node.js API (Cổng nội bộ: 5000)
-│   ├── src/
-│   │   ├── controllers/      # Nhận Request, Trả Response
-│   │   ├── services/         # Logic nghiệp vụ SME (Core)
-│   │   ├── models/           # MongoDB DAOs
-│   │   └── routes/v1/        # API Routes
-│   └── Dockerfile            # Cấu hình build API Image
-│
-├── FrontEndSME/              # Next.js App Router (Cổng nội bộ: 3000)
-│   ├── src/
-│   │   ├── app/              # UI Pages (Routing)
-│   │   ├── features/         # Logic phân tách theo nghiệp vụ (Orders, BOM...)
-│   │   ├── hooks/api/        # TanStack Query Hooks
-│   │   └── components/       # Shared UI (Shadcn, DataTable)
-│   └── Dockerfile            # Cấu hình build đa bước (Multi-stage)
-│
+├── docker-compose.yml      # Định nghĩa toàn bộ services
 ├── nginx/
-│   └── default.conf          # Nginx Routing & Proxy Pass rules
-│
-└── docker-compose.yml        # Orchestration (Kết nối Frontend, Backend, Mongo, Nginx)
-```
-## 🚀 Hướng dẫn Cài đặt & Khởi chạy (Getting Started)
-
-Dự án hỗ trợ 2 môi trường khởi chạy: **Docker** (khuyên dùng để xem thành quả hoặc deploy) và **Local** (dành cho quá trình phát triển, code trực tiếp).
-
-### 🛠 Yêu cầu tiên quyết (Prerequisites)
-- **Git** để clone dự án.
-- **Docker & Docker Compose** (Nếu chạy cách 1).
-- **Node.js v18+** và **MongoDB** (Nếu chạy cách 2).
-
-### 📝 Bước 1: Cấu hình Biến môi trường (.env)
-Trước khi chạy, bạn cần tạo file `.env` cho cả Backend và Frontend.
-
-**1. Tại thư mục `BackEndSME/`**, tạo file `.env`:
-```env
-PORT=5000
-DB_URI=mongodb://db:27017/sme_database # Đổi 'db' thành 'localhost' nếu chạy Local không dùng Docker
-DB_NAME=sme_database
-JWT_SECRET=your_super_secret_jwt_key_here
-ALLOWED_ORIGINS=http://localhost,http://localhost:3000
+│   └── default.conf        # Reverse proxy config
+├── BackEndSME/             # Node.js Express API
+│   ├── controllers/
+│   ├── models/             # MongoDB DAOs
+│   ├── routes/v1/
+│   ├── services/
+│   ├── middleware/
+│   ├── seed.js             # Seed dữ liệu mẫu
+│   └── index.js
+└── FrontEndSME/            # Next.js frontend
+    ├── src/
+    │   ├── app/            # App Router + Server Actions
+    │   ├── components/     # UI components (Shadcn)
+    │   ├── hooks/          # TanStack Query hooks
+    │   └── types/
+    └── Dockerfile
 ```
 
-**2. Tại thư mục `FrontEndSME/`, tạo file `.env`:**
-```env
-NEXT_PUBLIC_API_URL=/api/v1 # Nginx sẽ tự động proxy vào Backend
-```
-## 🐳 Cách 1: Chạy bằng Docker (Khuyên dùng)
-Đây là cách nhanh nhất. Docker sẽ tự động cài đặt Database, Node.js, cài các package và kết nối qua Nginx.
+## Lệnh Docker thường dùng
 
-Mở Terminal tại thư mục gốc của dự án (SME-PJ/).
+```bash
+# Khởi động tất cả services
+docker compose up -d
 
-Chạy lệnh Build và Start:
+# Xem logs backend
+docker compose logs api --tail=50 -f
 
-Bash
-docker compose up --build -d
-Chờ khoảng 1-2 phút để Docker tải image và khởi động. Sau đó truy cập:
+# Xem logs frontend
+docker compose logs frontend --tail=50 -f
 
-Frontend UI: http://localhost
-
-Backend API: http://localhost/api/v1/...
-
-Để xem log lỗi nếu có:
-```
-Bash
-docker compose logs -f api       # Xem log của Backend
-docker compose logs -f frontend  # Xem log của Frontend
-Để tắt dự án:
-```
-
-```
-Bash
+# Dừng (giữ nguyên data)
 docker compose down
 
+# Dừng + xóa toàn bộ data (reset hoàn toàn)
+docker compose down -v
 ```
-## 💻 Cách 2: Chạy Local (Dành cho Development)
-Sử dụng cách này khi bạn muốn sửa code và thấy giao diện thay đổi ngay lập tức (Hot-reload) mà không cần build lại Docker.
 
-1. Khởi động Database (MongoDB):
-Đảm bảo bạn đã cài MongoDB compass hoặc chạy MongoDB local ở cổng 27017.
-(Lưu ý: Đổi DB_URI trong BackEndSME/.env thành mongodb://localhost:27017/sme_database)
+## Xử lý sự cố
 
-2. Khởi động Backend:
-Mở Terminal 1:
-
-Bash
-cd BackEndSME
-npm install
-npm run dev
-Backend sẽ chạy tại: http://localhost:5000
-
-3. Khởi động Frontend:
-(Lưu ý: Khi chạy dev local không qua Nginx, đổi NEXT_PUBLIC_API_URL trong FrontEndSME/.env thành http://localhost:5000/api/v1)
-Mở Terminal 2:
-
-Bash
+**Reset database về trạng thái ban đầu:**
+```bash
+docker compose down -v && docker compose up -d
 ```
-cd FrontEndSME
-npm install
-npm run dev
-Frontend sẽ chạy tại: http://localhost:3000
+
+**Xem log lỗi:**
+```bash
+docker compose logs api --tail=50
+```
+
+**Seed lại thủ công** (seed tự động bỏ qua nếu đã có dữ liệu — cần xóa collection `users` trước):
+```bash
+docker compose exec api node seed.js
+```
+
+**Port 80 bị chiếm bởi ứng dụng khác:**
+
+Sửa trong `docker-compose.yml`:
+```yaml
+nginx:
+  ports:
+    - "8080:80"   # đổi 80 thành port khác
 ```

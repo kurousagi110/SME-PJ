@@ -17,7 +17,7 @@ export async function fetchOrderSaleList(params?: {
   });
   try {
     const result = await http.get("/don-hang/?" + query.toString());
-    return { success: true, data: result };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy danh sách đơn hàng bán không thành công"
@@ -28,7 +28,7 @@ export async function fetchOrderSaleList(params?: {
 export async function fetchOrderSaleById(id: string) {
   try {
     const result = await http.get(`/don-hang/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy thông tin đơn hàng bán không thành công"
@@ -39,7 +39,7 @@ export async function fetchOrderSaleById(id: string) {
 export async function createOrderSale(data: any) {
   try {
     const result = await http.post("/don-hang/sales", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo đơn hàng bán không thành công");
   }
@@ -47,8 +47,8 @@ export async function createOrderSale(data: any) {
 
 export async function updateOrderSaleStatusById(id: string, data: any) {
   try {
-    const result = await http.post(`/don-hang/${id}/status`, data);
-    return { success: true, data: result };
+    const result = await http.patch(`/don-hang/${id}/status`, data);
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(
       err.message || "Cập nhật trạng thái đơn hàng bán không thành công"

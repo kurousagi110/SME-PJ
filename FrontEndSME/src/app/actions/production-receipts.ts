@@ -17,6 +17,7 @@ function joinUrl(base: string, path: string) {
 
 function getApiBase() {
   const base =
+    process.env.API_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.API_URL ||
     (process.env.HOST_NAME && process.env.PORT
@@ -290,7 +291,7 @@ export async function updateProductionReceiptStatus(payload: {
   trang_thai: ProdReceiptStatus;
 }) {
   return apiFetch<any>(`/don-hang/${payload.id}/status`, {
-    method: "POST",
+    method: "PATCH",
     json: { trang_thai: payload.trang_thai },
   });
 }

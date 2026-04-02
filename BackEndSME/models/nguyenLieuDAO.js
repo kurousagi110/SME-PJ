@@ -111,7 +111,7 @@ export default class NguyenLieuDAO {
   static async injectDB(conn) {
     if (nguyen_lieu) return;
     try {
-      nguyen_lieu = await conn.db(process.env.DB_NAME).collection("nguyen_lieu");
+      nguyen_lieu = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("nguyen_lieu");
 
       // Indexes (an toàn, không crash nếu đã tồn tại)
       await ensureNormalIndex(nguyen_lieu, { ma_nl: 1 }, { unique: true, name: "ma_nl_unique" });

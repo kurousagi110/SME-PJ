@@ -16,7 +16,7 @@ export async function fetchDepartments(params?: {
     });
 
     const result = await http.get(`/phongban-chucvu?${query.toString()}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy danh sách phòng ban không thành công");
   }
@@ -25,7 +25,7 @@ export async function fetchDepartments(params?: {
 export async function fetchDepartmentById(id: string) {
   try {
     const result = await http.get(`/phongban-chucvu/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy thông tin phòng ban không thành công");
   }
@@ -34,7 +34,7 @@ export async function fetchDepartmentById(id: string) {
 export async function createDepartment(data: any) {
   try {
     const result = await http.post("/phongban-chucvu", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo phòng ban không thành công");
   }
@@ -43,7 +43,7 @@ export async function createDepartment(data: any) {
 export async function updateDepartment(id: string, data: any) {
   try {
     const result = await http.patch(`/phongban-chucvu/${id}`, data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật phòng ban không thành công");
   }
@@ -51,7 +51,7 @@ export async function updateDepartment(id: string, data: any) {
 export async function deleteDepartment(id: string) {
   try {
     const result = await http.delete(`/phongban-chucvu/${id}/hard`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Xóa phòng ban không thành công");
   }
@@ -60,7 +60,7 @@ export async function deleteDepartment(id: string) {
 export async function resoreDepartment(id: string) {
   try {
     const result = await http.post(`/phongban-chucvu/${id}/restore`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Khôi phục phòng ban không thành công");
   }
@@ -69,7 +69,7 @@ export async function resoreDepartment(id: string) {
 export async function hardDeleteDepartment(id: string) {
   try {
     const result = await http.delete(`/phongban-chucvu/${id}/hard`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Xóa vĩnh viễn phòng ban không thành công");
   }

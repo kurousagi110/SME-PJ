@@ -15,7 +15,7 @@ export async function fetchProductList(params?: {
   });
   try {
     const result = await http.get(`/san-pham?${query.toString()}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(err.message || "Lấy danh sách sản phẩm không thành công");
   }
@@ -24,7 +24,7 @@ export async function fetchProductList(params?: {
 export async function fetchProductById(id: string) {
   try {
     const result = await http.get(`/san-pham/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy thông tin sản phẩm không thành công");
   }
@@ -33,7 +33,7 @@ export async function fetchProductById(id: string) {
 export async function createProduct(data: any) {
   try {
     const result = await http.post("/san-pham", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo sản phẩm không thành công");
   }
@@ -42,7 +42,7 @@ export async function createProduct(data: any) {
 export async function updateProductById(id: string, data: any) {
   try {
     const result = await http.patch(`/san-pham/${id}`, data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật sản phẩm không thành công");
   }
@@ -69,7 +69,7 @@ export async function fetchProductStockList(params?: {
   });
   try {
     const result = await http.get(`/san-pham/stock?${query.toString()}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy danh sách tồn kho sản phẩm không thành công"

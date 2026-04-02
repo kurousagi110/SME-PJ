@@ -58,6 +58,10 @@ export function useUpdateProdReceiptStatus() {
     ) => updateProductionReceiptStatus(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["prod-receipts"] });
+      // Completing a prod receipt adds finished goods and subtracts raw materials
+      qc.invalidateQueries({ queryKey: ["product-stock"] });
+      qc.invalidateQueries({ queryKey: ["material-stock"] });
+      qc.invalidateQueries({ queryKey: ["nguyen-lieu-stock-map"] });
     },
   });
 }

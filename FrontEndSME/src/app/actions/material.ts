@@ -17,7 +17,7 @@ export async function fetchMaterialList(params?: {
   });
   try {
     const result = await http.get(`/nguyen-lieu?${query.toString()}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy danh sách nguyên liệu không thành công"
@@ -28,7 +28,7 @@ export async function fetchMaterialList(params?: {
 export async function fetchMaterialById(id: string) {
   try {
     const result = await http.get(`/nguyen-lieu/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy thông tin nguyên liệu không thành công"
@@ -39,7 +39,7 @@ export async function fetchMaterialById(id: string) {
 export async function createMaterial(data: any) {
   try {
     const result = await http.post("/nguyen-lieu", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo nguyên liệu không thành công");
   }
@@ -48,7 +48,7 @@ export async function createMaterial(data: any) {
 export async function updateMaterialById(id: string, data: any) {
   try {
     const result = await http.patch(`/nguyen-lieu/${id}`, data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật nguyên liệu không thành công");
   }
@@ -75,7 +75,7 @@ export async function fetchMaterialStockList(params?: {
   });
   try {
     const result = await http.get(`/nguyen-lieu/stock?${query.toString()}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
     throw new Error(
       err.message || "Lấy danh sách tồn kho nguyên liệu không thành công"

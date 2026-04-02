@@ -5,15 +5,17 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
-import { ca, th } from "zod/v4/locales";
 
 export async function loginAction(data: any) {
   try {
     const result = await http.post("/users/login", data);
 
+    // sendSuccess() wraps the payload: { success, message, data: { userId, accessToken, refreshToken } }
+    const { userId, accessToken, refreshToken } = result.data;
+
     const cookieStore = await cookies();
 
-    cookieStore.set("user_id", result.userId, {
+    cookieStore.set("user_id", userId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -21,7 +23,7 @@ export async function loginAction(data: any) {
       sameSite: "lax",
     });
 
-    cookieStore.set("access_token", result.accessToken, {
+    cookieStore.set("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -29,7 +31,7 @@ export async function loginAction(data: any) {
       sameSite: "lax",
     });
 
-    cookieStore.set("refresh_token", result.refreshToken, {
+    cookieStore.set("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -72,7 +74,7 @@ export async function myProfile() {
     const cookieStore = await cookies();
     const userId = cookieStore.get("user_id")?.value;
     const result = await http.get("/users/me/" + userId);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy thông tin tài khoản không thành công");
   }
@@ -82,7 +84,7 @@ export async function updateProfile(data: any) {
     const cookieStore = await cookies();
     const userId = cookieStore.get("user_id")?.value;
     const result = await http.patch("/users/" + userId + "/profile", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật thông tin không thành công");
   }
@@ -93,7 +95,7 @@ export async function updatePassword(data: any) {
     const cookieStore = await cookies();
     const userId = cookieStore.get("user_id")?.value;
     const result = await http.patch("/users/" + userId + "/password", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật mật khẩu không thành công");
   }
@@ -101,7 +103,9 @@ export async function updatePassword(data: any) {
 
 export async function refreshTokenAction(data: any) {
   try {
-    const url = process.env.NEXT_PUBLIC_API_URL + "/users/refresh";
+    // Same URL resolution as http.ts: use internal Docker URL when available
+    const baseUrl = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL;
+    const url = baseUrl + "/users/refresh";
 
     const res = await fetch(url, {
       method: "POST",
@@ -110,8 +114,10 @@ export async function refreshTokenAction(data: any) {
       cache: "no-store",
     });
     const result = await res.json();
+    // sendSuccess() wraps the payload in result.data
+    const { accessToken, refreshToken } = result.data ?? {};
     const cookieStore = await cookies();
-    cookieStore.set("access_token", result.accessToken, {
+    cookieStore.set("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
@@ -119,7 +125,7 @@ export async function refreshTokenAction(data: any) {
       sameSite: "lax",
     });
 
-    cookieStore.set("refresh_token", result.refreshToken, {
+    cookieStore.set("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",

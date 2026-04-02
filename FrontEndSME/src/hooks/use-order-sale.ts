@@ -12,11 +12,18 @@ import {
 import type { Order, OrderListParams, OrderCreatePayload, OrderStatusPayload } from "@/types";
 
 export function useOrderSale(params: OrderListParams) {
-  return useQuery<{ data: Order[]; pagination?: unknown }>({
+  return useQuery({
     queryKey: ["order-sale", params],
     queryFn: async () => {
       const res = await fetchOrderSaleList(params as any);
-      return res.data;
+      const p = (res as any).pagination ?? {};
+      return {
+        items: (res as any).data ?? [],
+        page: p.page ?? 1,
+        limit: p.limit ?? 20,
+        total: p.total ?? 0,
+        totalPages: p.totalPages ?? 1,
+      };
     },
     enabled: typeof window !== "undefined",
     staleTime: 5 * 60 * 1000,

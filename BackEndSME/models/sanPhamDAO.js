@@ -96,7 +96,7 @@ export default class SanPhamDAO {
   static async injectDB(conn) {
     if (sanPham) return;
     try {
-      sanPham = await conn.db(process.env.DB_NAME).collection("san_pham");
+      sanPham = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("san_pham");
 
       // Indexes quan trọng
       await ensureNormalIndex(sanPham, { ma_sp: 1 }, { unique: true, name: "ma_sp_unique" });
@@ -438,16 +438,16 @@ export default class SanPhamDAO {
       if (newMinStock !== undefined) set.ton_toi_thieu = this._sanitizeNumber(newMinStock, 0);
       if (newDonVi !== undefined) set.don_vi = String(newDonVi);
 
-      const res = await sanPham.findOneAndUpdate(
+      const doc = await sanPham.findOneAndUpdate(
         filter,
         { $inc: { so_luong: d }, $set: set },
         { returnDocument: "after" }
       );
 
-      if (!res.value) return { error: new Error("Không đủ tồn hoặc không tìm thấy sản phẩm") };
+      if (!doc) return { error: new Error("Không đủ tồn hoặc không tìm thấy sản phẩm") };
 
       // ✅ safety
-      if (!allowNegative && res.value.so_luong < 0) {
+      if (!allowNegative && doc.so_luong < 0) {
         await sanPham.updateOne(
           { _id: new ObjectId(id) },
           { $inc: { so_luong: -d }, $set: { updateAt: new Date() } }
@@ -455,7 +455,7 @@ export default class SanPhamDAO {
         return { error: new Error("Điều chỉnh kho không hợp lệ") };
       }
 
-      return { ok: true, doc: res.value };
+      return { ok: true, doc };
     } catch (e) {
       console.error(`sanPham.adjustStock error: ${e}`);
       return { error: e };
@@ -599,5 +599,46 @@ export default class SanPhamDAO {
   }
 
 
+  /* ====================== Bulk Adjust Stock ====================== */
+  static async bulkAdjustStock(updates = [], { allowNegative = false } = {}) {
+    const results = [];
+    for (const item of updates) {
+      const r = await this.adjustStock(item.id, item.delta ?? item.deltaQty, { allowNegative });
+      results.push({ id: item.id, ...r });
+    }
+    return { results };
+  }
+
+  /* ====================== Inventory Stats ====================== */
+  static async getInventoryStats({ lowStockThreshold = 5 } = {}) {
+    try {
+      const [total, active, inactive, lowStock, outOfStock] = await Promise.all([
+        sanPham.countDocuments({ trang_thai: { $ne: STATUS.DELETED } }),
+        sanPham.countDocuments({ trang_thai: STATUS.ACTIVE }),
+        sanPham.countDocuments({ trang_thai: STATUS.INACTIVE }),
+        sanPham.countDocuments({ trang_thai: { $ne: STATUS.DELETED }, so_luong: { $gt: 0, $lte: lowStockThreshold } }),
+        sanPham.countDocuments({ trang_thai: { $ne: STATUS.DELETED }, so_luong: { $lte: 0 } }),
+      ]);
+      return { total, active, inactive, lowStock, outOfStock, lowStockThreshold };
+    } catch (e) {
+      console.error(`getInventoryStats error: ${e}`);
+      return { error: e };
+    }
+  }
+
+  /* ====================== Low Stock ====================== */
+  static async getLowStock({ threshold = 5, limit = 50 } = {}) {
+    try {
+      const items = await sanPham
+        .find({ trang_thai: { $ne: STATUS.DELETED }, so_luong: { $lte: Number(threshold) } })
+        .sort({ so_luong: 1 })
+        .limit(Number(limit))
+        .toArray();
+      return items;
+    } catch (e) {
+      console.error(`getLowStock error: ${e}`);
+      return { error: e };
+    }
+  }
 }
 export { STATUS };

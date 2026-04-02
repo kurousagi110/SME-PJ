@@ -22,7 +22,11 @@ export function useMaterialCatalog(params: {
     queryKey: ["material-catalog", params],
     queryFn: async () => {
       const res = await fetchMaterialList(params);
-      return res.data;
+      return {
+        items: res.data,
+        total: (res as any).pagination?.total ?? 0,
+        totalPages: (res as any).pagination?.totalPages ?? 1,
+      };
     },
     enabled: typeof window !== "undefined",
   });
@@ -49,6 +53,8 @@ export function useUpdateMaterialById() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["material", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["material-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["nguyen-lieu-stock-map"] });
     },
     onError: (error: any) => {
       toast.error(error.message);
@@ -77,7 +83,11 @@ export function useMaterialStockList(params?: {
     queryKey: ["material-stock", params],
     queryFn: async () => {
       const res = await fetchMaterialStockList(params);
-      return res.data;
+      return {
+        items: res.data,
+        total: (res as any).pagination?.total ?? 0,
+        totalPages: (res as any).pagination?.totalPages ?? 1,
+      };
     },
     enabled: typeof window !== "undefined",
   });

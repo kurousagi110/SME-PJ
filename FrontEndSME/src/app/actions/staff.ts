@@ -19,7 +19,7 @@ export async function fetchStaff(params: {
     });
 
     const result = await http.get(`/users?${query.toString()}&trang_thai=1`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy danh sách nhân viên không thành công");
   }
@@ -27,7 +27,7 @@ export async function fetchStaff(params: {
 export async function fetchStaffById(id: string) {
   try {
     const result = await http.get(`/users/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Lấy thông tin nhân viên không thành công");
   }
@@ -35,7 +35,7 @@ export async function fetchStaffById(id: string) {
 export async function createStaff(data: any) {
   try {
     const result = await http.post("/users/register", data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo nhân viên không thành công");
   }
@@ -43,7 +43,7 @@ export async function createStaff(data: any) {
 export async function setStaffPosition(id: string, data: any) {
   try {
     const result = await http.put(`/users/${id}/chuc-vu`, data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật chức vụ không thành công");
   }
@@ -51,7 +51,7 @@ export async function setStaffPosition(id: string, data: any) {
 export async function setStaffDepartment(id: string, data: any) {
   try {
     const result = await http.put(`/users/${id}/phong-ban`, data);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Cập nhật phòng ban không thành công");
   }
@@ -81,7 +81,7 @@ export async function updateStaffById(
 export async function deleteStaff(id: string) {
   try {
     const result = await http.delete(`/users/${id}`);
-    return { success: true, data: result };
+    return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Xóa nhân viên không thành công");
   }

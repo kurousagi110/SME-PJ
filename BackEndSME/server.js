@@ -11,7 +11,6 @@ import cors from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import mongoSanitize from "express-mongo-sanitize";
 import { swaggerUi, swaggerSpec } from "./swagger.js";
 import errorHandler from "./middleware/errorHandler.js";
 import requestLogger from "./middleware/requestLogger.js";
@@ -80,12 +79,17 @@ app.use(globalLimiter);
 
 app.use(express.json());
 
-/* ─── Phase 4: NoSQL Injection Sanitisation ──────────────────────────────────
- * Strips keys starting with '$' or containing '.' from req.body, req.query,
- * and req.params — prevents MongoDB operator injection attacks.
- * Applied AFTER express.json() so the body is already parsed.
+/* ─── NoSQL Injection Sanitisation ───────────────────────────────────────────
+ * Strips keys starting with '$' or containing '.' from req.body only.
+ * Custom implementation — express-mongo-sanitize reassigns req.query which
+ * Express v5 does not allow (req.query is a getter-only property).
  */
-app.use(mongoSanitize());
+app.use((req, _res, next) => {
+  if (req.body) {
+    req.body = JSON.parse(JSON.stringify(req.body).replace(/\$|\./g, "_"));
+  }
+  next();
+});
 
 /* ─── Health check ─── */
 app.get("/", (_req, res) => {
