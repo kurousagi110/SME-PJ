@@ -1,0 +1,216 @@
+{
+  "info": {
+    "_postman_id": "3f3b3f7a-0b3b-4db3-98c1-02b0e2b4c9f1",
+    "name": "SME - Nguyên liệu (nguyen_lieu)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "CRUD nguyên liệu + search + stats + adjust-stock. Bearer {{token}}, baseUrl {{baseUrl}}."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. Create",
+      "item": [
+        {
+          "name": "Create nguyên liệu",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ma_nl\": \"NL001\",\n  \"ten_nl\": \"Gỗ MDF lõi xanh\",\n  \"don_vi\": \"m2\",\n  \"gia_nhap\": 180000,\n  \"so_luong\": 250,\n  \"ton_toi_thieu\": 20,\n  \"mo_ta\": \"Tấm MDF chống ẩm dùng sản xuất nội thất\",\n  \"thuoc_tinh\": { \"do_day\": \"17mm\", \"xuat_xu\": \"VN\" }\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "let json = {}; try { json = pm.response.json(); } catch(e) {}",
+                  "const id = (json.insertedId && json.insertedId.$oid) ? json.insertedId.$oid : json.insertedId;",
+                  "if (id) pm.environment.set('materialId', id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Read",
+      "item": [
+        {
+          "name": "List nguyên liệu (paging + filter + sort)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu?page=1&limit=20&sortBy=ten_nl&order=asc&q=&lowStockOnly=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "sortBy", "value": "ten_nl" },
+                { "key": "order", "value": "asc" },
+                { "key": "q", "value": "" },
+                { "key": "lowStockOnly", "value": "false" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search quick nguyên liệu",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/search?q=mdf&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "search"],
+              "query": [
+                { "key": "q", "value": "mdf" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get nguyên liệu by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/{{materialId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "{{materialId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Update",
+      "item": [
+        {
+          "name": "Update nguyên liệu",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/{{materialId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "{{materialId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ten_nl\": \"Gỗ MDF lõi xanh (Update)\",\n  \"gia_nhap\": 185000,\n  \"ton_toi_thieu\": 25,\n  \"mo_ta\": \"Cập nhật mô tả nguyên liệu\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Adjust stock (deltaQty +/-)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/{{materialId}}/adjust-stock",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "{{materialId}}", "adjust-stock"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deltaQty\": -5,\n  \"newUnitCost\": 190000,\n  \"allowNegative\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Stats",
+      "item": [
+        {
+          "name": "Stats summary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/stats/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "stats", "summary"]
+            }
+          }
+        },
+        {
+          "name": "Low stock list (default theo ton_toi_thieu)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/stats/low-stock?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "stats", "low-stock"],
+              "query": [
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Low stock list (threshold)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/stats/low-stock?threshold=10&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "stats", "low-stock"],
+              "query": [
+                { "key": "threshold", "value": "10" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Delete / Restore",
+      "item": [
+        {
+          "name": "Soft delete nguyên liệu",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/{{materialId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "{{materialId}}"]
+            }
+          }
+        },
+        {
+          "name": "Restore nguyên liệu",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/nguyen-lieu/{{materialId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["nguyen-lieu", "{{materialId}}", "restore"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

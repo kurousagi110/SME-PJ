@@ -1,0 +1,82 @@
+{
+  "info": {
+    "_postman_id": "f28b3d6b-bf77-4bde-bdb1-6b6f2d52d8d0",
+    "name": "SME - BOM (bom_san_pham)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "BOM: set/replace BOM theo san_pham_id + get BOM + tính giá thành đơn vị. Bearer {{token}}, baseUrl {{baseUrl}}."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. Set / Replace BOM",
+      "item": [
+        {
+          "name": "Set BOM cho sản phẩm",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/bom/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["bom", "{{productId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ghi_chu\": \"Công thức 1 sản phẩm (demo)\",\n  \"items\": [\n    {\n      \"nguyen_lieu_id\": \"{{materialId}}\",\n      \"qty\": 1.2,\n      \"unit\": \"m2\",\n      \"waste_rate\": 0.03\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Read BOM",
+      "item": [
+        {
+          "name": "Get BOM theo sản phẩm",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/bom/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["bom", "{{productId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Costing",
+      "item": [
+        {
+          "name": "Tính giá thành đơn vị (unit cost)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/bom/{{productId}}/unit-cost",
+              "host": ["{{baseUrl}}"],
+              "path": ["bom", "{{productId}}", "unit-cost"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

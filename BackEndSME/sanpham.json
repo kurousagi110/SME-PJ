@@ -1,0 +1,261 @@
+{
+  "info": {
+    "_postman_id": "9c1f2f7e-2c2b-4a8e-bcad-11b9e35f1b1a",
+    "name": "SME - Sản phẩm (san_pham)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "API Sản phẩm: CRUD, search, stats, stock. Dùng Bearer {{token}} và baseUrl {{baseUrl}}."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. Create",
+      "item": [
+        {
+          "name": "Create sản phẩm",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/san-pham",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ma_sp\": \"SP051\",\n  \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n  \"don_gia\": 1450000,\n  \"so_luong\": 77,\n  \"mo_ta\": \"Bàn làm việc văn phòng, thiết kế tối giản.\",\n  \"nguyen_lieu\": [\n    { \"ten\": \"Gỗ MDF\", \"mota\": \"MDF lõi xanh chống ẩm\", \"so_luong\": 1.2, \"don_vi\": \"m2\" },\n    { \"ten\": \"Melamine\", \"mota\": \"Phủ chống trầy\", \"so_luong\": 1.2, \"don_vi\": \"m2\" },\n    { \"ten\": \"Chỉ dán cạnh\", \"mota\": \"Chỉ PVC dán cạnh\", \"so_luong\": 6, \"don_vi\": \"m\" },\n    { \"ten\": \"Vít\", \"mota\": \"Vít lắp ráp\", \"so_luong\": 16, \"don_vi\": \"cái\" }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', function () { pm.response.to.have.status(201); });",
+                  "let json = {};",
+                  "try { json = pm.response.json(); } catch (e) {}",
+                  "const id = (json.insertedId && json.insertedId.$oid) ? json.insertedId.$oid : json.insertedId;",
+                  "if (id) pm.environment.set('productId', id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Read",
+      "item": [
+        {
+          "name": "List sản phẩm (paging + filter + sort)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham?page=1&limit=20&sortBy=createAt&order=desc&q=",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "sortBy", "value": "createAt" },
+                { "key": "order", "value": "desc" },
+                { "key": "q", "value": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Search quick",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/search?q=ban&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "search"],
+              "query": [
+                { "key": "q", "value": "ban" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get by id",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Update",
+      "item": [
+        {
+          "name": "Update sản phẩm (ten_sp, don_gia, mo_ta, nguyen_lieu, trang_thai)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ten_sp\": \"Bàn làm việc MDF 1m2 (Update)\",\n  \"don_gia\": 1490000,\n  \"mo_ta\": \"Cập nhật mô tả sản phẩm.\",\n  \"nguyen_lieu\": [\n    { \"ten\": \"Gỗ MDF\", \"mota\": \"MDF lõi xanh\", \"so_luong\": 1.25, \"don_vi\": \"m2\" },\n    { \"ten\": \"Melamine\", \"mota\": \"Phủ chống trầy\", \"so_luong\": 1.25, \"don_vi\": \"m2\" },\n    { \"ten\": \"Vít\", \"mota\": \"Vít lắp ráp\", \"so_luong\": 18, \"don_vi\": \"cái\" }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Set status (active/inactive/deleted)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}", "status"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"inactive\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Stock",
+      "item": [
+        {
+          "name": "Adjust stock (delta +/-)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}/adjust-stock",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}", "adjust-stock"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"delta\": -2,\n  \"allowNegative\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Bulk adjust stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/bulk/adjust-stock",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "bulk", "adjust-stock"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"updates\": [\n    { \"id\": \"{{productId}}\", \"delta\": 5 }\n  ],\n  \"allowNegative\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Stats",
+      "item": [
+        {
+          "name": "Stats summary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/stats/summary?lowStockThreshold=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "stats", "summary"],
+              "query": [
+                { "key": "lowStockThreshold", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Low stock list",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/stats/low-stock?threshold=5&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "stats", "low-stock"],
+              "query": [
+                { "key": "threshold", "value": "5" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Delete / Restore",
+      "item": [
+        {
+          "name": "Soft delete",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}"]
+            }
+          }
+        },
+        {
+          "name": "Restore",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}", "restore"]
+            }
+          }
+        },
+        {
+          "name": "Hard delete",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/san-pham/{{productId}}/hard",
+              "host": ["{{baseUrl}}"],
+              "path": ["san-pham", "{{productId}}", "hard"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

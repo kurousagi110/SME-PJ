@@ -1,0 +1,157 @@
+{
+  "info": {
+    "_postman_id": "b8a6e9d9-0b2d-4c3d-a1c5-9d9f4f3b1234",
+    "name": "Luong Module (Cham Cong & Tinh Luong)",
+    "description": "API chấm công theo ngày và tính lương theo tháng",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "token",
+      "value": "YOUR_ACCESS_TOKEN"
+    },
+    {
+      "key": "ma_nv",
+      "value": "NV001"
+    }
+  ],
+  "item": [
+    {
+      "name": "✅ Chấm công (Tạo / Cập nhật 1 ngày)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/luong/cham-cong",
+          "host": ["{{base_url}}"],
+          "path": ["luong", "cham-cong"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ma_nv\": \"{{ma_nv}}\",\n  \"ngay_thang\": \"2025-03-01\",\n  \"gio_check_in\": \"08:05\",\n  \"gio_check_out\": \"17:10\",\n  \"so_gio_lam\": 8,\n  \"ghi_chu\": \"Đi làm bình thường\"\n}"
+        }
+      }
+    },
+    {
+      "name": "📄 Lấy chấm công theo ngày",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/luong/cham-cong/by-day?ma_nv={{ma_nv}}&ngay_thang=2025-03-01",
+          "host": ["{{base_url}}"],
+          "path": ["luong", "cham-cong", "by-day"],
+          "query": [
+            {
+              "key": "ma_nv",
+              "value": "{{ma_nv}}"
+            },
+            {
+              "key": "ngay_thang",
+              "value": "2025-03-01"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "📋 Danh sách chấm công (theo khoảng ngày)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/luong/cham-cong?ma_nv={{ma_nv}}&from=2025-03-01&to=2025-03-31&page=1&limit=20",
+          "host": ["{{base_url}}"],
+          "path": ["luong", "cham-cong"],
+          "query": [
+            {
+              "key": "ma_nv",
+              "value": "{{ma_nv}}"
+            },
+            {
+              "key": "from",
+              "value": "2025-03-01"
+            },
+            {
+              "key": "to",
+              "value": "2025-03-31"
+            },
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "limit",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "🗑️ Xóa mềm 1 ngày chấm công",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/luong/cham-cong/{{cham_cong_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["luong", "cham-cong", "{{cham_cong_id}}"]
+        }
+      }
+    },
+    {
+      "name": "💰 Tính lương theo tháng",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/luong/tinh-luong",
+          "host": ["{{base_url}}"],
+          "path": ["luong", "tinh-luong"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ma_nv\": \"{{ma_nv}}\",\n  \"thang\": 3,\n  \"nam\": 2025,\n  \"don_gia_gio\": 30000,\n  \"thuong\": 500000,\n  \"phat\": 200000,\n  \"ghi_chu\": \"Lương tháng 3/2025\"\n}"
+        }
+      }
+    }
+  ]
+}

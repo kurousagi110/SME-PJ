@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "DonHang API (Sale / Production Receipt / Purchase Receipt)",
+    "_postman_id": "11111111-1111-1111-1111-111111111111",
+    "description": "Bearer token: {{token}}\nBase URL: {{baseUrl}}\nModule: {{donHangPath}} (vd: don-hang)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1) Tạo chứng từ",
+      "item": [
+        {
+          "name": "Tạo Bán hàng (SALE) - POST /sales",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/sales",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"khach_hang_ten\": \"Nguyễn Văn A\",\n  \"nguoi_lap_id\": \"\",\n  \"san_pham\": [\n    {\n      \"loai_hang\": \"san_pham\",\n      \"san_pham_id\": \"REPLACE_OBJECTID\",\n      \"ma_sp\": \"SP001\",\n      \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n      \"don_vi\": \"cái\",\n      \"don_gia\": 1450000,\n      \"so_luong\": 2\n    }\n  ],\n  \"giam_gia\": 0,\n  \"thue_rate\": 0.1,\n  \"phi_vc\": 50000,\n  \"ghi_chu\": \"Giao giờ hành chính\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Tạo Nhập kho từ sản xuất (PROD_RECEIPT) - POST /receipts/production",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/receipts/production",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nguoi_lap_id\": \"\",\n  \"san_pham\": [\n    {\n      \"loai_hang\": \"san_pham\",\n      \"san_pham_id\": \"REPLACE_OBJECTID\",\n      \"ma_sp\": \"SP001\",\n      \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n      \"don_vi\": \"cái\",\n      \"don_gia\": 0,\n      \"so_luong\": 10\n    }\n  ],\n  \"ghi_chu\": \"Nhập thành phẩm từ sản xuất (COMPLETED sẽ cộng TP và trừ NL theo BOM)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Tạo Nhập kho mua (PURCHASE_RECEIPT) - POST /receipts/purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/receipts/purchase",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nha_cung_cap_ten\": \"Công ty Gỗ ABC\",\n  \"nguoi_lap_id\": \"\",\n  \"san_pham\": [\n    {\n      \"loai_hang\": \"nguyen_lieu\",\n      \"nguyen_lieu_id\": \"REPLACE_OBJECTID\",\n      \"ma_nl\": \"NL001\",\n      \"ten_nl\": \"Gỗ MDF\",\n      \"don_vi\": \"m2\",\n      \"don_gia\": 175000,\n      \"so_luong\": 30\n    },\n    {\n      \"loai_hang\": \"san_pham\",\n      \"san_pham_id\": \"REPLACE_OBJECTID\",\n      \"ma_sp\": \"SP009\",\n      \"ten_sp\": \"Ghế\",\n      \"don_vi\": \"cái\",\n      \"don_gia\": 400000,\n      \"so_luong\": 5\n    }\n  ],\n  \"thue_rate\": 0.1,\n  \"ghi_chu\": \"Nhập kho mua (COMPLETED sẽ cộng tồn NL/SP)\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Tạo chứng từ (API cũ) - POST /",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"khach_hang_ten\": \"Nguyễn Văn A\",\n  \"nguoi_lap_id\": \"\",\n  \"san_pham\": [\n    {\n      \"san_pham_id\": \"REPLACE_OBJECTID\",\n      \"ma_sp\": \"SP001\",\n      \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n      \"don_gia\": 1450000,\n      \"so_luong\": 1\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2) Danh sách / Tra cứu",
+      "item": [
+        {
+          "name": "List chứng từ (filter/paging) - GET /",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}?q=&loai_don=&khach_hang_ten=&nha_cung_cap_ten=&nguoi_lap_id=&trang_thai=&date_from=&date_to=&page=1&limit=20&sortBy=created_at&order=desc"
+          }
+        },
+        {
+          "name": "Get theo ID - GET /:id",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}"
+          }
+        },
+        {
+          "name": "Get theo mã (ma_dh) - GET /code/:ma_dh",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/code/{{ma_dh}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3) Items & Giá",
+      "item": [
+        {
+          "name": "Ghi đè toàn bộ items - PUT /:id/items",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"san_pham\": [\n    {\n      \"loai_hang\": \"san_pham\",\n      \"san_pham_id\": \"REPLACE_OBJECTID\",\n      \"ma_sp\": \"SP001\",\n      \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n      \"don_gia\": 1450000,\n      \"so_luong\": 2\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Thêm 1 item - POST /:id/items",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loai_hang\": \"san_pham\",\n  \"san_pham_id\": \"REPLACE_OBJECTID\",\n  \"ma_sp\": \"SP001\",\n  \"ten_sp\": \"Bàn làm việc MDF 1m2\",\n  \"don_gia\": 1450000,\n  \"so_luong\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Xóa item theo idx - DELETE /:id/items",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idx\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Xóa item theo code (ma_sp/ma_nl) - DELETE /:id/items",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SP001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Áp dụng giảm giá - POST /:id/discount",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/discount",
+            "body": { "mode": "raw", "raw": "{\n  \"giam_gia\": 50000\n}" }
+          }
+        },
+        {
+          "name": "Áp dụng thuế - POST /:id/tax",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/tax",
+            "body": { "mode": "raw", "raw": "{\n  \"thue_rate\": 0.1\n}" }
+          }
+        },
+        {
+          "name": "Phí vận chuyển - POST /:id/shipping-fee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/shipping-fee",
+            "body": { "mode": "raw", "raw": "{\n  \"phi_vc\": 50000\n}" }
+          }
+        },
+        {
+          "name": "Cập nhật thanh toán - POST /:id/payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/payment",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"cash\",\n  \"amount\": 1000000,\n  \"status\": \"paid\",\n  \"trans_id\": \"TX-001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Cập nhật ghi chú - PATCH /:id/note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/note",
+            "body": { "mode": "raw", "raw": "{\n  \"ghi_chu\": \"Ghi chú mới\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4) Trạng thái (kèm tồn kho)",
+      "item": [
+        {
+          "name": "Update status - POST /:id/status",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/status",
+            "body": { "mode": "raw", "raw": "{\n  \"trang_thai\": \"completed\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5) Xóa / Khôi phục",
+      "item": [
+        {
+          "name": "Xóa mềm - DELETE /:id",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}"
+          }
+        },
+        {
+          "name": "Khôi phục - POST /:id/restore",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/restore"
+          }
+        },
+        {
+          "name": "Xóa vĩnh viễn - DELETE /:id/hard",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/{{orderId}}/hard"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6) Thống kê",
+      "item": [
+        {
+          "name": "Doanh thu (SALE + COMPLETED) - GET /stats/revenue",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{baseUrl}}/{{donHangPath}}/stats/revenue?date_from=&date_to="
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "donHangPath", "value": "don-hang" },
+    { "key": "token", "value": "PASTE_JWT_TOKEN_HERE" },
+    { "key": "orderId", "value": "REPLACE_ORDER_ID" },
+    { "key": "ma_dh", "value": "REPLACE_MA_DH" }
+  ]
+}
