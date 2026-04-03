@@ -37,9 +37,16 @@ export function initSocket(httpServer) {
   /* ── Authentication middleware ── */
   io.use(async (socket, next) => {
     try {
+      const cookieHeader = socket.handshake.headers.cookie || "";
+      const tokenFromCookie = cookieHeader
+        .split("; ")
+        .find((row) => row.startsWith("access_token="))
+        ?.split("=")[1];
+
       const token =
         socket.handshake.auth?.token ||
-        socket.handshake.headers?.authorization?.split(" ")[1];
+        socket.handshake.headers?.authorization?.split(" ")[1] ||
+        tokenFromCookie;
 
       if (!token) return next(new Error("MISSING_TOKEN"));
 
@@ -71,15 +78,22 @@ export function initSocket(httpServer) {
     if (tai_khoan) socket.join(`user:${tai_khoan}`);
 
     // Role rooms
-    const deptName = phong_ban?.ten || "";
-    const posName  = chuc_vu?.ten   || "";
+    const deptName = (phong_ban?.ten || "").toLowerCase();
+    const posName  = (chuc_vu?.ten   || "").toLowerCase();
 
-    if (deptName === "Phòng giám đốc" || posName === "Giám đốc") {
+    console.log(`[Socket] User connected: tai_khoan=${tai_khoan} | phong_ban="${deptName}" | chuc_vu="${posName}"`);
+
+    // Tất cả user đăng nhập đều join room chung
+    socket.join("room:all_users");
+
+    if (deptName.includes("giám đốc") || posName.includes("giám đốc")) {
       socket.join("room:admin");
+      console.log(`[Socket] ${tai_khoan} joined room:admin`);
     }
 
-    if (posName === "Thủ kho") {
+    if (posName.includes("thủ kho")) {
       socket.join("room:approver");
+      console.log(`[Socket] ${tai_khoan} joined room:approver`);
     }
 
     socket.on("disconnect", () => {});
@@ -106,8 +120,7 @@ export function notifyAdmin(payload) {
  * Uses both rooms so admins also receive warehouse notifications.
  */
 export function notifyApprover(payload) {
-  const _io = getIO();
-  _io.to("room:approver").to("room:admin").emit("notification", payload);
+  getIO().to("room:approver").emit("notification", payload);
 }
 
 /**

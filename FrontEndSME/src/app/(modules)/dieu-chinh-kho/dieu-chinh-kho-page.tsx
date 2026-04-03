@@ -6,6 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { IconPlus } from "@tabler/icons-react";
 
 import { Button } from "@/components/ui/button";
+import { TaoPhieuDieuChinhKhoDialog } from "./TaoPhieuDieuChinhKhoDialog";
 import { Badge }  from "@/components/ui/badge";
 import {
   Select,
@@ -41,10 +42,11 @@ function fmtQty(n: number) {
 }
 
 export default function DieuChinhKhoPage() {
-  const [filterLoai,  setFilterLoai]  = useState("");
-  const [filterTT,    setFilterTT]    = useState("");
-  const [page,        setPage]        = useState(1);
-  const [limit,       setLimit]       = useState(20);
+  const [filterLoai,    setFilterLoai]    = useState("");
+  const [filterTT,      setFilterTT]      = useState("");
+  const [page,          setPage]          = useState(1);
+  const [limit,         setLimit]         = useState(20);
+  const [isCreateOpen,  setIsCreateOpen]  = useState(false);
 
   const { data: myUser } = useMyProfile();
 
@@ -172,7 +174,7 @@ export default function DieuChinhKhoPage() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Điều chỉnh kho</h1>
-        <Button onClick={() => alert("Cần code thêm Form Dialog ở đây")}>
+        <Button onClick={() => setIsCreateOpen(true)}>
           <IconPlus className="mr-1 h-4 w-4" />
           Tạo phiếu điều chỉnh
         </Button>
@@ -217,6 +219,11 @@ export default function DieuChinhKhoPage() {
         onPageChange={(p) => setPage(p)}
         onLimitChange={(l) => { setLimit(l); setPage(1); }}
         loading={isLoading}
+      />
+
+      <TaoPhieuDieuChinhKhoDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
       />
     </div>
   );

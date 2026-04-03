@@ -16,7 +16,8 @@
       "Bash(docker exec sme_db:*)",
       "Bash(docker exec:*)",
       "Bash(docker-compose up:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(grep -l \"Dialog\" FrontEndSME/src/components/*.tsx)"
     ]
   }
 }

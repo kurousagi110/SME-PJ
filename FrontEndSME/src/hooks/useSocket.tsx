@@ -9,6 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { io, Socket } from "socket.io-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMyProfile } from "@/hooks/use-account";
 
 export interface Notification {
@@ -34,32 +35,51 @@ const SocketContext = createContext<SocketContextValue>({
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const { data: profile } = useMyProfile();
+  const queryClient = useQueryClient();
   const socketRef = useRef<Socket | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const isLoggedIn = !!profile;
 
   useEffect(() => {
+    console.log("🔥 Socket hook đã chạy Client-side!");
+
     if (!isLoggedIn) {
       socketRef.current?.disconnect();
       socketRef.current = null;
       return;
     }
 
+    console.log("Đang thử kết nối Socket (không truyền token thủ công)...");
+
     // Connect same-origin; nginx sẽ proxy /socket.io/ đến backend
+    // Token được Backend tự đọc từ HttpOnly Cookie
     const socket = io("", {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
       path: "/socket.io/",
+      withCredentials: true,
     });
 
     socketRef.current = socket;
 
+    socket.on("connect", () =>
+      console.log("🟢 Socket CONNECTED với ID:", socket.id)
+    );
+    socket.on("connect_error", (err) =>
+      console.error("🔴 Socket ERROR:", err)
+    );
+    socket.on("disconnect", (reason) =>
+      console.log("⚫ Socket DISCONNECTED:", reason)
+    );
+
     socket.on("notification", (data: Omit<Notification, "read">) => {
+      console.log("Nhận được socket:", data);
       setNotifications((prev) => [
         { ...data, read: false },
         ...prev.slice(0, 19),
       ]);
+      queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
+      queryClient.invalidateQueries({ queryKey: ["san-pham"] });
+      queryClient.invalidateQueries({ queryKey: ["nguyen-lieu"] });
     });
 
     return () => {

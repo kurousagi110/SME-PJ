@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IconBell } from "@tabler/icons-react";
 import { useSocket, Notification } from "@/hooks/useSocket";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,13 @@ function formatTime(dateStr: string) {
 export function NotificationBell() {
   const { notifications, unreadCount, markAllRead } = useSocket();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
