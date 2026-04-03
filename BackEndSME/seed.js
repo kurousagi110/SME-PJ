@@ -414,7 +414,7 @@ export async function seedIfEmpty(client) {
 
   try {
     /* ── Clear collections ──────────────────────────────────── */
-    const COLLECTIONS = ["phongban_chucvu", "users", "nguyen_lieu", "san_pham", "bom_san_pham", "don_hang"];
+    const COLLECTIONS = ["phongban_chucvu", "users", "nguyen_lieu", "san_pham", "bom_san_pham", "don_hang", "dieu_chinh_kho"];
     for (const col of COLLECTIONS) {
       const result = await db.collection(col).deleteMany({});
       console.log(`🗑️   Cleared [${col}] — ${result.deletedCount} documents removed`);
@@ -616,6 +616,63 @@ export async function seedIfEmpty(client) {
     console.log(`✅  Inserted ${orders.length} orders into [don_hang]`);
     orders.forEach((o) => console.log(`      • ${o.ma_dh.padEnd(22)} [${o.loai_don.padEnd(16)}] → ${o.trang_thai}`));
 
+    /* ── Điều chỉnh kho (dieu_chinh_kho) ──────────────────────────── */
+    // Use actual ObjectIds from the inserted materials and products
+    const thuKhoUser = userDocs.find((u) => u.chuc_vu.ten === "Thủ kho");
+    const nvKhoUser  = userDocs.find((u) => u.chuc_vu.ten === "Nhân viên kho");
+    const adminUser  = userDocs.find((u) => u.chuc_vu.ten === "Giám đốc");
+
+    const dckDocs = [
+      /* 1 — Chờ duyệt: nhập thêm nguyên liệu NL001 */
+      {
+        loai:                 "nguyen_lieu",
+        item_id:              nlIds[0],          // NL001 — Gỗ MDF 18mm
+        ma_hang:              "NL001",
+        ten_hang:             "Gỗ MDF 18mm",
+        so_luong_dieu_chinh:  15,
+        ton_kho_truoc:        100,
+        ly_do:                "Kiểm kê thực tế phát hiện thừa 15 tấm so với sổ sách",
+        trang_thai:           "cho_duyet",
+        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
+        approved_by:          null,
+        created_at:           new Date("2026-04-01T08:30:00Z"),
+        updated_at:           new Date("2026-04-01T08:30:00Z"),
+      },
+      /* 2 — Đã duyệt: xuất bớt sản phẩm SP002 */
+      {
+        loai:                 "san_pham",
+        item_id:              spIds[1],          // SP002 — Tủ quần áo 3 cánh
+        ma_hang:              "SP002",
+        ten_hang:             "Tủ quần áo 3 cánh",
+        so_luong_dieu_chinh:  -2,
+        ton_kho_truoc:        20,
+        ly_do:                "Hàng mẫu xuất cho showroom không qua đơn hàng",
+        trang_thai:           "da_duyet",
+        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
+        approved_by:          { tai_khoan: thuKhoUser?.tai_khoan || "thukho", ho_ten: thuKhoUser?.ho_ten || "Bùi Văn Kho" },
+        created_at:           new Date("2026-03-28T09:00:00Z"),
+        updated_at:           new Date("2026-03-28T10:15:00Z"),
+      },
+      /* 3 — Từ chối: nhập thêm nguyên liệu NL005 */
+      {
+        loai:                 "nguyen_lieu",
+        item_id:              nlIds[4],          // NL005 — Keo dán gỗ PVA
+        ma_hang:              "NL005",
+        ten_hang:             "Keo dán gỗ PVA",
+        so_luong_dieu_chinh:  50,
+        ton_kho_truoc:        80,
+        ly_do:                "Muốn tăng tồn kho dự phòng cho mùa cao điểm",
+        trang_thai:           "tu_choi",
+        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
+        approved_by:          { tai_khoan: adminUser?.tai_khoan || "admin", ho_ten: adminUser?.ho_ten || "Nguyễn Văn Admin" },
+        created_at:           new Date("2026-03-25T14:00:00Z"),
+        updated_at:           new Date("2026-03-25T16:30:00Z"),
+      },
+    ];
+
+    await db.collection("dieu_chinh_kho").insertMany(dckDocs);
+    console.log(`✅  Inserted ${dckDocs.length} adjustment requests into [dieu_chinh_kho]`);
+
     /* ── Summary ─────────────────────────────────────────────────── */
     console.log("\n╔══════════════════════════════════════════════╗");
     console.log("║           SEED COMPLETED SUCCESSFULLY         ║");
@@ -626,6 +683,7 @@ export async function seedIfEmpty(client) {
     console.log(`║  san_pham        : ${String(spDocs.length).padEnd(3)} products               ║`);
     console.log(`║  bom_san_pham    : ${String(bomDocs.length).padEnd(3)} BOMs                   ║`);
     console.log(`║  don_hang        : ${String(orders.length).padEnd(3)} orders                 ║`);
+    console.log(`║  dieu_chinh_kho  : ${String(dckDocs.length).padEnd(3)} adjustment requests    ║`);
     console.log("╚══════════════════════════════════════════════╝\n");
 
   } catch (err) {

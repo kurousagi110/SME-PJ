@@ -76,3 +76,22 @@ export function verifyAdmin(req, res, next) {
   if (!isAdmin) return next(ApiError.forbidden("Không có quyền admin", "FORBIDDEN"));
   next();
 }
+
+/**
+ * verifyApprover – checks that the user can approve inventory adjustment requests.
+ * Extends verifyAdmin with warehouse-level senior roles (Thủ kho).
+ * Must be used AFTER verifyToken.
+ */
+export function verifyApprover(req, res, next) {
+  const user = req.user;
+  if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
+
+  const isApprover =
+    user?.phong_ban?.ten === "Phòng giám đốc" ||
+    user?.chuc_vu?.ten === "Giám đốc" ||
+    user?.chuc_vu?.ten === "Thủ kho" ||
+    user?.role === "admin";
+
+  if (!isApprover) return next(ApiError.forbidden("Không có quyền duyệt phiếu điều chỉnh kho", "FORBIDDEN"));
+  next();
+}

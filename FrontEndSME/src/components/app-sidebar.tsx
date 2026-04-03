@@ -11,6 +11,8 @@ import {
   IconCalendar,
   IconWood,
   IconBlocks,
+  IconAdjustments,
+  IconClipboardList,
 } from "@tabler/icons-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -39,6 +41,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [deptName]);
 
   const isDirectorDepartment = deptName === "Phòng giám đốc";
+  const chucVuName = (profile?.chuc_vu?.ten || "").trim();
+  const canSeeAuditLog =
+    isDirectorDepartment || chucVuName === "Giám đốc";
 
   const navMain = React.useMemo(
     () =>
@@ -71,6 +76,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/warehouse",
           icon: IconPackages,
         },
+        {
+          title: "Điều chỉnh kho",
+          url: "/dieu-chinh-kho",
+          icon: IconAdjustments,
+        },
 
         canSeeSalesMenu
           ? {
@@ -97,8 +107,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: "/check-in",
           icon: IconCalendar,
         },
+
+        canSeeAuditLog
+          ? {
+              title: "Nhật ký hệ thống",
+              url: "/audit-log",
+              icon: IconClipboardList,
+            }
+          : null,
       ].filter(Boolean) as any[],
-    [canSeeSalesMenu, isDirectorDepartment]
+    [canSeeSalesMenu, isDirectorDepartment, canSeeAuditLog]
   );
 
   const data = {

@@ -15,7 +15,8 @@
       "Bash(docker compose:*)",
       "Bash(docker exec sme_db:*)",
       "Bash(docker exec:*)",
-      "Bash(docker-compose up:*)"
+      "Bash(docker-compose up:*)",
+      "Bash(node:*)"
     ]
   }
 }

@@ -7,9 +7,13 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import http from "http";
 import app from "./server.js";
 import mongodb from "mongodb";
 import logger from "./utils/logger.js";
+import { injectSocketDB, initSocket } from "./utils/socketManager.js";
+import { injectAuditDB } from "./utils/auditLogger.js";
+import { injectAuditLogControllerDB } from "./controllers/auditLogController.js";
 
 import UsersDAO           from "./models/usersDAO.js";
 import NguyenLieuDAO      from "./models/nguyenLieuDAO.js";
@@ -19,6 +23,7 @@ import phongban_chucvuDAO from "./models/phongban_chucvuDAO.js";
 import LuongDAO           from "./models/luongDAO.js";
 import DashboardDAO       from "./models/dashbroadDAO.js";
 import SanXuatService     from "./service/sanXuatService.js";
+import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { seedIfEmpty } from "./seed.js";
@@ -42,6 +47,7 @@ async function main() {
     connectTimeoutMS:         10_000,
     serverSelectionTimeoutMS: 10_000,
   });
+  const httpServer = http.createServer(app);
   let server;
 
   const shutdown = async (signal) => {
@@ -69,6 +75,9 @@ async function main() {
 
     // W5 fix: injectAuthDB imported from middleware/auth.js (standardized)
     injectAuthDB(client);
+    injectSocketDB(client);
+    injectAuditDB(client);
+    injectAuditLogControllerDB(client);
 
     await Promise.all([
       UsersDAO.injectDB(client),
@@ -79,6 +88,7 @@ async function main() {
       LuongDAO.injectDB(client),
       DashboardDAO.injectDB(client),
       SanXuatService.injectDB(client), // M5 fix: was never called before (dead code)
+      DieuChinhKhoDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");
@@ -89,7 +99,10 @@ async function main() {
       logger.warn("Auto-seed warning (non-fatal)", { error: seedErr.message });
     }
 
-    server = app.listen(port, "0.0.0.0", () => {
+    initSocket(httpServer);
+    logger.info("Socket.io initialised");
+
+    server = httpServer.listen(port, "0.0.0.0", () => {
       logger.info(`Server running`, { url: `${hostName}:${port}` });
       logger.info(`Swagger docs`, { url: `${hostName}:${port}/api-docs` });
       logger.info(`API v1 base`, { url: `${hostName}:${port}/api/v1` });

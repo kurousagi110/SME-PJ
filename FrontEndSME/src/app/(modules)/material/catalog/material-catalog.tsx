@@ -31,6 +31,8 @@ import {
   useUpdateMaterialById,
 } from "@/hooks/use-material";
 import { useMyProfile } from "@/hooks/use-account";
+import { useCreateDieuChinhKho } from "@/hooks/use-dieu-chinh-kho";
+import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { DataTable } from "@/components/shared/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -61,6 +63,14 @@ export default function MaterialCatalog() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
 
+  /* ── Điều chỉnh kho modal state ── */
+  const [adjustItem,      setAdjustItem]      = useState<any>(null);
+  const [adjustDirection, setAdjustDirection] = useState<"add" | "sub">("add");
+  const [adjustQty,       setAdjustQty]       = useState<number | "">(1);
+  const [adjustReason,    setAdjustReason]    = useState("");
+
+  const createDieuChinhKho = useCreateDieuChinhKho();
+
   const createMaterial = useCreateMaterial();
   const updateMaterial = useUpdateMaterialById();
   const deleteMaterial = useDeleteMaterialById();
@@ -71,6 +81,47 @@ export default function MaterialCatalog() {
     const deptName = (myUser?.phong_ban?.ten || "").trim();
     return deptName === "Phòng giám đốc";
   }, [myUser]);
+
+  /* Computed preview */
+  const adjustedStock = useMemo(() => {
+    if (!adjustItem) return 0;
+    const qty = Number(adjustQty) || 0;
+    const delta = adjustDirection === "add" ? qty : -qty;
+    return (adjustItem.so_luong ?? 0) + delta;
+  }, [adjustItem, adjustQty, adjustDirection]);
+
+  const handleOpenAdjust = (item: any) => {
+    setAdjustItem(item);
+    setAdjustDirection("add");
+    setAdjustQty(1);
+    setAdjustReason("");
+  };
+
+  const handleSubmitAdjust = () => {
+    const qty = Number(adjustQty);
+    if (!qty || qty <= 0) { toast.error("Số lượng phải lớn hơn 0"); return; }
+    if (!adjustReason.trim()) { toast.error("Vui lòng nhập lý do điều chỉnh"); return; }
+
+    const delta = adjustDirection === "add" ? qty : -qty;
+    createDieuChinhKho.mutate(
+      {
+        loai:                 "nguyen_lieu",
+        item_id:              adjustItem._id,
+        ma_hang:              adjustItem.ma_nl,
+        ten_hang:             adjustItem.ten_nl,
+        so_luong_dieu_chinh:  delta,
+        ton_kho_truoc:        adjustItem.so_luong ?? 0,
+        ly_do:                adjustReason.trim(),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Đã gửi yêu cầu điều chỉnh kho, chờ cấp trên duyệt");
+          setAdjustItem(null);
+        },
+        onError: (e: any) => toast.error(e.message),
+      }
+    );
+  };
 
   /* ===================== Fetch & filter ===================== */
   const { data, isLoading } = useMaterialCatalog({
@@ -213,45 +264,46 @@ export default function MaterialCatalog() {
           </div>
         ),
       },
-    ];
-
-    if (!isDirectorDept) return base;
-
-    return [
-      ...base,
       {
-        id: "actions",
+        id: "adjust_action",
         header: () => <div className="text-right">Thao tác</div>,
-        cell: ({ row }) => {
-          const s = row.original;
-          return (
-            <div className="text-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleOpenUpdate(s)}>
-                    Chỉnh sửa
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDelete(s._id)}
-                    className="text-red-500"
-                  >
-                    Xóa
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <div className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handleOpenAdjust(row.original)}>
+                  ⚖️ Điều chỉnh kho
+                </DropdownMenuItem>
+                {isDirectorDept ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleOpenUpdate(row.original)}>
+                      Chỉnh sửa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDelete(row.original._id)}
+                      className="text-red-500"
+                    >
+                      Xóa
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ),
       },
     ];
-  }, [isDirectorDept, handleOpenUpdate, handleDelete]);
+
+    return base;
+  }, [isDirectorDept, handleOpenUpdate, handleDelete, handleOpenAdjust]);
 
   /* ===================== Render ===================== */
   return (
@@ -458,6 +510,87 @@ export default function MaterialCatalog() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ADJUST MODAL */}
+      <Dialog open={!!adjustItem} onOpenChange={(open) => { if (!open) setAdjustItem(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Điều chỉnh tồn kho</DialogTitle>
+          </DialogHeader>
+
+          {adjustItem ? (
+            <div className="space-y-4">
+              <div className="bg-muted rounded-md p-3 text-sm space-y-1">
+                <div><span className="font-medium">Mã:</span> {adjustItem.ma_nl}</div>
+                <div><span className="font-medium">Tên:</span> {adjustItem.ten_nl}</div>
+                <div><span className="font-medium">Tồn hiện tại:</span> {adjustItem.so_luong ?? 0} {adjustItem.don_vi}</div>
+              </div>
+
+              {/* Direction toggle */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={adjustDirection === "add" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setAdjustDirection("add")}
+                >
+                  + Nhập thêm
+                </Button>
+                <Button
+                  type="button"
+                  variant={adjustDirection === "sub" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setAdjustDirection("sub")}
+                >
+                  - Xuất bớt
+                </Button>
+              </div>
+
+              {/* Quantity */}
+              <div className="flex flex-col gap-1.5">
+                <Label>Số lượng điều chỉnh</Label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value === "" ? "" : Math.abs(Number(e.target.value)))}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+
+              {/* Reason */}
+              <div className="flex flex-col gap-1.5">
+                <Label>Lý do điều chỉnh</Label>
+                <Textarea
+                  rows={3}
+                  placeholder="Nhập lý do điều chỉnh..."
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                />
+              </div>
+
+              {/* Preview */}
+              <div className="text-sm text-muted-foreground bg-muted rounded-md px-3 py-2">
+                Tồn kho sau điều chỉnh:{" "}
+                <span className={`font-semibold ${adjustedStock < 0 ? "text-red-600" : "text-foreground"}`}>
+                  {adjustedStock} {adjustItem.don_vi}
+                </span>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAdjustItem(null)}>Hủy</Button>
+            <Button
+              onClick={handleSubmitAdjust}
+              disabled={createDieuChinhKho.isPending}
+            >
+              Gửi yêu cầu duyệt
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
