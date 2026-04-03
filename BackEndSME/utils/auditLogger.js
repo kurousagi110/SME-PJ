@@ -17,7 +17,7 @@ export function injectAuditDB(conn) {
  * @param {string|null} targetId — MongoDB ObjectId string of the affected document
  * @param {string} description  — human-readable summary
  * @param {{ tai_khoan: string, ho_ten: string }} performedBy
- * @param {string|null} ip      — client IP (req.ip)
+ * @param {string|null} ip      — client IP (req.ip or req.headers['x-forwarded-for'])
  */
 export async function logAction(action, module, targetId, description, performedBy, ip = null) {
   if (!col) return; // silently skip if DB not injected (e.g. during tests)
@@ -25,11 +25,11 @@ export async function logAction(action, module, targetId, description, performed
     await col.insertOne({
       action,
       module,
-      target_id:    targetId   ?? null,
+      target_id:  targetId   ?? null,
       description,
-      performed_by: performedBy ?? null,
-      ip:           ip          ?? null,
-      created_at:   new Date(),
+      user:       performedBy ?? null,   // { tai_khoan, ho_ten } — matched to frontend field log.user
+      ip_address: ip          ?? null,   // matched to frontend field log.ip_address
+      created_at: new Date(),
     });
   } catch {
     // Audit log failures must never crash the main request

@@ -14,12 +14,30 @@ const TYPE_LABEL: Record<Notification["type"], string> = {
   DCK_CREATED: "Phiếu điều chỉnh mới",
   DCK_APPROVED: "Phiếu đã duyệt",
   DCK_REJECTED: "Phiếu bị từ chối",
+  DON_NHAP_CREATED: "Đơn nhập hàng mới",
+  DON_NHAP_STATUS_UPDATED: "Cập nhật trạng thái đơn nhập",
+  DON_NHAP_DELETED: "Đã xóa đơn nhập hàng",
+  DON_SAN_XUAT_CREATED: "Lệnh sản xuất mới",
+  DON_SAN_XUAT_STATUS_UPDATED: "Cập nhật trạng thái lệnh sản xuất",
+  DON_SAN_XUAT_DELETED: "Đã xóa lệnh sản xuất",
+  DON_BAN_CREATED: "Đơn bán hàng mới",
+  DON_BAN_STATUS_UPDATED: "Cập nhật trạng thái đơn bán",
+  DON_BAN_DELETED: "Đã xóa đơn bán hàng",
 };
 
 const TYPE_COLOR: Record<Notification["type"], string> = {
   DCK_CREATED: "bg-yellow-100 border-yellow-300 text-yellow-800",
   DCK_APPROVED: "bg-green-100 border-green-300 text-green-800",
   DCK_REJECTED: "bg-red-100 border-red-300 text-red-800",
+  DON_NHAP_CREATED: "bg-blue-100 border-blue-300 text-blue-800",
+  DON_NHAP_STATUS_UPDATED: "bg-blue-100 border-blue-300 text-blue-800",
+  DON_NHAP_DELETED: "bg-red-100 border-red-300 text-red-800",
+  DON_SAN_XUAT_CREATED: "bg-purple-100 border-purple-300 text-purple-800",
+  DON_SAN_XUAT_STATUS_UPDATED: "bg-purple-100 border-purple-300 text-purple-800",
+  DON_SAN_XUAT_DELETED: "bg-red-100 border-red-300 text-red-800",
+  DON_BAN_CREATED: "bg-green-100 border-green-300 text-green-800",
+  DON_BAN_STATUS_UPDATED: "bg-green-100 border-green-300 text-green-800",
+  DON_BAN_DELETED: "bg-red-100 border-red-300 text-red-800",
 };
 
 function formatTime(dateStr: string) {

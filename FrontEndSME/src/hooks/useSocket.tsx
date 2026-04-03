@@ -14,7 +14,11 @@ import { useMyProfile } from "@/hooks/use-account";
 
 export interface Notification {
   id: string;
-  type: "DCK_CREATED" | "DCK_APPROVED" | "DCK_REJECTED";
+  type:
+    | "DCK_CREATED" | "DCK_APPROVED" | "DCK_REJECTED"
+    | "DON_NHAP_CREATED" | "DON_NHAP_STATUS_UPDATED" | "DON_NHAP_DELETED"
+    | "DON_SAN_XUAT_CREATED" | "DON_SAN_XUAT_STATUS_UPDATED" | "DON_SAN_XUAT_DELETED"
+    | "DON_BAN_CREATED" | "DON_BAN_STATUS_UPDATED" | "DON_BAN_DELETED";
   message: string;
   data?: any;
   createdAt: string;
@@ -80,6 +84,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
       queryClient.invalidateQueries({ queryKey: ["san-pham"] });
       queryClient.invalidateQueries({ queryKey: ["nguyen-lieu"] });
+      queryClient.invalidateQueries({ queryKey: ["don-nhap-hang"] });
+      queryClient.invalidateQueries({ queryKey: ["don-san-xuat"] });
+      queryClient.invalidateQueries({ queryKey: ["don-ban-hang"] });
     });
 
     return () => {

@@ -24,7 +24,7 @@ export default class AuditLogController {
     const filter = {};
     if (action)     filter.action             = action;
     if (module)     filter.module             = module;
-    if (tai_khoan)  filter["performed_by.tai_khoan"] = tai_khoan;
+    if (tai_khoan)  filter["user.tai_khoan"] = tai_khoan;
 
     const pageNum  = Math.max(1, Number(page)  || 1);
     const limitNum = Math.max(1, Math.min(Number(limit) || 20, 100));

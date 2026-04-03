@@ -4,6 +4,8 @@
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import DonHangService from "../services/donHangService.js";
+import { notifyAdmin, notifyApprover } from "../utils/socketManager.js";
+import { logAction } from "../utils/auditLogger.js";
 
 export default class DonHangController {
   /* ─── CREATE ─── */
@@ -11,6 +13,14 @@ export default class DonHangController {
     const body = { ...(req.body || {}) };
     const nguoi_lap_id = req.user?._id || req.user?.id || null;
     const data = await DonHangService.create(body, nguoi_lap_id);
+
+    const loai = body.loai_don || "don_hang";
+    const performedBy = { tai_khoan: req.user?.tai_khoan, ho_ten: req.user?.ho_ten };
+    const payload = { type: `${loai.toUpperCase()}_CREATED`, id: data._id || data.insertedId, loai, created_by: performedBy };
+    notifyAdmin(payload);
+    notifyApprover(payload);
+    logAction("CREATE", loai, data._id?.toString() || data.insertedId?.toString(), `Tạo đơn hàng loại: ${loai}`, performedBy, req.ip);
+
     return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
   });
 
@@ -100,22 +110,46 @@ export default class DonHangController {
     const mongoClient = req.app?.locals?.mongoClient;
     const nguoi_thao_tac_id = req.user?._id || req.user?.id || null;
     const data = await DonHangService.updateStatus(id, trang_thai, { mongoClient, nguoi_thao_tac_id });
+
+    const performedBy = { tai_khoan: req.user?.tai_khoan, ho_ten: req.user?.ho_ten };
+    const loai = data.loai_don || "don_hang";
+    const isApprove = ["da_duyet", "hoan_thanh"].includes(trang_thai);
+    const payload = { type: `${loai.toUpperCase()}_STATUS_UPDATED`, id, trang_thai, updated_by: performedBy };
+    if (isApprove) notifyApprover(payload); else notifyAdmin(payload);
+    logAction("UPDATE_STATUS", loai, id, `Cập nhật trạng thái đơn hàng → ${trang_thai}`, performedBy, req.ip);
+
     return sendSuccess(res, data, "Cập nhật trạng thái đơn hàng thành công");
   });
 
   /* ─── DELETE / RESTORE ─── */
   static softDelete = asyncHandler(async (req, res) => {
     const data = await DonHangService.softDelete(req.params.id);
+
+    const performedBy = { tai_khoan: req.user?.tai_khoan, ho_ten: req.user?.ho_ten };
+    const loai = data.loai_don || "don_hang";
+    notifyAdmin({ type: `${loai.toUpperCase()}_DELETED`, id: req.params.id, deleted_by: performedBy });
+    logAction("SOFT_DELETE", loai, req.params.id, `Xóa mềm đơn hàng loại: ${loai}`, performedBy, req.ip);
+
     return sendSuccess(res, data, "Xóa mềm chứng từ thành công");
   });
 
   static restore = asyncHandler(async (req, res) => {
     const data = await DonHangService.restore(req.params.id);
+
+    const performedBy = { tai_khoan: req.user?.tai_khoan, ho_ten: req.user?.ho_ten };
+    const loai = data.loai_don || "don_hang";
+    logAction("RESTORE", loai, req.params.id, `Khôi phục đơn hàng loại: ${loai}`, performedBy, req.ip);
+
     return sendSuccess(res, data, "Khôi phục chứng từ thành công");
   });
 
   static hardDelete = asyncHandler(async (req, res) => {
     const data = await DonHangService.hardDelete(req.params.id);
+
+    const performedBy = { tai_khoan: req.user?.tai_khoan, ho_ten: req.user?.ho_ten };
+    notifyAdmin({ type: "DON_HANG_HARD_DELETED", id: req.params.id, deleted_by: performedBy });
+    logAction("HARD_DELETE", "don_hang", req.params.id, `Xóa vĩnh viễn đơn hàng`, performedBy, req.ip);
+
     return sendSuccess(res, data, "Xóa vĩnh viễn chứng từ thành công");
   });
 
