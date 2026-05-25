@@ -692,11 +692,19 @@ export default class DonHangDAO {
 
       const spMap = await this._batchFetchSanPham(spLines, { session });
 
+      // Pre-validate: kiểm tra đủ tồn tất cả sản phẩm trước khi trừ bất kỳ cái nào
       for (const ln of spLines) {
         const qty = Number(ln.so_luong);
         const sp  = this._lookupSanPham(spMap, ln);
         if (!sp) throw new Error(`Không tìm thấy sản phẩm để xuất kho: ${ln.ma_sp || ln.ten_sp}`);
+        if ((sp.so_luong ?? 0) < qty) {
+          throw new Error(`Không đủ tồn sản phẩm: ${sp.ma_sp || sp.ten_sp} (cần ${qty}, tồn ${sp.so_luong ?? 0})`);
+        }
+      }
 
+      for (const ln of spLines) {
+        const qty = Number(ln.so_luong);
+        const sp  = this._lookupSanPham(spMap, ln);
         const res = await san_pham_col.updateOne(
           { _id: sp._id, so_luong: { $gte: qty } },
           { $inc: { so_luong: -qty } },
@@ -757,19 +765,34 @@ export default class DonHangDAO {
         : [];
       const nlByMa = new Map(nlDocs.map(nl => [String(nl.ma_nl).trim(), nl]));
 
+      // Pre-validate: kiểm tra đủ tồn tất cả nguyên liệu trước khi trừ bất kỳ cái nào
+      // Nếu fail ở đây thì kho chưa bị động → không cần rollback
+      for (const ln of spLines) {
+        const qtyTP   = Number(ln.so_luong);
+        const sp      = this._lookupSanPham(spMap, ln);
+        const bomList = this._bomFromSanPhamDoc(sp);
+        for (const b of bomList) {
+          const need = (Number(b.dinh_muc) || 0) * qtyTP;
+          if (need <= 0) continue;
+          const nl = nlByMa.get(String(b.ma_nl).trim());
+          if (!nl) throw new Error(`BOM không map được nguyên liệu: ${b.ma_nl || b.ten_nl || "?"}`);
+          if ((nl.so_luong ?? 0) < need) {
+            throw new Error(`Không đủ tồn nguyên liệu: ${nl.ma_nl || b.ma_nl} (cần ${need}, tồn ${nl.so_luong ?? 0})`);
+          }
+        }
+      }
+
       for (const ln of spLines) {
         const qtyTP  = Number(ln.so_luong);
         const sp     = this._lookupSanPham(spMap, ln);
         const bomList = this._bomFromSanPhamDoc(sp);
 
-        // Trừ kho nguyên liệu trước (fail ở đây thì không cộng TP)
+        // Trừ kho nguyên liệu (guard $gte là lớp bảo vệ thứ 2 cho concurrent request)
         for (const b of bomList) {
           const need = (Number(b.dinh_muc) || 0) * qtyTP;
           if (need <= 0) continue;
 
           const nl = nlByMa.get(String(b.ma_nl).trim());
-          if (!nl) throw new Error(`BOM không map được nguyên liệu: ${b.ma_nl || b.ten_nl || "?"}`);
-
           const res = await nguyen_lieu_col.updateOne(
             { _id: nl._id, so_luong: { $gte: need } },
             { $inc: { so_luong: -need } },
@@ -779,7 +802,7 @@ export default class DonHangDAO {
           if (res.matchedCount === 0) {
             const nl2 = await nguyen_lieu_col.findOne({ _id: nl._id }, { session });
             throw new Error(
-              `Không đủ tồn nguyên liệu: ${nl2?.ma_nl || b.ma_nl} (cần=${need}, tồn=${nl2?.so_luong ?? 0})`
+              `Không đủ tồn nguyên liệu: ${nl2?.ma_nl || b.ma_nl} (cần ${need}, tồn ${nl2?.so_luong ?? 0})`
             );
           }
         }
@@ -916,10 +939,6 @@ export default class DonHangDAO {
       (trang_thai_moi === STATUS.COMPLETED ||
         (trang_thai_moi === STATUS.CONFIRMED && isPurchase));
 
-    if (shouldApplyInventory) {
-      await this._applyInventoryOnCompleted(doc, { session });
-    }
-
     const now = new Date();
     const log = {
       hanh_dong: "status",
@@ -929,14 +948,36 @@ export default class DonHangDAO {
       by: toObjectId(nguoi_thao_tac_id) || doc.nguoi_lap_id,
     };
 
+    // Optimistic lock TRƯỚC — chỉ request thắng lock mới được apply inventory.
+    // Đặt status update trước inventory để tránh double-deduction khi 2 request
+    // cùng đọc trạng thái cũ rồi cùng trừ kho trước khi lock chạy.
     const res = await don_hang.updateOne(
-      { _id },
+      { _id, trang_thai: doc.trang_thai },
       {
         $set: { trang_thai: trang_thai_moi, updated_at: now },
         $push: { lich_su: log },
       },
       { session }
     );
+
+    if (res.modifiedCount === 0) {
+      return { error: new Error("Chứng từ vừa được cập nhật bởi người khác, vui lòng thử lại") };
+    }
+
+    // Apply inventory sau khi đã giữ được lock.
+    // Nếu inventory thất bại → revert status về trạng thái cũ để có thể retry.
+    if (shouldApplyInventory) {
+      try {
+        await this._applyInventoryOnCompleted(doc, { session });
+      } catch (invErr) {
+        await don_hang.updateOne(
+          { _id, trang_thai: trang_thai_moi },
+          { $set: { trang_thai: doc.trang_thai, updated_at: new Date() } },
+          { session }
+        );
+        return { error: invErr };
+      }
+    }
 
     return { modifiedCount: res.modifiedCount };
   }

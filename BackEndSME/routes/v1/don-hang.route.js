@@ -5,7 +5,7 @@
 
 import express from "express";
 import DonHangController from "../../controllers/donHangControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -48,9 +48,9 @@ router.patch("/:id/note",    verifyToken, DonHangController.updateNote);
 /* ─── TRẠNG THÁI ─── */
 router.patch("/:id/status", verifyToken, DonHangController.updateStatus); // R4: was POST
 
-/* ─── XOÁ / KHÔI PHỤC ─── */
-router.delete("/:id",        verifyToken, DonHangController.softDelete);
-router.patch("/:id/restore", verifyToken, DonHangController.restore); // R4: was POST
-router.delete("/:id/hard",   verifyToken, DonHangController.hardDelete);
+/* ─── XOÁ / KHÔI PHỤC — chỉ admin ─── */
+router.delete("/:id",        verifyToken, verifyAdmin, DonHangController.softDelete);
+router.patch("/:id/restore", verifyToken, verifyAdmin, DonHangController.restore);
+router.delete("/:id/hard",   verifyToken, verifyAdmin, DonHangController.hardDelete);
 
 export default router;

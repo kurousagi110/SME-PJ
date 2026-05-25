@@ -90,28 +90,6 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 /* ─── R1: All business routes under /api/v1 ─── */
 app.use("/api/v1", v1Router);
 
-/*
- * Legacy route aliases (backward-compat for Postman collections that use /api/*).
- * Remove once all clients are updated to /api/v1/*.
- */
-import usersRouteLegacy      from "./routes/user.router.js";
-import nguyenLieuRouteLegacy from "./routes/nguyenlieu.route.js";
-import sanPhamRouteLegacy    from "./routes/sanPham.route.js";
-import donHangRouteLegacy    from "./routes/donHang.route.js";
-import phongBanRouteLegacy   from "./routes/phongban_chucvu.route.js";
-import luongRouteLegacy      from "./routes/luong.route.js";
-import bomRouteLegacy        from "./routes/bom.route.js";
-import dashboardRouteLegacy  from "./routes/dashboardRoutes.js";
-
-app.use("/api/users",           usersRouteLegacy);
-app.use("/api/nguyen-lieu",     nguyenLieuRouteLegacy);
-app.use("/api/san-pham",        sanPhamRouteLegacy);
-app.use("/api/don-hang",        donHangRouteLegacy);
-app.use("/api/phongban-chucvu", phongBanRouteLegacy);
-app.use("/api/luong",           luongRouteLegacy);
-app.use("/api/bom",             bomRouteLegacy);
-app.use("/api/dashboard",       dashboardRouteLegacy);
-
 /* ─── Global error handler (MUST be last) ─── */
 app.use(errorHandler);
 

@@ -1,6 +1,7 @@
 // Refactored: 2026-04-02 | Issues fixed: W1, W5, G6 | Phase 1 – Foundation
 // Consolidates middleware/middleware.js (dead code) + middleware/verifyToken.js (active)
 // middleware/middleware.js is now dead code and can be deleted.
+// 2026-05-25: Added isAdminUser helper + verifySelfOrAdmin middleware
 
 import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
@@ -17,6 +18,15 @@ export function injectAuthDB(conn) {
   if (usersCol) return;
   const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
   usersCol = conn.db(dbName).collection("users");
+}
+
+/** Single source of truth for admin-level role check. */
+function isAdminUser(user) {
+  return (
+    user?.phong_ban?.ten === "Phòng giám đốc" ||
+    user?.chuc_vu?.ten  === "Giám đốc" ||
+    user?.role          === "admin"
+  );
 }
 
 /**
@@ -60,20 +70,11 @@ export async function verifyToken(req, res, next) {
 /**
  * verifyAdmin – checks that the authenticated user has admin-level access.
  * Must be used AFTER verifyToken.
- *
- * Currently checks: phong_ban.ten === "Phòng giám đốc" OR chuc_vu.ten === "Giám đốc"
- * Adjust the condition to match the actual role model as needed.
  */
 export function verifyAdmin(req, res, next) {
   const user = req.user;
   if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
-
-  const isAdmin =
-    user?.phong_ban?.ten === "Phòng giám đốc" ||
-    user?.chuc_vu?.ten === "Giám đốc" ||
-    user?.role === "admin";
-
-  if (!isAdmin) return next(ApiError.forbidden("Không có quyền admin", "FORBIDDEN"));
+  if (!isAdminUser(user)) return next(ApiError.forbidden("Không có quyền admin", "FORBIDDEN"));
   next();
 }
 
@@ -87,11 +88,25 @@ export function verifyApprover(req, res, next) {
   if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
 
   const isApprover =
-    user?.phong_ban?.ten === "Phòng giám đốc" ||
-    user?.chuc_vu?.ten === "Giám đốc" ||
-    user?.chuc_vu?.ten === "Thủ kho" ||
-    user?.role === "admin";
+    isAdminUser(user) ||
+    user?.chuc_vu?.ten === "Thủ kho";
 
   if (!isApprover) return next(ApiError.forbidden("Không có quyền duyệt phiếu điều chỉnh kho", "FORBIDDEN"));
+  next();
+}
+
+/**
+ * verifySelfOrAdmin – allows the resource owner OR an admin to proceed.
+ * Compares req.user._id against req.params.id.
+ * Must be used AFTER verifyToken.
+ */
+export function verifySelfOrAdmin(req, res, next) {
+  const user = req.user;
+  if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
+
+  const isSelf = user._id?.toString() === req.params.id;
+  if (!isSelf && !isAdminUser(user)) {
+    return next(ApiError.forbidden("Không có quyền thao tác trên tài khoản này", "FORBIDDEN"));
+  }
   next();
 }

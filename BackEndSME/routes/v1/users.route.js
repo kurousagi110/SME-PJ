@@ -4,7 +4,7 @@
 
 import express from "express";
 import UsersController from "../../controllers/usersControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifySelfOrAdmin } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
@@ -24,22 +24,22 @@ router.get("/",        verifyToken, UsersController.getUsers);
 router.get("/me/:id",  verifyToken, UsersController.getMyUser);
 router.get("/:id",     verifyToken, UsersController.getUserById);
 
-/* ─── PROFILE / PASSWORD ─── */
-router.patch("/:id/profile",  verifyToken, UsersController.updateProfile);
-router.patch("/:id/password", verifyToken, requireBody("oldPassword", "newPassword"), UsersController.updatePassword);
+/* ─── PROFILE / PASSWORD — chỉ chính chủ hoặc admin ─── */
+router.patch("/:id/profile",  verifyToken, verifySelfOrAdmin, UsersController.updateProfile);
+router.patch("/:id/password", verifyToken, verifySelfOrAdmin, requireBody("oldPassword", "newPassword"), UsersController.updatePassword);
 
-/* ─── CHỨC VỤ ─── */
-router.put("/:id/chuc-vu",    verifyToken, UsersController.setChucVu);
-router.patch("/:id/chuc-vu",  verifyToken, UsersController.updateChucVu);
-router.delete("/:id/chuc-vu", verifyToken, UsersController.clearChucVu);
+/* ─── CHỨC VỤ — chỉ admin ─── */
+router.put("/:id/chuc-vu",    verifyToken, verifyAdmin, UsersController.setChucVu);
+router.patch("/:id/chuc-vu",  verifyToken, verifyAdmin, UsersController.updateChucVu);
+router.delete("/:id/chuc-vu", verifyToken, verifyAdmin, UsersController.clearChucVu);
 
-/* ─── PHÒNG BAN ─── */
-router.put("/:id/phong-ban",    verifyToken, UsersController.setPhongBan);
-router.patch("/:id/phong-ban",  verifyToken, UsersController.updatePhongBan);
-router.delete("/:id/phong-ban", verifyToken, UsersController.clearPhongBan);
+/* ─── PHÒNG BAN — chỉ admin ─── */
+router.put("/:id/phong-ban",    verifyToken, verifyAdmin, UsersController.setPhongBan);
+router.patch("/:id/phong-ban",  verifyToken, verifyAdmin, UsersController.updatePhongBan);
+router.delete("/:id/phong-ban", verifyToken, verifyAdmin, UsersController.clearPhongBan);
 
-/* ─── TRẠNG THÁI ─── */
-router.delete("/:id",         verifyToken, UsersController.softDelete);
-router.patch("/:id/restore",  verifyToken, UsersController.restore); // R4: was POST
+/* ─── TRẠNG THÁI — chỉ admin ─── */
+router.delete("/:id",         verifyToken, verifyAdmin, UsersController.softDelete);
+router.patch("/:id/restore",  verifyToken, verifyAdmin, UsersController.restore);
 
 export default router;
