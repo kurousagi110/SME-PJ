@@ -57,9 +57,10 @@ services:
       MONGO_URI: mongodb://db:27017
       SME_DB_NAME: SME_db_mongo
 
-      # JWT — replace with strong random secrets before deploying
-      JWT_SECRET: replace_with_strong_secret
-      JWT_REFRESH_SECRET: replace_with_different_strong_secret
+      # JWT — replace with strong random secrets before deploying.
+      # Generate with: node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in host environment or .env file}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set in host environment or .env file}
       ACCESS_EXPIRES: 15m
       REFRESH_EXPIRES: 7d
 

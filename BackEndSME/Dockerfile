@@ -1,8 +1,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage: production
-# Base: node:18-alpine (slim, security-patched, ~50 MB)
+# Base: node:20-alpine (slim, security-patched, ~50 MB)
+# Aligned with FrontEndSME (node:20-alpine) and engines>=20 in package.json.
 # ─────────────────────────────────────────────────────────────────────────────
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Install dumb-init for proper signal handling (PID 1 problem)
 RUN apk add --no-cache dumb-init

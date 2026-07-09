@@ -37,7 +37,7 @@ async function main() {
   if (!uri)    { logger.error("Missing env: MONGO_URI or SME_DB_URI");  process.exit(1); }
   if (!dbName) { logger.error("Missing env: SME_DB_NAME");              process.exit(1); }
 
-  const port     = Number(process.env.PORT)  || 8000;
+  const port     = Number(process.env.PORT)  || 5000;
   const hostName = process.env.HOST_NAME     || "http://localhost";
 
   const client = new mongodb.MongoClient(uri, {

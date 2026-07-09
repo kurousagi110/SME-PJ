@@ -4,7 +4,7 @@
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 
-const port = process.env.PORT || 8000;
+const port = process.env.PORT || 5000;
 const host = process.env.HOST_NAME || "http://localhost";
 
 const options = {
