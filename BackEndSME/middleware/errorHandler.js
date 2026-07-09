@@ -31,12 +31,15 @@ export default function errorHandler(err, req, res, _next) {
 
   /* ── ApiError (operational) ── */
   if (err instanceof ApiError) {
-    return res.status(err.statusCode).json({
+    const body = {
       success: false,
       message: err.message,
       errorCode: err.errorCode,
       statusCode: err.statusCode,
-    });
+    };
+    // Phase 5: đính kèm data nếu có (e.g. validation details)
+    if (err.data != null) body.data = err.data;
+    return res.status(err.statusCode).json(body);
   }
 
   /* ── JWT errors ── */

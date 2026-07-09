@@ -15,6 +15,7 @@ import phongBanRoute      from "./phongban-chucvu.route.js";
 import healthRoute        from "./health.route.js";
 import dieuChinhKhoRoute  from "./dieu-chinh-kho.route.js";
 import auditLogRoute      from "./audit-log.route.js";
+import sanXuatRoute       from "./san-xuat.route.js";
 
 const v1Router = Router();
 
@@ -23,6 +24,7 @@ v1Router.use("/users",             usersRoute);
 v1Router.use("/san-pham",          sanPhamRoute);
 v1Router.use("/nguyen-lieu",       nguyenLieuRoute);
 v1Router.use("/bom",               bomRoute);
+v1Router.use("/san-xuat",          sanXuatRoute);
 v1Router.use("/don-hang",          donHangRoute);
 v1Router.use("/luong",             luongRoute);
 v1Router.use("/dashboard",         dashboardRoute);

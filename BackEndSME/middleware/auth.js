@@ -110,3 +110,20 @@ export function verifySelfOrAdmin(req, res, next) {
   }
   next();
 }
+
+/**
+ * verifyProductionManager – chỉ Trưởng xưởng + Admin được tạo lệnh sản xuất.
+ * Must be used AFTER verifyToken.
+ */
+export function verifyProductionManager(req, res, next) {
+  const user = req.user;
+  if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
+
+  const isProductionManager =
+    isAdminUser(user) || user?.chuc_vu?.ten === "Trưởng xưởng";
+
+  if (!isProductionManager) {
+    return next(ApiError.forbidden("Không có quyền tạo lệnh sản xuất", "FORBIDDEN"));
+  }
+  next();
+}
