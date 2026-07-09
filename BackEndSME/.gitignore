@@ -38,6 +38,11 @@ node_modules/
 npm-debug.log
 yarn-error.log
 
+# Environment — secrets must never be committed
+.env
+.env.*
+!.env.example
+
 # BUCK
 buck-out/
 \.buckd/
