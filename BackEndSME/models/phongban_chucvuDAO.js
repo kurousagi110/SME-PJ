@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let phongban_chucvu;
 
@@ -31,7 +32,7 @@ export default class phongban_chucvuDAO {
         "chuc_vu.ten_chuc_vu": "text",
       });
     } catch (e) {
-      console.error(`Unable to establish collection handles: ${e}`);
+      logger.error("Unable to establish collection handles", { error: e.message });
     }
   }
 
@@ -92,7 +93,7 @@ export default class phongban_chucvuDAO {
       if (e?.code === 11000) {
         return { error: new Error("Tên phòng ban đã tồn tại") };
       }
-      console.error(`addPhongBanChucVu error: ${e}`);
+      logger.error("addPhongBanChucVu error", { error: e.message });
       return { error: e };
     }
   }
@@ -107,7 +108,7 @@ export default class phongban_chucvuDAO {
       if (!doc) return { error: new Error("Không tìm thấy phòng ban") };
       return doc;
     } catch (e) {
-      console.error(`getById error: ${e}`);
+      logger.error("getById error", { error: e.message });
       return { error: e };
     }
   }
@@ -153,7 +154,7 @@ export default class phongban_chucvuDAO {
         totalPages: Math.ceil(total / Number(limit)) || 1,
       };
     } catch (e) {
-      console.error(`list phongban_chucvu error: ${e}`);
+      logger.error("list phongban_chucvu error", { error: e.message });
       return { error: e };
     }
   }
@@ -166,7 +167,7 @@ export default class phongban_chucvuDAO {
       const items = await phongban_chucvu.find(filter).toArray();
       return items;
     } catch (e) {
-      console.error(`getAllPhongBan error: ${e}`);
+      logger.error("getAllPhongBan error", { error: e.message });
       return { error: e };
     }
   }
@@ -191,7 +192,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`updatePhongBan error: ${e}`);
+      logger.error("updatePhongBan error", { error: e.message });
       return { error: e };
     }
   }
@@ -205,7 +206,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`softDeletePhongBan error: ${e}`);
+      logger.error("softDeletePhongBan error", { error: e.message });
       return { error: e };
     }
   }
@@ -218,7 +219,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`restorePhongBan error: ${e}`);
+      logger.error("restorePhongBan error", { error: e.message });
       return { error: e };
     }
   }
@@ -228,7 +229,7 @@ export default class phongban_chucvuDAO {
       const res = await phongban_chucvu.deleteOne({ _id: new ObjectId(id) });
       return { deletedCount: res.deletedCount };
     } catch (e) {
-      console.error(`hardDeletePhongBan error: ${e}`);
+      logger.error("hardDeletePhongBan error", { error: e.message });
       return { error: e };
     }
   }
@@ -247,7 +248,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount, chuc_vu_id: cv._id };
     } catch (e) {
-      console.error(`addChucVu error: ${e}`);
+      logger.error("addChucVu error", { error: e.message });
       return { error: e };
     }
   }
@@ -279,7 +280,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`updateChucVu error: ${e}`);
+      logger.error("updateChucVu error", { error: e.message });
       return { error: e };
     }
   }
@@ -298,7 +299,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`removeChucVu error: ${e}`);
+      logger.error("removeChucVu error", { error: e.message });
       return { error: e };
     }
   }
@@ -323,7 +324,7 @@ export default class phongban_chucvuDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`setTrangThaiChucVu error: ${e}`);
+      logger.error("setTrangThaiChucVu error", { error: e.message });
       return { error: e };
     }
   }

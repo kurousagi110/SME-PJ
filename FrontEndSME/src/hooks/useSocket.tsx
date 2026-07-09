@@ -46,15 +46,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const isLoggedIn = !!profile;
 
   useEffect(() => {
-    console.log("🔥 Socket hook đã chạy Client-side!");
-
     if (!isLoggedIn) {
       socketRef.current?.disconnect();
       socketRef.current = null;
       return;
     }
-
-    console.log("Đang thử kết nối Socket (không truyền token thủ công)...");
 
     // Connect same-origin; nginx sẽ proxy /socket.io/ đến backend
     // Token được Backend tự đọc từ HttpOnly Cookie
@@ -65,18 +61,12 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     socketRef.current = socket;
 
-    socket.on("connect", () =>
-      console.log("🟢 Socket CONNECTED với ID:", socket.id)
-    );
-    socket.on("connect_error", (err) =>
-      console.error("🔴 Socket ERROR:", err)
-    );
-    socket.on("disconnect", (reason) =>
-      console.log("⚫ Socket DISCONNECTED:", reason)
-    );
+    socket.on("connect_error", (err) => {
+      // Luôn log lỗi kết nối — không chứa dữ liệu nhạy cảm.
+      console.error("[socket] connect_error:", err.message);
+    });
 
     socket.on("notification", (data: Omit<Notification, "read">) => {
-      console.log("Nhận được socket:", data);
       setNotifications((prev) => [
         { ...data, read: false },
         ...prev.slice(0, 19),

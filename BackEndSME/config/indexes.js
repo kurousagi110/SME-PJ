@@ -1,6 +1,8 @@
 // Phase 2: 2026-04-02 | Performance – centralized MongoDB index helpers
 // Shared by all DAOs to avoid copy-paste of ensureNormalIndex / ensureTextIndex
 
+import logger from "../utils/logger.js";
+
 /**
  * Create a normal (non-text) index only if it does not already exist.
  * Skips silently when the key matches an existing index (idempotent startup).
@@ -13,7 +15,7 @@ export async function ensureNormalIndex(col, keySpec, options = {}) {
     const wantUnique = !!options.unique;
     const haveUnique = !!existed.unique;
     if (wantUnique !== haveUnique) {
-      console.warn(`[${tag}] Index key exists but unique mismatch — skip. Set REBUILD_INDEXES=true to drop & recreate.`);
+      logger.warn(`[indexes] [${tag}] Index key exists but unique mismatch — skip. Set REBUILD_INDEXES=true to drop & recreate.`);
     }
     return;
   }
@@ -50,8 +52,8 @@ export async function ensureTextIndex(col, keySpec, options = {}) {
   if (weightsMatch && langMatch) return;
 
   if (!rebuild) {
-    console.warn(
-      `[${tag}] Text index '${existing.name}' already exists with different config — skip. ` +
+    logger.warn(
+      `[indexes] [${tag}] Text index '${existing.name}' already exists with different config — skip. ` +
       `Set REBUILD_TEXT_INDEX=true to drop & recreate.`
     );
     return;
@@ -59,9 +61,9 @@ export async function ensureTextIndex(col, keySpec, options = {}) {
 
   try {
     await col.dropIndex(existing.name);
-    console.log(`[${tag}] Dropped old text index: ${existing.name}`);
+    logger.info(`[indexes] [${tag}] Dropped old text index: ${existing.name}`);
   } catch (e) {
-    console.warn(`[${tag}] dropIndex failed: ${e?.message || e}`);
+    logger.warn(`[indexes] [${tag}] dropIndex failed: ${e?.message || e}`);
   }
 
   await col.createIndex(keySpec, {
@@ -69,7 +71,7 @@ export async function ensureTextIndex(col, keySpec, options = {}) {
     name: options.name || "search_text",
     default_language: desiredLang,
   });
-  console.log(`[${tag}] Created text index: ${options.name || "search_text"}`);
+  logger.info(`[indexes] [${tag}] Created text index: ${options.name || "search_text"}`);
 }
 
 function _sameKey(a = {}, b = {}) {

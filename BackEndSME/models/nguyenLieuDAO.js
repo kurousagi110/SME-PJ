@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let nguyen_lieu;
 
@@ -42,7 +43,7 @@ async function ensureNormalIndex(col, keySpec, options = {}) {
     const wantUnique = !!options.unique;
     const haveUnique = !!existed.unique;
     if (wantUnique !== haveUnique) {
-      console.warn(
+      logger.warn(
         `[nguyen_lieu] Index key exists but unique mismatch. Skip. existing=${existed.name} wantUnique=${wantUnique}`
       );
     }
@@ -84,7 +85,7 @@ async function ensureTextIndex(col, keySpec, options = {}) {
 
   // Nếu mismatch:
   if (!rebuild) {
-    console.warn(
+    logger.warn(
       `[nguyen_lieu] Text index already exists (${existedText.name}) with different options/fields. SKIP creating new. ` +
       `Set REBUILD_TEXT_INDEX=true to drop & recreate.`
     );
@@ -94,9 +95,9 @@ async function ensureTextIndex(col, keySpec, options = {}) {
   // rebuild: drop cũ rồi tạo mới
   try {
     await col.dropIndex(existedText.name);
-    console.log(`[nguyen_lieu] Dropped old text index: ${existedText.name}`);
+    logger.info(`[nguyen_lieu] Dropped old text index: ${existedText.name}`);
   } catch (e) {
-    console.warn(`[nguyen_lieu] dropIndex failed: ${e?.message || e}`);
+    logger.warn(`[nguyen_lieu] dropIndex failed: ${e?.message || e}`);
   }
 
   await col.createIndex(keySpec, {
@@ -104,14 +105,16 @@ async function ensureTextIndex(col, keySpec, options = {}) {
     name: options.name || "search_text",
     default_language: desiredDefaultLang,
   });
-  console.log(`[nguyen_lieu] Created text index: ${(options.name || "search_text")}`);
+  logger.info(`[nguyen_lieu] Created text index: ${(options.name || "search_text")}`);
 }
 
 export default class NguyenLieuDAO {
   static async injectDB(conn) {
     if (nguyen_lieu) return;
+    const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
+    if (!dbName) throw new Error("NguyenLieuDAO.injectDB: missing SME_DB_NAME env var");
     try {
-      nguyen_lieu = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("nguyen_lieu");
+      nguyen_lieu = await conn.db(dbName).collection("nguyen_lieu");
 
       // Indexes (an toàn, không crash nếu đã tồn tại)
       await ensureNormalIndex(nguyen_lieu, { ma_nl: 1 }, { unique: true, name: "ma_nl_unique" });
@@ -131,7 +134,7 @@ export default class NguyenLieuDAO {
         }
       );
     } catch (e) {
-      console.error(`Unable to establish collection handles: ${e}`);
+      logger.error("Unable to establish collection handles", { error: e.message });
     }
   }
 
@@ -180,7 +183,7 @@ export default class NguyenLieuDAO {
       return { insertedId: res.insertedId };
     } catch (e) {
       if (e?.code === 11000) return { error: new Error("Mã nguyên liệu (ma_nl) đã tồn tại") };
-      console.error(`addNguyenLieu error: ${e}`);
+      logger.error("addNguyenLieu error", { error: e.message });
       return { error: e };
     }
   }
@@ -220,7 +223,7 @@ export default class NguyenLieuDAO {
 
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`updateNguyenLieu error: ${e}`);
+      logger.error("updateNguyenLieu error", { error: e.message });
       return { error: e };
     }
   }
@@ -247,9 +250,11 @@ export default class NguyenLieuDAO {
       { returnDocument: "after" }
     );
 
-    // ✅ debug backend (1 lần là thấy ngay filter không match vì sao)
+    // Debug: chỉ log trong dev
     if (!res.value) {
-      console.log("❌ adjustStock NOT MATCH", { id, deltaQty: d, allowNegative, filter });
+      if (process.env.NODE_ENV !== "production") {
+        logger.debug("adjustStock NOT MATCH", { id, deltaQty: d, allowNegative, filter });
+      }
       return { error: new Error("Không đủ tồn hoặc không tìm thấy nguyên liệu") };
     }
 
@@ -264,7 +269,7 @@ export default class NguyenLieuDAO {
 
     return { ok: true, doc: res.value };
   } catch (e) {
-    console.error(`adjustStock error: ${e}`);
+    logger.error("adjustStock error", { error: e.message });
     return { error: e };
   }
 }
@@ -401,7 +406,7 @@ export default class NguyenLieuDAO {
         .limit(Number(limit))
         .toArray();
     } catch (e) {
-      console.error(`search nguyen_lieu error: ${e}`);
+      logger.error("search nguyen_lieu error", { error: e.message });
       return { error: e };
     }
   }
@@ -537,7 +542,7 @@ export default class NguyenLieuDAO {
 
       return { items, pagination: { page, limit, total, total_pages } };
     } catch (e) {
-      console.error(`Unable to get all stock nguyen lieu: ${e}`);
+      logger.error("Unable to get all stock nguyen lieu", { error: e.message });
       return { error: e };
     }
   }

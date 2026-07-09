@@ -136,7 +136,7 @@ export default class DonHangService {
     if (mongoClient?.startSession) {
       const session = mongoClient.startSession();
       try {
-        let outcome;
+        let outcome = {};
         await session.withTransaction(async () => {
           const r = await DonHangDAO.capNhatTrangThaiVaTonKho(id, trang_thai, {
             session,

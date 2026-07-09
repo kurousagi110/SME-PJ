@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let don_hang;
 let users;
@@ -84,7 +85,7 @@ export default class DashboardDAO {
       await don_hang.createIndex({ loai_don: 1, created_at: -1 });
       await don_hang.createIndex({ trang_thai: 1, created_at: -1 });
     } catch (e) {
-      console.error(`DashboardDAO injectDB error: ${e}`);
+      logger.error("DashboardDAO injectDB error", { error: e.message });
     }
   }
 
@@ -217,7 +218,7 @@ export default class DashboardDAO {
 
       return { ok: true, metric, loai_don, rows };
     } catch (e) {
-      console.error(`getOrdersCompare error: ${e}`);
+      logger.error("getOrdersCompare error", { error: e.message });
       return { error: e };
     }
   }
@@ -331,7 +332,7 @@ export default class DashboardDAO {
         totalPages: Math.ceil(total / Number(limit)) || 1,
       };
     } catch (e) {
-      console.error(`getOrdersTable error: ${e}`);
+      logger.error("getOrdersTable error", { error: e.message });
       return { error: e };
     }
   }

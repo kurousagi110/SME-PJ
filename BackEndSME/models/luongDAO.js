@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let luongCol;
 let usersCol;
@@ -12,8 +13,10 @@ const STATUS = {
 export default class LuongDAO {
   static async injectDB(conn) {
     if (luongCol && usersCol) return;
+    const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
+    if (!dbName) throw new Error("LuongDAO.injectDB: missing SME_DB_NAME env var");
     try {
-      const db = conn.db(process.env.SME_DB_NAME || process.env.DB_NAME);
+      const db = conn.db(dbName);
       luongCol = db.collection("luong");
       usersCol = db.collection("users");
 
@@ -22,7 +25,7 @@ export default class LuongDAO {
       await luongCol.createIndex({ trang_thai: 1 });
       await luongCol.createIndex({ ngay_thang: 1 }); // ✅ hỗ trợ query theo ngày
     } catch (e) {
-      console.error(`Unable to establish collection handles in LuongDAO: ${e}`);
+      logger.error("Unable to establish collection handles in LuongDAO", { error: e.message });
     }
   }
 
@@ -111,7 +114,7 @@ export default class LuongDAO {
 
       return { upsertedId: res.upsertedId, matchedCount: res.matchedCount, modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`createOrUpdateChamCong error: ${e}`);
+      logger.error("createOrUpdateChamCong error", { error: e.message });
       return { error: e };
     }
   }
@@ -181,7 +184,7 @@ export default class LuongDAO {
         errors,
       };
     } catch (e) {
-      console.error(`createOrUpdateChamCongBulk error: ${e}`);
+      logger.error("createOrUpdateChamCongBulk error", { error: e.message });
       return { error: e };
     }
   }
@@ -200,7 +203,7 @@ export default class LuongDAO {
       if (!doc) return { error: new Error("Không tìm thấy chấm công") };
       return doc;
     } catch (e) {
-      console.error(`getChamCongByDay error: ${e}`);
+      logger.error("getChamCongByDay error", { error: e.message });
       return { error: e };
     }
   }
@@ -251,7 +254,7 @@ export default class LuongDAO {
         totalPages: Math.ceil(total / Number(limit)) || 1,
       };
     } catch (e) {
-      console.error(`listChamCong error: ${e}`);
+      logger.error("listChamCong error", { error: e.message });
       return { error: e };
     }
   }
@@ -264,7 +267,7 @@ export default class LuongDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`softDeleteChamCong error: ${e}`);
+      logger.error("softDeleteChamCong error", { error: e.message });
       return { error: e };
     }
   }
@@ -352,7 +355,7 @@ export default class LuongDAO {
 
       return { ok: true, thang: thangNum, nam: namNum, items };
     } catch (e) {
-      console.error(`tinhLuongThang error: ${e}`);
+      logger.error("tinhLuongThang error", { error: e.message });
       return { error: e };
     }
   }

@@ -49,7 +49,6 @@ export default function AccountPage() {
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
 
-  console.log("profile", profile);
   // fill form khi mở modal
   useEffect(() => {
     if (profile) {

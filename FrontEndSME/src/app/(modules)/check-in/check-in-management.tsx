@@ -169,7 +169,6 @@ export function ChamCongManagement() {
   // });
 
   const meQuery = useMyProfile();
-  console.log("Data meQuery", meQuery);
   const me = meQuery.data;
 
   const myPhongBan = useMemo(() => pickTenDeep(me?.phong_ban), [me]);
@@ -231,18 +230,12 @@ export function ChamCongManagement() {
   }, [nvData]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
     const items = (nvData?.items ?? []) as any[];
     if (Array.isArray(items) && items[0]) {
-      console.log(" DEBUG NV RAW item[0] =", items[0]);
-      console.log(" DEBUG NV fields =", {
-        ma_nv: items[0]?.ma_nv,
-        chuc_vu: items[0]?.chuc_vu,
-        chuc_vu_ten: items[0]?.chuc_vu_ten,
-        phong_ban: items[0]?.phong_ban,
-        phong_ban_ten: items[0]?.phong_ban_ten,
-      });
+      console.debug("[dev] NV raw item[0]:", items[0]);
     } else {
-      console.log(" DEBUG NV RAW items is not array:", items);
+      console.debug("[dev] NV raw items is not array:", items);
     }
   }, [nvData]);
 
@@ -335,11 +328,13 @@ export function ChamCongManagement() {
   }, [filteredNhanVien, ccByKeyNv, ngay]);
 
   useEffect(() => {
-    if (me) console.log(" DEBUG ME =", me, { myChucVu, myPhongBan });
+    if (process.env.NODE_ENV === "production") return;
+    if (me) console.debug("[dev] ME:", { myChucVu, myPhongBan });
   }, [me, myChucVu, myPhongBan]);
 
   useEffect(() => {
-    if (rows.length) console.log(" DEBUG ROWS sample =", rows[0]);
+    if (process.env.NODE_ENV === "production") return;
+    if (rows.length) console.debug("[dev] ROWS sample:", rows[0]);
   }, [rows]);
 
   const upsertMut = useUpsertChamCong(ngay);
@@ -388,7 +383,7 @@ export function ChamCongManagement() {
       );
     } catch (e: any) {
       toast.error(e?.message || "Lưu thất bại");
-      console.error("❌ upsert error:", e);
+      console.error("upsert error:", e);
     }
   };
 

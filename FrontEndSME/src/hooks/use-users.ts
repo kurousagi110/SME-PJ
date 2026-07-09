@@ -152,11 +152,9 @@ export function useDanhSachNhanVien(params?: {
       const raw = await fetchDanhSachNhanVien(params);
 
       const normalized = normalizeNhanVienList(raw);
-      console.log(" useDanhSachNhanVien normalized:", {
-        params,
-        count: normalized.length,
-        sample: normalized[0],
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[dev] useDanhSachNhanVien normalized:", { params, count: normalized.length });
+      }
 
       return { items: normalized };
     },

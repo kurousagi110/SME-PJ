@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -11,13 +12,15 @@ const SALT_ROUNDS = 12;
 export default class UsersDAO {
   static async injectDB(conn) {
     if (users) return;
+    const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
+    if (!dbName) throw new Error("UsersDAO.injectDB: missing SME_DB_NAME env var");
     try {
-      users = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("users");
+      users = await conn.db(dbName).collection("users");
       await users.createIndex({ tai_khoan: 1 }, { unique: true });
       await users.createIndex({ ho_ten: "text" });
       await users.createIndex({ trang_thai: 1 });
     } catch (e) {
-      console.error(`Unable to establish a collection handle in usersDAO: ${e}`);
+      logger.error("Unable to establish a collection handle in usersDAO", { error: e.message });
     }
   }
 
@@ -55,7 +58,7 @@ export default class UsersDAO {
       if (!user) return { error: new Error("User not found") };
       return user;
     } catch (e) {
-      console.error(`getUserById error: ${e}`);
+      logger.error("getUserById error", { error: e.message });
       return { error: e };
     }
   }
@@ -110,7 +113,7 @@ export default class UsersDAO {
       return { insertedId: res.insertedId };
     } catch (e) {
       if (e?.code === 11000) return { error: new Error("Tài khoản đã tồn tại") };
-      console.error(`Unable to register user: ${e}`);
+      logger.error("Unable to register user", { error: e.message });
       return { error: e };
     }
   }
@@ -124,7 +127,7 @@ export default class UsersDAO {
       if (!user) return { error: new Error("User not found") };
       return user;
     } catch (e) {
-      console.error(`getMyUser error: ${e}`);
+      logger.error("getMyUser error", { error: e.message });
       return { error: e };
     }
   }
@@ -189,14 +192,14 @@ export default class UsersDAO {
     try {
       return await users.updateOne({ _id: new ObjectId(id) }, { $set: { trang_thai: 0, updateAt: new Date() } });
     } catch (e) {
-      console.error(`softDeleteUser error: ${e}`); return { error: e };
+      logger.error("softDeleteUser error", { error: e.message }); return { error: e };
     }
   }
   static async restoreUser(id) {
     try {
       return await users.updateOne({ _id: new ObjectId(id) }, { $set: { trang_thai: 1, updateAt: new Date() } });
     } catch (e) {
-      console.error(`restoreUser error: ${e}`); return { error: e };
+      logger.error("restoreUser error", { error: e.message }); return { error: e };
     }
   }
 
@@ -210,7 +213,7 @@ export default class UsersDAO {
         { $set: { chuc_vu: { ten, mo_ta, heSoluong }, updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`setChucVu error: ${e}`); return { error: e };
+      logger.error("setChucVu error", { error: e.message }); return { error: e };
     }
   }
 
@@ -225,7 +228,7 @@ export default class UsersDAO {
     try {
       return await users.updateOne({ _id: new ObjectId(id_user) }, { $set });
     } catch (e) {
-      console.error(`updateChucVu error: ${e}`); return { error: e };
+      logger.error("updateChucVu error", { error: e.message }); return { error: e };
     }
   }
 
@@ -237,7 +240,7 @@ export default class UsersDAO {
         { $unset: { chuc_vu: "" }, $set: { updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`clearChucVu error: ${e}`); return { error: e };
+      logger.error("clearChucVu error", { error: e.message }); return { error: e };
     }
   }
 
@@ -249,7 +252,7 @@ export default class UsersDAO {
         { $set: { phong_ban: { ten, mo_ta }, updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`setPhongBan error: ${e}`); return { error: e };
+      logger.error("setPhongBan error", { error: e.message }); return { error: e };
     }
   }
 
@@ -263,7 +266,7 @@ export default class UsersDAO {
     try {
       return await users.updateOne({ _id: new ObjectId(id_user) }, { $set });
     } catch (e) {
-      console.error(`updatePhongBan error: ${e}`); return { error: e };
+      logger.error("updatePhongBan error", { error: e.message }); return { error: e };
     }
   }
 
@@ -275,7 +278,7 @@ export default class UsersDAO {
         { $unset: { phong_ban: "" }, $set: { updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`clearPhongBan error: ${e}`); return { error: e };
+      logger.error("clearPhongBan error", { error: e.message }); return { error: e };
     }
   }
 
@@ -284,11 +287,20 @@ export default class UsersDAO {
   /* =============== Auth flows =============== */
   static async loginUser(tai_khoan, password) {
     try {
+      // Phase 5: unified error message chống user enumeration.
+      // Cả "user không tồn tại", "user bị khoá", "sai password" → cùng 1 message.
+      // Phân biệt chỉ log nội bộ để debug.
+      const GENERIC_MSG = "Sai tài khoản hoặc mật khẩu";
+
       const user = await users.findOne({ tai_khoan, trang_thai: 1 });
-      if (!user) throw new Error("User not found or inactive");
+      if (!user) {
+        // vẫn chạy bcrypt.compare để tránh timing attack đoán user tồn tại
+        await bcrypt.compare(password, "$2b$12$invalidhashtopreventtimingattacks00000000000000000");
+        throw new Error(GENERIC_MSG);
+      }
 
       const ok = await bcrypt.compare(password, user.mat_khau);
-      if (!ok) throw new Error("Invalid password");
+      if (!ok) throw new Error(GENERIC_MSG);
 
       // vì là object nên role đơn giản
       const role = user.chuc_vu
@@ -301,7 +313,7 @@ export default class UsersDAO {
 
       return { userId: user._id, accessToken, refreshToken };
     } catch (e) {
-      console.error(`Unable to login user: ${e}`);
+      logger.error("Unable to login user", { error: e.message });
       return { error: e };
     }
   }
@@ -325,17 +337,25 @@ export default class UsersDAO {
 
       const newAccessToken = this._signAccessToken(userId, role);
       const newRefreshToken = this._signRefreshToken(userId, role);
+      const hashedNewRefresh = await bcrypt.hash(newRefreshToken, SALT_ROUNDS);
 
-      // đơn giản: revoke toàn bộ rồi lưu mới
+      // Phase 5: atomic token rotation — xoá token cũ + thêm token mới trong
+      // CÙNG một updateOne. Nếu fail, không có trạng thái "đã xoá mà chưa thêm"
+      // (race condition cũ có thể làm user mất hết token nếu lệnh 2 fail).
       await users.updateOne(
         { _id: new ObjectId(userId) },
-        { $set: { tokens: [], updateAt: new Date() } }
+        {
+          $pull: { tokens: {} }, // xoá toàn bộ tokens cũ
+          $push: {
+            tokens: { _id: new ObjectId(), hashed: hashedNewRefresh, createdAt: new Date() },
+          },
+          $set: { updateAt: new Date() },
+        }
       );
-      await this._storeRefreshToken(userId, newRefreshToken);
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (error) {
-      console.error(`Unable to reset token: ${error}`);
+      logger.error("Unable to reset token", { error: error.message });
       return { error };
     }
   }
@@ -357,7 +377,7 @@ export default class UsersDAO {
       }
       return { ok: false, message: "Token not found" };
     } catch (e) {
-      console.error(`logoutUser error: ${e}`);
+      logger.error("logoutUser error", { error: e.message });
       return { error: e };
     }
   }
@@ -371,7 +391,7 @@ export default class UsersDAO {
         { $set: { tokens: [], updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`logoutAll error: ${e}`); return { error: e };
+      logger.error("logoutAll error", { error: e.message }); return { error: e };
     }
   }
 
@@ -391,7 +411,7 @@ export default class UsersDAO {
         { $set: { mat_khau: hashed, updateAt: new Date() } }
       );
     } catch (e) {
-      console.error(`updatePassword error: ${e}`);
+      logger.error("updatePassword error", { error: e.message });
       return { error: e };
     }
   }
@@ -407,7 +427,7 @@ export default class UsersDAO {
     try {
       return await users.updateOne({ _id: new ObjectId(userId) }, { $set });
     } catch (e) {
-      console.error(`updateProfile error: ${e}`); return { error: e };
+      logger.error("updateProfile error", { error: e.message }); return { error: e };
     }
   }
 
@@ -439,7 +459,7 @@ export default class UsersDAO {
 
     return list;
   } catch (e) {
-    console.error(`getDanhSachNhanVien error: ${e}`);
+    logger.error("getDanhSachNhanVien error", { error: e.message });
     return { error: e };
   }
 }

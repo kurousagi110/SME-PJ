@@ -1,4 +1,5 @@
 import { Server } from "socket.io";
+import logger from "./logger.js";
 import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 
@@ -81,19 +82,19 @@ export function initSocket(httpServer) {
     const deptName = (phong_ban?.ten || "").toLowerCase();
     const posName  = (chuc_vu?.ten   || "").toLowerCase();
 
-    console.log(`[Socket] User connected: tai_khoan=${tai_khoan} | phong_ban="${deptName}" | chuc_vu="${posName}"`);
+    logger.info(`[Socket] User connected: tai_khoan=${tai_khoan} | phong_ban="${deptName}" | chuc_vu="${posName}"`);
 
     // Tất cả user đăng nhập đều join room chung
     socket.join("room:all_users");
 
     if (deptName.includes("giám đốc") || posName.includes("giám đốc")) {
       socket.join("room:admin");
-      console.log(`[Socket] ${tai_khoan} joined room:admin`);
+      logger.info(`[Socket] ${tai_khoan} joined room:admin`);
     }
 
     if (posName.includes("thủ kho")) {
       socket.join("room:approver");
-      console.log(`[Socket] ${tai_khoan} joined room:approver`);
+      logger.info(`[Socket] ${tai_khoan} joined room:approver`);
     }
 
     socket.on("disconnect", () => {});

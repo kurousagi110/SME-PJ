@@ -41,12 +41,16 @@ export default class BomService {
           outcome = result;
         });
         return outcome;
+      } catch (e) {
+        // MongoDB standalone (non-replica-set) does not support transactions.
+        // Fall through to the non-transactional path below.
+        if (!e?.message?.includes("Transaction numbers are only allowed")) throw e;
       } finally {
         await session.endSession();
       }
     }
 
-    // Fallback: no mongoClient (standalone / test environment)
+    // Fallback: no mongoClient OR standalone MongoDB (no txn support)
     const result = await BomDAO.setBOM(san_pham_id, items, { ghi_chu });
     this._daoError(result, "Khai báo BOM thất bại", "BOM_SET_FAILED");
     return result;

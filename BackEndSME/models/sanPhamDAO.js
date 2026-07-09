@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import logger from "../utils/logger.js";
 
 let sanPham;
 
@@ -36,7 +37,7 @@ async function ensureNormalIndex(col, keySpec, options = {}) {
     const wantUnique = !!options.unique;
     const haveUnique = !!existed.unique;
     if (wantUnique !== haveUnique) {
-      console.warn(
+      logger.warn(
         `[san_pham] Index key exists but unique mismatch. Skip. existing=${existed.name} wantUnique=${wantUnique}`
       );
     }
@@ -70,7 +71,7 @@ async function ensureTextIndex(col, keySpec, options = {}) {
   if (weightsMatch && defaultLangMatch) return;
 
   if (!rebuild) {
-    console.warn(
+    logger.warn(
       `[san_pham] Text index already exists (${existedText.name}) with different options/fields. SKIP creating new. ` +
       `Set REBUILD_TEXT_INDEX=true to drop & recreate.`
     );
@@ -79,9 +80,9 @@ async function ensureTextIndex(col, keySpec, options = {}) {
 
   try {
     await col.dropIndex(existedText.name);
-    console.log(`[san_pham] Dropped old text index: ${existedText.name}`);
+    logger.info(`[san_pham] Dropped old text index: ${existedText.name}`);
   } catch (e) {
-    console.warn(`[san_pham] dropIndex failed: ${e?.message || e}`);
+    logger.warn(`[san_pham] dropIndex failed: ${e?.message || e}`);
   }
 
   await col.createIndex(keySpec, {
@@ -89,14 +90,16 @@ async function ensureTextIndex(col, keySpec, options = {}) {
     name: options.name || "search_text",
     default_language: desiredDefaultLang,
   });
-  console.log(`[san_pham] Created text index: ${(options.name || "search_text")}`);
+  logger.info(`[san_pham] Created text index: ${(options.name || "search_text")}`);
 }
 
 export default class SanPhamDAO {
   static async injectDB(conn) {
     if (sanPham) return;
+    const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
+    if (!dbName) throw new Error("SanPhamDAO.injectDB: missing SME_DB_NAME env var");
     try {
-      sanPham = await conn.db(process.env.SME_DB_NAME || process.env.DB_NAME).collection("san_pham");
+      sanPham = await conn.db(dbName).collection("san_pham");
 
       // Indexes quan trọng
       await ensureNormalIndex(sanPham, { ma_sp: 1 }, { unique: true, name: "ma_sp_unique" });
@@ -121,7 +124,7 @@ export default class SanPhamDAO {
       // Query theo nguyên liệu (non-text) vẫn ok tạo riêng
       await ensureNormalIndex(sanPham, { "nguyen_lieu.ten": 1 }, { name: "bom_nl_ten" });
     } catch (e) {
-      console.error(`Unable to establish collection handles: ${e}`);
+      logger.error("Unable to establish collection handles", { error: e.message });
     }
   }
 
@@ -196,7 +199,7 @@ export default class SanPhamDAO {
       return { insertedId: res.insertedId };
     } catch (e) {
       if (e?.code === 11000) return { error: new Error("Mã sản phẩm (ma_sp) đã tồn tại") };
-      console.error(`Unable to add sanPham: ${e}`);
+      logger.error("Unable to add sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -233,7 +236,7 @@ export default class SanPhamDAO {
 
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`Unable to update sanPham: ${e}`);
+      logger.error("Unable to update sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -247,7 +250,7 @@ export default class SanPhamDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`Unable to set status: ${e}`);
+      logger.error("Unable to set status", { error: e.message });
       return { error: e };
     }
   }
@@ -261,7 +264,7 @@ export default class SanPhamDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`Unable to soft delete sanPham: ${e}`);
+      logger.error("Unable to soft delete sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -274,7 +277,7 @@ export default class SanPhamDAO {
       );
       return { modifiedCount: res.modifiedCount };
     } catch (e) {
-      console.error(`Unable to restore sanPham: ${e}`);
+      logger.error("Unable to restore sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -284,7 +287,7 @@ export default class SanPhamDAO {
       const res = await sanPham.deleteOne({ _id: new ObjectId(id) });
       return { deletedCount: res.deletedCount };
     } catch (e) {
-      console.error(`Unable to hard delete sanPham: ${e}`);
+      logger.error("Unable to hard delete sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -299,7 +302,7 @@ export default class SanPhamDAO {
       if (!doc) return { error: new Error("Không tìm thấy sản phẩm") };
       return doc;
     } catch (e) {
-      console.error(`Unable to get sanPham by id: ${e}`);
+      logger.error("Unable to get sanPham by id", { error: e.message });
       return { error: e };
     }
   }
@@ -386,7 +389,7 @@ export default class SanPhamDAO {
 
       return { items, page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) || 1 };
     } catch (e) {
-      console.error(`Unable to list sanPham: ${e}`);
+      logger.error("Unable to list sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -417,7 +420,7 @@ export default class SanPhamDAO {
         .limit(Number(limit))
         .toArray();
     } catch (e) {
-      console.error(`Unable to search sanPham: ${e}`);
+      logger.error("Unable to search sanPham", { error: e.message });
       return { error: e };
     }
   }
@@ -457,7 +460,7 @@ export default class SanPhamDAO {
 
       return { ok: true, doc };
     } catch (e) {
-      console.error(`sanPham.adjustStock error: ${e}`);
+      logger.error("sanPham.adjustStock error", { error: e.message });
       return { error: e };
     }
   }
@@ -593,7 +596,7 @@ export default class SanPhamDAO {
         pagination: { page, limit, total, total_pages },
       };
     } catch (e) {
-      console.error(`Unable to get all stock: ${e}`);
+      logger.error("Unable to get all stock", { error: e.message });
       return { error: e };
     }
   }
@@ -621,7 +624,7 @@ export default class SanPhamDAO {
       ]);
       return { total, active, inactive, lowStock, outOfStock, lowStockThreshold };
     } catch (e) {
-      console.error(`getInventoryStats error: ${e}`);
+      logger.error("getInventoryStats error", { error: e.message });
       return { error: e };
     }
   }
@@ -636,7 +639,7 @@ export default class SanPhamDAO {
         .toArray();
       return items;
     } catch (e) {
-      console.error(`getLowStock error: ${e}`);
+      logger.error("getLowStock error", { error: e.message });
       return { error: e };
     }
   }

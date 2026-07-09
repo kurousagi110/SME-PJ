@@ -11,7 +11,9 @@ let nguyen_lieu; // đọc nguyên liệu (tham chiếu id)
 export default class BomDAO {
   static async injectDB(conn) {
     if (bom && san_pham && nguyen_lieu) return;
-    const db = conn.db(process.env.SME_DB_NAME || process.env.DB_NAME);
+    const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
+    if (!dbName) throw new Error("BomDAO.injectDB: missing SME_DB_NAME env var");
+    const db = conn.db(dbName);
 
     bom = db.collection("bom_san_pham");
     san_pham = db.collection("san_pham");

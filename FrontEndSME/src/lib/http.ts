@@ -25,18 +25,18 @@ async function request(path: string, options: RequestInit = {}, retry = false) {
 
   // --- Nếu hết hạn token (401) --- //
   if (res.status === 401 && !retry) {
-    console.log("⚠️ Access token hết hạn → đang refresh...");
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[http] Access token expired → refreshing");
+    }
 
     const userId = cookieStore.get("user_id")?.value;
     const refreshToken = cookieStore.get("refresh_token")?.value;
-    console.log("refreshToken:", refreshToken);
     if (!refreshToken) {
       throw new Error("Hết phiên đăng nhập, vui lòng đăng nhập lại.");
     }
 
     // Gọi server action refresh
     const refreshResult = await refreshTokenAction({ userId, refreshToken });
-    console.log("🚀 Refresh token result:", refreshResult);
     if (!refreshResult.success) {
       throw new Error("không thể làm mới token, vui lòng đăng nhập lại.");
     }

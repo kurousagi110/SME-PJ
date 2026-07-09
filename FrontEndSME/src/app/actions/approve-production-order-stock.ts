@@ -173,13 +173,9 @@ export async function approveProductionOrderApplyStock(
     for (const a of toAdjust) {
       const { item, can, ma_nl } = a;
 
-      console.log(" ADJUST NL", {
-        ma_nl,
-        id: item.id,
-        ton_truoc: item.so_luong,
-        can,
-        deltaQty: -can,
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[dev] ADJUST NL:", { ma_nl, id: item.id, ton_truoc: item.so_luong, can, deltaQty: -can });
+      }
 
       try {
         await http.post(`/nguyen-lieu/${item.id}/adjust-stock`, {

@@ -108,10 +108,9 @@ export async function fetchDanhSachNhanVien(params?: {
     //  normalize cho FE dùng chắc chắn
     const data = normalizeNhanVienList(res);
 
-    console.log(" fetchDanhSachNhanVien normalized:", {
-      count: data.items.length,
-      sample: data.items[0],
-    });
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[dev] fetchDanhSachNhanVien normalized:", { count: data.items.length });
+    }
 
     return data; // { items: [...] }
   } catch (err: any) {
