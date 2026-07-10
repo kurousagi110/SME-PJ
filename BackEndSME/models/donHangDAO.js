@@ -12,7 +12,7 @@
 // reference tại thời điểm class definition.
 
 import logger from "../utils/logger.js";
-import { setState, injectIndexes } from "./donHangState.js";
+import { state, setState, injectIndexes } from "./donHangState.js";
 import * as CRUD      from "./donHangCRUD.js";
 import * as Inventory from "./donHangInventory.js";
 import * as Status    from "./donHangStatus.js";
