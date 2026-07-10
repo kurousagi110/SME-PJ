@@ -13,11 +13,16 @@ export default class UserService {
   }
 
   /* ─── AUTH ─── */
-  static async register({ ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban }) {
+  static async register({ ho_ten, ngay_sinh, tai_khoan, password }) {
     if (!ho_ten || !tai_khoan || !password) {
       throw ApiError.badRequest("Thiếu ho_ten / tai_khoan / password", "VALIDATION_ERROR");
     }
-    const result = await UsersDAO.registerUser(ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban);
+    if (typeof password !== "string" || password.length < 8 || password.length > 128) {
+      throw ApiError.badRequest("Mật khẩu phải từ 8–128 ký tự", "WEAK_PASSWORD");
+    }
+    // Pass null để DAO biết user mới chưa có chức vụ / phòng ban.
+    // Permission escalation phải qua endpoint admin (verifyAdmin + verifyToken).
+    const result = await UsersDAO.registerUser(ho_ten, ngay_sinh, tai_khoan, password, null, null);
     this._daoError(result, "Đăng ký thất bại", "REGISTER_FAILED");
     return { insertedId: result.insertedId };
   }

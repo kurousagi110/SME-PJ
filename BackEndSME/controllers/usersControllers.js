@@ -7,8 +7,12 @@ import UserService from "../services/userService.js";
 export default class UsersController {
   /* ─── AUTH ─── */
   static register = asyncHandler(async (req, res) => {
-    const { ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban } = req.body || {};
-    const data = await UserService.register({ ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban });
+    // SECURITY: register is public. Chỉ nhận các field an toàn.
+    // KHÔNG nhận chuc_vu / phong_ban — tránh privilege escalation
+    // (attacker tạo user tự xưng "Giám đốc/Phòng giám đốc" → admin).
+    // Phân quyền phải do admin set qua /users/:id/set-chuc-vu, set-phong-ban.
+    const { ho_ten, ngay_sinh, tai_khoan, password } = req.body || {};
+    const data = await UserService.register({ ho_ten, ngay_sinh, tai_khoan, password });
     return sendSuccess(res, data, "Đăng ký thành công", 201);
   });
 

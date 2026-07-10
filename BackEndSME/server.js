@@ -11,9 +11,11 @@ import cors from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
 import { swaggerUi, swaggerSpec } from "./swagger.js";
 import errorHandler from "./middleware/errorHandler.js";
 import requestLogger from "./middleware/requestLogger.js";
+import logger from "./utils/logger.js";
 import v1Router from "./routes/v1/index.js";
 
 const app = express();
@@ -78,6 +80,18 @@ app.use("/api/v1/users/refresh", authLimiter);
 app.use(globalLimiter);
 
 app.use(express.json());
+
+/* ── NoSQL operator sanitization ─────────────────────────────────────────────
+ * Replace $ / . keys in req.body/query/params with "_" to block operator-injection
+ * attacks (e.g. {"tai_khoan":{"$ne":null}} bypassing login). Must come AFTER
+ * express.json() (so the parsed body is sanitized) and BEFORE all routes.
+ */
+app.use(mongoSanitize({
+  replaceWith: "_",
+  onSanitize: ({ req, key }) => {
+    logger.warn("Stripped NoSQL operator", { key, path: req.path, method: req.method });
+  },
+}));
 
 /* ─── Health check ─── */
 app.get("/", (_req, res) => {
