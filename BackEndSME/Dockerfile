@@ -13,12 +13,14 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy dependency manifests first (layer-cache: only re-runs npm install
+# Copy dependency manifests first (layer-cache: only re-runs npm ci
 # when package*.json changes, not on every source code change)
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm install --omit=dev --ignore-scripts
+# Install production dependencies only. Use `npm ci` for reproducible
+# builds (matches package-lock.json exactly); --omit=dev keeps the image
+# small; --ignore-scripts blocks arbitrary install hooks from dependencies.
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy application source code
 # (node_modules, .env, .git etc. are excluded via .dockerignore)

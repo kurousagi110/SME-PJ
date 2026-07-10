@@ -101,22 +101,44 @@ export async function updatePassword(data: any) {
   }
 }
 
-export async function refreshTokenAction(data: any) {
+// SECURITY: refreshTokenAction MUST only be called from server actions
+// (cookies() only works in server context). With the backend's refresh
+// endpoint now deriving userId from the JWT payload, we no longer
+// (and MUST NOT) pass userId from the body.
+export async function refreshTokenAction() {
   try {
     // Same URL resolution as http.ts: use internal Docker URL when available
     const baseUrl = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL;
     const url = baseUrl + "/users/refresh";
 
+    // Read refresh_token from the HTTP-only cookie set by login.
+    const cookieStore = await cookies();
+    const refreshToken = cookieStore.get("refresh_token")?.value;
+    if (!refreshToken) {
+      redirect("/login");
+    }
+
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ refreshToken }),
       cache: "no-store",
     });
+
+    // Bug fix: previously checked `result.status === 401` but the backend
+    // returns {success, data} envelope with HTTP status on `res`, not on
+    // the parsed body. When refresh genuinely failed, we silently returned
+    // success:true and continued using a stale access_token.
+    if (!res.ok) {
+      redirect("/login");
+    }
+
     const result = await res.json();
-    // sendSuccess() wraps the payload in result.data
-    const { accessToken, refreshToken } = result.data ?? {};
-    const cookieStore = await cookies();
+    const { accessToken, refreshToken: newRefreshToken } = result.data ?? {};
+    if (!accessToken || !newRefreshToken) {
+      redirect("/login");
+    }
+
     cookieStore.set("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -125,16 +147,13 @@ export async function refreshTokenAction(data: any) {
       sameSite: "lax",
     });
 
-    cookieStore.set("refresh_token", refreshToken, {
+    cookieStore.set("refresh_token", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",
     });
-    if (result.status === 401) {
-      redirect("/login");
-    }
     return { success: true };
   } catch (err: any) {
     return {
