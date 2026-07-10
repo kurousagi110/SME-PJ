@@ -4,13 +4,13 @@
 
 import express from "express";
 import NguyenLieuController from "../../controllers/nguyenLieuControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyApprover } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
 
 /* ─── CREATE ─── */
-router.post("/", verifyToken, requireBody("ma_nl", "ten_nl", "don_vi"), NguyenLieuController.create);
+router.post("/", verifyToken, verifyAdmin, requireBody("ma_nl", "ten_nl", "don_vi"), NguyenLieuController.create);
 
 /* ─── LIST / SEARCH / STOCK ─── */
 router.get("/",       verifyToken, NguyenLieuController.list);
@@ -21,17 +21,17 @@ router.get("/stock",  verifyToken, NguyenLieuController.getAllStock);
 router.get("/stats/summary",   verifyToken, NguyenLieuController.stats);
 router.get("/stats/low-stock", verifyToken, NguyenLieuController.lowStock);
 
-/* ─── STOCK ADJUST ─── */
-router.post("/:id/adjust-stock", verifyToken, requireBody("deltaQty"), NguyenLieuController.adjustStock);
+/* ─── STOCK ADJUST (Thủ kho + Admin) ─── */
+router.post("/:id/adjust-stock", verifyToken, verifyApprover, requireBody("deltaQty"), NguyenLieuController.adjustStock);
 
 /* ─── READ ONE ─── */
 router.get("/:id",  verifyToken, NguyenLieuController.getById);
 
-/* ─── UPDATE ─── */
-router.patch("/:id", verifyToken, NguyenLieuController.update);
+/* ─── UPDATE (chỉ Admin) ─── */
+router.patch("/:id", verifyToken, verifyAdmin, NguyenLieuController.update);
 
-/* ─── DELETE / RESTORE ─── */
-router.delete("/:id",        verifyToken, NguyenLieuController.softDelete);
-router.patch("/:id/restore", verifyToken, NguyenLieuController.restore); // R4: was POST
+/* ─── DELETE / RESTORE (chỉ Admin) ─── */
+router.delete("/:id",        verifyToken, verifyAdmin, NguyenLieuController.softDelete);
+router.patch("/:id/restore", verifyToken, verifyAdmin, NguyenLieuController.restore);
 
 export default router;

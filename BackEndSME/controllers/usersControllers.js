@@ -22,20 +22,23 @@ export default class UsersController {
     return sendSuccess(res, data, "Đăng nhập thành công");
   });
 
+  // SECURITY: userId luôn lấy từ req.user._id (JWT) — KHÔNG tin body.userId.
+  // /refresh là PUBLIC (no verifyToken), controller phải tự derive uid từ refreshToken.
   static refreshToken = asyncHandler(async (req, res) => {
-    const { userId, refreshToken } = req.body || {};
-    const data = await UserService.refreshToken({ userId, refreshToken });
+    const { refreshToken } = req.body || {};
+    const data = await UserService.refreshToken({ refreshToken });
     return sendSuccess(res, data, "Làm mới token thành công");
   });
 
   static logout = asyncHandler(async (req, res) => {
-    const { userId, refreshToken } = req.body || {};
+    const { refreshToken } = req.body || {};
+    const userId = req.user._id.toString();
     const data = await UserService.logout({ userId, refreshToken });
     return sendSuccess(res, data, "Đăng xuất thành công");
   });
 
   static logoutAll = asyncHandler(async (req, res) => {
-    const { userId } = req.body || {};
+    const userId = req.user._id.toString();
     const data = await UserService.logoutAll({ userId });
     return sendSuccess(res, data, "Đăng xuất tất cả thiết bị thành công");
   });

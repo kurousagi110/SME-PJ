@@ -320,10 +320,13 @@ export default class UsersDAO {
 
 
 
-  static async resetToken(userId, refreshToken) {
+  // SECURITY: userId giờ được derive từ refreshToken payload (jwt.verify),
+  // không nhận từ argument nữa → chặn forced-logout hoặc refresh spoof.
+  static async resetToken(refreshToken) {
     try {
       const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-      if (payload.uid !== userId) throw new Error("Invalid refresh token");
+      const userId = payload.uid;
+      if (!userId || !ObjectId.isValid(userId)) throw new Error("Invalid refresh token payload");
 
       const user = await users.findOne({ _id: new ObjectId(userId), trang_thai: 1 });
       if (!user) throw new Error("User not found or inactive");

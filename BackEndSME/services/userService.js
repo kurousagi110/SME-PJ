@@ -36,11 +36,13 @@ export default class UserService {
     return result;
   }
 
-  static async refreshToken({ userId, refreshToken }) {
-    if (!userId || !refreshToken) {
-      throw ApiError.badRequest("Thiếu userId / refreshToken", "VALIDATION_ERROR");
+  // SECURITY: refreshToken đã được verify trong DAO → userId được extract từ JWT payload.
+  // Body {userId} đã bị loại bỏ ở controller để chặn forced-logout của người khác.
+  static async refreshToken({ refreshToken }) {
+    if (!refreshToken) {
+      throw ApiError.badRequest("Thiếu refreshToken", "VALIDATION_ERROR");
     }
-    const result = await UsersDAO.resetToken(userId, refreshToken);
+    const result = await UsersDAO.resetToken(refreshToken);
     if (result?.error) throw ApiError.unauthorized(result.error.message || "Làm mới token thất bại", "REFRESH_FAILED");
     return result;
   }

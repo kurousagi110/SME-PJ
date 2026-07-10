@@ -5,7 +5,7 @@
 
 import express from "express";
 import DonHangController from "../../controllers/donHangControllers.js";
-import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyApprover } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -33,20 +33,20 @@ router.get("/code/:ma_dh",    verifyToken, DonHangController.getByCode);
 router.get("/stats/revenue",  verifyToken, DonHangController.revenueStats);
 router.get("/:id",            verifyToken, DonHangController.getById);
 
-/* ─── ITEMS & GIÁ ─── */
-router.put("/:id/items",    verifyToken, DonHangController.updateItems);
-router.post("/:id/items",   verifyToken, DonHangController.addItem);
-router.delete("/:id/items", verifyToken, DonHangController.removeItem);
+/* ─── ITEMS & GIÁ (write paths — chỉ admin) ─── */
+router.put("/:id/items",    verifyToken, verifyAdmin, DonHangController.updateItems);
+router.post("/:id/items",   verifyToken, verifyAdmin, DonHangController.addItem);
+router.delete("/:id/items", verifyToken, verifyAdmin, DonHangController.removeItem);
 
-router.post("/:id/discount",     verifyToken, DonHangController.applyDiscount);
-router.post("/:id/tax",          verifyToken, DonHangController.applyTax);
-router.post("/:id/shipping-fee", verifyToken, DonHangController.setShippingFee);
+router.post("/:id/discount",     verifyToken, verifyAdmin, DonHangController.applyDiscount);
+router.post("/:id/tax",          verifyToken, verifyAdmin, DonHangController.applyTax);
+router.post("/:id/shipping-fee", verifyToken, verifyAdmin, DonHangController.setShippingFee);
 
-router.post("/:id/payment",  verifyToken, DonHangController.updatePayment);
-router.patch("/:id/note",    verifyToken, DonHangController.updateNote);
+router.post("/:id/payment",  verifyToken, verifyAdmin, DonHangController.updatePayment);
+router.patch("/:id/note",    verifyToken, verifyAdmin, DonHangController.updateNote);
 
-/* ─── TRẠNG THÁI ─── */
-router.patch("/:id/status", verifyToken, DonHangController.updateStatus); // R4: was POST
+/* ─── TRẠNG THÁI (Approver + Admin — duyệt phiếu) ─── */
+router.patch("/:id/status", verifyToken, verifyApprover, DonHangController.updateStatus);
 
 /* ─── XOÁ / KHÔI PHỤC — chỉ admin ─── */
 router.delete("/:id",        verifyToken, verifyAdmin, DonHangController.softDelete);

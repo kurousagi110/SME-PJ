@@ -5,13 +5,13 @@
 
 import express from "express";
 import SanPhamController from "../../controllers/sanPhamControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyApprover } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
 
 /* ─── CREATE ─── */
-router.post("/", verifyToken, requireBody("ma_sp", "ten_sp"), SanPhamController.create);
+router.post("/", verifyToken, verifyAdmin, requireBody("ma_sp", "ten_sp"), SanPhamController.create);
 
 /* ─── LIST / SEARCH / STOCK ─── */
 router.get("/",              verifyToken, SanPhamController.list);
@@ -22,22 +22,22 @@ router.get("/stock",         verifyToken, SanPhamController.getAllStock);
 router.get("/stats/summary",   verifyToken, SanPhamController.stats);
 router.get("/stats/low-stock", verifyToken, SanPhamController.lowStock);
 
-/* ─── STOCK ADJUST ─── */
-router.post("/bulk/adjust-stock", verifyToken, SanPhamController.bulkAdjustStock);
-router.post("/:id/adjust-stock",  verifyToken, SanPhamController.adjustStock);
+/* ─── STOCK ADJUST (Thủ kho + Admin) ─── */
+router.post("/bulk/adjust-stock", verifyToken, verifyApprover, SanPhamController.bulkAdjustStock);
+router.post("/:id/adjust-stock",  verifyToken, verifyApprover, SanPhamController.adjustStock);
 
 /* ─── READ ONE ─── */
 router.get("/:id", verifyToken, SanPhamController.getById);
 
-/* ─── UPDATE ─── */
-router.patch("/:id", verifyToken, SanPhamController.update);
+/* ─── UPDATE (chỉ Admin) ─── */
+router.patch("/:id", verifyToken, verifyAdmin, SanPhamController.update);
 
-/* ─── STATUS ─── */
-router.patch("/:id/status", verifyToken, requireBody("status"), SanPhamController.setStatus); // R4: was POST
+/* ─── STATUS (chỉ Admin) ─── */
+router.patch("/:id/status", verifyToken, verifyAdmin, requireBody("status"), SanPhamController.setStatus);
 
-/* ─── DELETE / RESTORE ─── */
-router.delete("/:id",        verifyToken, SanPhamController.softDelete);
-router.patch("/:id/restore", verifyToken, SanPhamController.restore); // R4: was POST
-router.delete("/:id/hard",   verifyToken, SanPhamController.hardDelete);
+/* ─── DELETE / RESTORE (chỉ Admin — irreversible / data loss) ─── */
+router.delete("/:id",        verifyToken, verifyAdmin, SanPhamController.softDelete);
+router.patch("/:id/restore", verifyToken, verifyAdmin, SanPhamController.restore);
+router.delete("/:id/hard",   verifyToken, verifyAdmin, SanPhamController.hardDelete);
 
 export default router;

@@ -3,25 +3,25 @@
 
 import express from "express";
 import LuongController from "../../controllers/luongControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyApprover } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
 
-/* ─── CHẤM CÔNG BULK ─── */
-router.post("/cham-cong/bulk", verifyToken, requireBody("ngay_thang", "items"), LuongController.chamCongBulk);
+/* ─── CHẤM CÔNG BULK (Thủ kho + Admin — ghi chấm công hộ nhân viên) ─── */
+router.post("/cham-cong/bulk", verifyToken, verifyApprover, requireBody("ngay_thang", "items"), LuongController.chamCongBulk);
 
 /* ─── CHẤM CÔNG 1 ─── */
-router.post("/cham-cong", verifyToken, requireBody("ma_nv", "ngay_thang"), LuongController.chamCong);
+router.post("/cham-cong", verifyToken, verifyApprover, requireBody("ma_nv", "ngay_thang"), LuongController.chamCong);
 
-/* ─── GET / LIST ─── */
+/* ─── GET / LIST (self read nên giữ verifyToken; controller scope-by-user nếu cần) ─── */
 router.get("/cham-cong/by-day", verifyToken, LuongController.getChamCongByDay);
 router.get("/cham-cong",        verifyToken, LuongController.listChamCong);
 
-/* ─── DELETE ─── */
-router.delete("/cham-cong/:id", verifyToken, LuongController.softDeleteChamCong);
+/* ─── DELETE (chỉ admin) ─── */
+router.delete("/cham-cong/:id", verifyToken, verifyAdmin, LuongController.softDeleteChamCong);
 
-/* ─── TÍNH LƯƠNG ─── */
-router.post("/tinh-luong", verifyToken, requireBody("ma_nv", "thang", "nam"), LuongController.tinhLuongThang);
+/* ─── TÍNH LƯƠNG (chỉ Admin — payroll integrity) ─── */
+router.post("/tinh-luong", verifyToken, verifyAdmin, requireBody("ma_nv", "thang", "nam"), LuongController.tinhLuongThang);
 
 export default router;

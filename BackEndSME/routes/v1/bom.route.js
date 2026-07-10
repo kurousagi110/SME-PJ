@@ -3,7 +3,7 @@
 
 import express from "express";
 import BomController from "../../controllers/bomControllers.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyProductionManager } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -11,6 +11,8 @@ const router = express.Router();
 // unit-cost BEFORE /:san_pham_id to avoid route conflict
 router.get("/:san_pham_id/unit-cost", verifyToken, BomController.calcUnitCost);
 router.get("/:san_pham_id",           verifyToken, BomController.getBOM);
-router.post("/:san_pham_id",          verifyToken, BomController.setBOM);
+// setBOM thay đổi cấu trúc sản phẩm → ảnh hưởng đến sản xuất. Gate qua
+// verifyProductionManager (Trưởng xưởng + Admin).
+router.post("/:san_pham_id",          verifyToken, verifyProductionManager, BomController.setBOM);
 
 export default router;

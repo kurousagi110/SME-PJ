@@ -12,17 +12,20 @@ const router = express.Router();
 /* ─── AUTH (Public) ─── */
 router.post("/register",    requireBody("ho_ten", "tai_khoan", "password"), UsersController.register);
 router.post("/login",       requireBody("tai_khoan", "password"),           UsersController.login);
-router.post("/refresh",     requireBody("userId", "refreshToken"),          UsersController.refreshToken);
-router.post("/logout",      verifyToken, requireBody("userId", "refreshToken"), UsersController.logout);
-router.post("/logout-all",  verifyToken, requireBody("userId"),              UsersController.logoutAll);
+// /refresh: derive userId từ JWT payload (refreshToken.verify().uid) trong controller,
+// không tin body userId.
+router.post("/refresh",     requireBody("refreshToken"),                    UsersController.refreshToken);
+// /logout, /logout-all: verifyToken đã có req.user._id → controller dùng luôn, KHÔNG cần body userId.
+router.post("/logout",      verifyToken, requireBody("refreshToken"),       UsersController.logout);
+router.post("/logout-all",  verifyToken,                                    UsersController.logoutAll);
 
 /* ─── EMPLOYEE LIST ─── */
 router.get("/danh-sach-nhan-vien", verifyToken, UsersController.getDanhSachNhanVien);
 
-/* ─── USER INFO (Protected) ─── */
-router.get("/",        verifyToken, UsersController.getUsers);
-router.get("/me/:id",  verifyToken, UsersController.getMyUser);
-router.get("/:id",     verifyToken, UsersController.getUserById);
+/* ─── USER INFO (Protected) — chỉ chính chủ hoặc admin ─── */
+router.get("/",        verifyToken, verifyAdmin, UsersController.getUsers);
+router.get("/me/:id",  verifyToken, verifySelfOrAdmin, UsersController.getMyUser);
+router.get("/:id",     verifyToken, verifySelfOrAdmin, UsersController.getUserById);
 
 /* ─── PROFILE / PASSWORD — chỉ chính chủ hoặc admin ─── */
 router.patch("/:id/profile",  verifyToken, verifySelfOrAdmin, UsersController.updateProfile);
