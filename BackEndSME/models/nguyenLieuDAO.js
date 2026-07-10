@@ -229,7 +229,7 @@ export default class NguyenLieuDAO {
   }
 
   /* ====================== Stock ====================== */
-  static async adjustStock(id, deltaQty, { newUnitCost, allowNegative = false } = {}) {
+  static async adjustStock(id, deltaQty, { newUnitCost, allowNegative = false, session = null } = {}) {
   try {
     const d = Number(deltaQty);
     if (!Number.isFinite(d) || d === 0) return { modifiedCount: 0 };
@@ -244,10 +244,13 @@ export default class NguyenLieuDAO {
     const set = { updateAt: new Date() };
     if (newUnitCost !== undefined) set.gia_nhap = this._n(newUnitCost, 0);
 
+    const opts = { returnDocument: "after" };
+    if (session) opts.session = session;
+
     const res = await nguyen_lieu.findOneAndUpdate(
       filter,
       { $inc: { so_luong: d }, $set: set },
-      { returnDocument: "after" }
+      opts
     );
 
     // Debug: chỉ log trong dev
@@ -260,9 +263,11 @@ export default class NguyenLieuDAO {
 
     // safety
     if (!allowNegative && res.value.so_luong < 0) {
+      const revertOpts = session ? { session } : {};
       await nguyen_lieu.updateOne(
         { _id: new ObjectId(id) },
-        { $inc: { so_luong: -d }, $set: { updateAt: new Date() } }
+        { $inc: { so_luong: -d }, $set: { updateAt: new Date() } },
+        revertOpts
       );
       return { error: new Error("Điều chỉnh kho không hợp lệ") };
     }

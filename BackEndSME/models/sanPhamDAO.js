@@ -426,7 +426,7 @@ export default class SanPhamDAO {
   }
 
   /* ====================== Stock ====================== */
-  static async adjustStock(id, deltaQty, { allowNegative = false, newPrice, newMinStock, newDonVi } = {}) {
+  static async adjustStock(id, deltaQty, { allowNegative = false, newPrice, newMinStock, newDonVi, session = null } = {}) {
     try {
       const d = Number(deltaQty);
       if (!Number.isFinite(d) || d === 0) return { modifiedCount: 0 };
@@ -441,19 +441,24 @@ export default class SanPhamDAO {
       if (newMinStock !== undefined) set.ton_toi_thieu = this._sanitizeNumber(newMinStock, 0);
       if (newDonVi !== undefined) set.don_vi = String(newDonVi);
 
+      const opts = { returnDocument: "after" };
+      if (session) opts.session = session;
+
       const doc = await sanPham.findOneAndUpdate(
         filter,
         { $inc: { so_luong: d }, $set: set },
-        { returnDocument: "after" }
+        opts
       );
 
       if (!doc) return { error: new Error("Không đủ tồn hoặc không tìm thấy sản phẩm") };
 
       // ✅ safety
       if (!allowNegative && doc.so_luong < 0) {
+        const revertOpts = session ? { session } : {};
         await sanPham.updateOne(
           { _id: new ObjectId(id) },
-          { $inc: { so_luong: -d }, $set: { updateAt: new Date() } }
+          { $inc: { so_luong: -d }, $set: { updateAt: new Date() } },
+          revertOpts
         );
         return { error: new Error("Điều chỉnh kho không hợp lệ") };
       }

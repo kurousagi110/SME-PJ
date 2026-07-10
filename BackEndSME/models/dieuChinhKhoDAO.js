@@ -74,9 +74,12 @@ export default class DieuChinhKhoDAO {
   /**
    * approve — atomically set status to da_duyet.
    * Controller is responsible for adjusting inventory before calling this.
+   * Optional `session` for transactional callers (mongoClient.startSession()).
    */
-  static async approve(id, approvedBy) {
+  static async approve(id, approvedBy, { session = null } = {}) {
     if (!ObjectId.isValid(id)) return null;
+    const opts = { returnDocument: "after" };
+    if (session) opts.session = session;
     return col.findOneAndUpdate(
       { _id: new ObjectId(id), trang_thai: DCK_STATUS.CHO_DUYET },
       {
@@ -86,7 +89,7 @@ export default class DieuChinhKhoDAO {
           updated_at:  new Date(),
         },
       },
-      { returnDocument: "after" }
+      opts
     );
   }
 
@@ -99,6 +102,27 @@ export default class DieuChinhKhoDAO {
           trang_thai:  DCK_STATUS.TU_CHOI,
           approved_by: rejectedBy,
           updated_at:  new Date(),
+        },
+      },
+      { returnDocument: "after" }
+    );
+  }
+
+  /**
+   * revertToChoDuyet — fallback compensation khi transaction không khả dụng.
+   * Rollback phiếu về cho_duyet (kèm lý do rollback) để admin xử lý lại.
+   * Chỉ revert nếu hiện tại đang ở DA_DUYET (không revert TU_CHOI / DA_DUYET cũ).
+   */
+  static async revertToChoDuyet(id, actor, reason) {
+    if (!ObjectId.isValid(id)) return null;
+    return col.findOneAndUpdate(
+      { _id: new ObjectId(id), trang_thai: DCK_STATUS.DA_DUYET },
+      {
+        $set: {
+          trang_thai:  DCK_STATUS.CHO_DUYET,
+          approved_by: null,
+          updated_at:  new Date(),
+          ghi_chu_rollback: `Rollback bởi ${actor?.tai_khoan || "system"}: ${reason || "lỗi không xác định"}`,
         },
       },
       { returnDocument: "after" }

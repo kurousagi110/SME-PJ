@@ -64,8 +64,16 @@ export default class LuongDAO {
 
     const start = h1 * 60 + m1;
     const end = h2 * 60 + m2;
-    const diffMin = end - start;
-    if (diffMin <= 0) return 0;
+    let diffMin = end - start;
+
+    // Ca đêm qua ngày: vd check-in 22:00, check-out 06:00 (sáng hôm sau).
+    // Tính theo phút trong ngày: 360 - 1320 = -960. Nếu chỉ check <= 0 thì trả 0 →
+    // nhân viên ca đêm mất trắng lương. Wrap-around: cộng thêm 1 ngày (1440 phút).
+    if (diffMin <= 0) diffMin += 1440;
+
+    // Vẫn cap 24h để chặn input lỗi (vd check-in > check-out + nhiều ngày).
+    if (diffMin > 1440) diffMin = 1440;
+
     return Math.round((diffMin / 60) * 100) / 100;
   }
 
@@ -274,7 +282,11 @@ export default class LuongDAO {
 
   // tinhLuongThang: aggregate chamcong theo tháng/năm, tính lương theo hệ số
   // Phase 2 fix: replaced missing dynamic import (_keep_tinhLuongThang.js) with inline implementation
-  static async tinhLuongThang({ thang, nam, ma_nv } = {}) {
+  // Phase 4 fix: honor don_gia_gio / thuong / phat / ghi_chu (were silently dropped before)
+  static async tinhLuongThang({
+    thang, nam, ma_nv,
+    don_gia_gio = null, thuong = 0, phat = 0, ghi_chu = null,
+  } = {}) {
     try {
       const thangNum = Number(thang);
       const namNum = Number(nam);
@@ -284,6 +296,14 @@ export default class LuongDAO {
       if (!Number.isInteger(namNum) || namNum < 2000) {
         return { error: new Error("nam không hợp lệ") };
       }
+
+      // Coerce adjustment fields. thuong / phat are additive cash amounts;
+      // don_gia_gio (if provided) OVERRIDES the standard heSo * LUONG_CO_SO base.
+      const thuongNum  = Number.isFinite(Number(thuong)) ? Number(thuong) : 0;
+      const phatNum    = Number.isFinite(Number(phat))   ? Number(phat)   : 0;
+      const donGiaGioNum = (don_gia_gio !== null && don_gia_gio !== undefined && Number.isFinite(Number(don_gia_gio)))
+        ? Number(don_gia_gio)
+        : null;
 
       const startDate = new Date(namNum, thangNum - 1, 1);
       const endDate   = new Date(namNum, thangNum, 1); // exclusive
@@ -335,7 +355,18 @@ export default class LuongDAO {
         const heSoluong = Math.max(0, Number(nv.chuc_vu?.heSoluong ?? 1)) || 1;
         const luong_co_ban    = Math.round(heSoluong * LUONG_CO_SO);
         const ty_le_lam_viec  = Math.min(1, r.tong_gio / GIO_TIEU_CHUAN);
-        const luong_thuc_nhan = Math.round(luong_co_ban * ty_le_lam_viec);
+
+        // don_gia_gio (nếu được truyền) override lương theo giờ; ngược lại dùng lương cơ bản.
+        let luong_thuc_nhan;
+        if (donGiaGioNum !== null) {
+          // Nhân với tỷ lệ làm việc để giữ nhất quán với công thức cũ.
+          luong_thuc_nhan = Math.round(donGiaGioNum * r.tong_gio);
+        } else {
+          luong_thuc_nhan = Math.round(luong_co_ban * ty_le_lam_viec);
+        }
+
+        // Cộng/trừ thưởng phạt (có thể âm/dương). Không cap dưới 0 vì phạt có thể lớn.
+        luong_thuc_nhan = luong_thuc_nhan + thuongNum - phatNum;
 
         return {
           ma_nv:         r._id,
@@ -349,6 +380,10 @@ export default class LuongDAO {
           so_ngay_di_tre: r.so_ngay_di_tre,
           he_so_luong:   heSoluong,
           luong_co_ban,
+          don_gia_gio_override: donGiaGioNum,
+          thuong: thuongNum,
+          phat:   phatNum,
+          ghi_chu,
           luong_thuc_nhan,
         };
       });

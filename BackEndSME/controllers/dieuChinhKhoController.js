@@ -97,23 +97,92 @@ export default class DieuChinhKhoController {
       throw ApiError.forbidden("Không thể tự duyệt phiếu của mình", "SELF_APPROVE_FORBIDDEN");
     }
 
-    // Adjust inventory — must succeed before we mark phieu as approved
-    const adjustFn = phieu.loai === "nguyen_lieu"
-      ? (itemId, delta) => NguyenLieuDAO.adjustStock(itemId, delta, { allowNegative: false })
-      : (itemId, delta) => SanPhamDAO.adjustStock(itemId, delta, { allowNegative: false });
-
-    const adjustResult = await adjustFn(phieu.item_id.toString(), phieu.so_luong_dieu_chinh);
-    if (adjustResult?.error) {
-      throw ApiError.badRequest(
-        adjustResult.error.message || "Điều chỉnh tồn kho thất bại",
-        "STOCK_ADJUST_FAILED"
-      );
-    }
-
     const approvedBy = { tai_khoan: req.user.tai_khoan, ho_ten: req.user.ho_ten };
-    const updated = await DieuChinhKhoDAO.approve(id, approvedBy);
-    if (!updated) {
-      throw ApiError.badRequest("Phiếu đã được xử lý bởi người khác", "ALREADY_PROCESSED");
+
+    // Atomic: trừ kho + set trạng thái phiếu phải là 1 operation.
+    // Nếu chỉ chạy tuần tự: race giữa 2 admin → cả 2 pass check → trừ kho 2 lần
+    // (DAO adjustStock idempotent? Không — $inc không phải delta-relative).
+    //
+    // Strategy: dùng Mongo session.withTransaction nếu có replicaSet/sharded.
+    // Fallback: dùng findOneAndUpdate trên phiếu làm "latch" — chỉ người thắng
+    // được trừ kho. Nếu thua thì rollback kho.
+    const adjustFn = phieu.loai === "nguyen_lieu"
+      ? (itemId, delta, opts) => NguyenLieuDAO.adjustStock(itemId, delta, { ...opts, allowNegative: false })
+      : (itemId, delta, opts) => SanPhamDAO.adjustStock(itemId, delta, { ...opts, allowNegative: false });
+
+    const mongoClient = req.app?.locals?.mongoClient || null;
+    let updated = null;
+    let session = null;
+    let usedTransaction = false;
+
+    try {
+      if (mongoClient?.startSession) {
+        try {
+          session = mongoClient.startSession();
+          usedTransaction = true;
+          await session.withTransaction(async () => {
+            // 1) Trừ kho trong session
+            const adjustResult = await adjustFn(
+              phieu.item_id.toString(),
+              phieu.so_luong_dieu_chinh,
+              { session }
+            );
+            if (adjustResult?.error) {
+              throw ApiError.badRequest(
+                adjustResult.error.message || "Điều chỉnh tồn kho thất bại",
+                "STOCK_ADJUST_FAILED"
+              );
+            }
+            // 2) Set trạng thái phiếu — chỉ match `cho_duyet` (latch)
+            const res = await DieuChinhKhoDAO.approve(id, approvedBy, { session });
+            if (!res) {
+              throw ApiError.badRequest("Phiếu đã được xử lý bởi người khác", "ALREADY_PROCESSED");
+            }
+            updated = res;
+          });
+        } catch (e) {
+          // ReplicaSet không khả dụng (standalone Mongo) → fallback non-transaction
+          if (e?.message?.includes("Transaction numbers are only allowed")) {
+            logger.warn("Mongo transactions unavailable, using fallback latch pattern");
+            usedTransaction = false;
+            session = null;
+          } else if (e?.statusCode) {
+            // ApiError — propagate
+            throw e;
+          } else {
+            throw e;
+          }
+        } finally {
+          if (session) await session.endSession();
+        }
+      }
+
+      if (!usedTransaction) {
+        // Fallback: latch bằng findOneAndUpdate trên phiếu.
+        // 1) Reserve phiếu (chỉ winner pass)
+        const reserved = await DieuChinhKhoDAO.approve(id, approvedBy);
+        if (!reserved) {
+          throw ApiError.badRequest("Phiếu đã được xử lý bởi người khác", "ALREADY_PROCESSED");
+        }
+        // 2) Trừ kho. Nếu fail → revert phiếu về cho_duyet.
+        const adjustResult = await adjustFn(
+          phieu.item_id.toString(),
+          phieu.so_luong_dieu_chinh,
+          {}
+        );
+        if (adjustResult?.error) {
+          // Rollback phiếu
+          await DieuChinhKhoDAO.revertToChoDuyet(id, approvedBy, adjustResult.error.message);
+          throw ApiError.badRequest(
+            adjustResult.error.message || "Điều chỉnh tồn kho thất bại",
+            "STOCK_ADJUST_FAILED"
+          );
+        }
+        updated = reserved;
+      }
+    } catch (e) {
+      if (e?.statusCode) throw e;
+      throw e;
     }
 
     notifyUser(phieu.created_by?.tai_khoan, {

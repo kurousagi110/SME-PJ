@@ -46,7 +46,15 @@ function addDays(d, n) {
 }
 
 function fmtYMD(d) {
-  return new Date(d).toISOString().slice(0, 10);
+  // Build YMD từ LOCAL fields (getFullYear/getMonth/getDate) thay vì toISOString().
+  // Lý do: toISOString() luôn serialize UTC, nên ở Asia/Ho_Chi_Minh (UTC+7)
+  // local midnight của ngày D trở thành 17:00 UTC ngày D-1 → chart lệch 1 ngày.
+  // Pad Y/M/D về 2 chữ số cho sắp xếp string đúng thứ tự.
+  const x = new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function safeTz() {
