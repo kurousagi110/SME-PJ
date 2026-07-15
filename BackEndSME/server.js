@@ -79,7 +79,13 @@ app.use("/api/v1/users/login",   authLimiter);
 app.use("/api/v1/users/refresh", authLimiter);
 app.use(globalLimiter);
 
-app.use(express.json());
+/* ─── Body parser ───
+ * nginx allows client_max_body_size 20M. Match that limit here so legitimate
+ * larger payloads (BOM import, base64 attachments, bulk reports) are not
+ * rejected with a confusing 413 mid-request. Express default is 100 KB.
+ */
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: false, limit: "20mb" }));
 
 /* ── NoSQL operator sanitization ─────────────────────────────────────────────
  * Replace $ / . keys in req.body/query/params with "_" to block operator-injection
@@ -98,8 +104,18 @@ app.get("/", (_req, res) => {
   res.send("<h1>SME Back-End API — v1 ready</h1>");
 });
 
-/* ─── Swagger docs ─── */
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+/* ─── Swagger docs ───
+ * SECURITY: only mount in non-production environments. Exposing the full
+ * API surface (paths, schemas, example payloads) in production makes
+ * reconnaissance trivial for attackers. Set NODE_ENV=production in
+ * deployment to disable. Returns a 404 instead of 200 to avoid leaking
+ * that the endpoint exists.
+ */
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+} else {
+  app.use("/api-docs", (_req, res) => res.status(404).end());
+}
 
 /* ─── R1: All business routes under /api/v1 ─── */
 app.use("/api/v1", v1Router);

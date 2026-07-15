@@ -3,6 +3,7 @@
 // Phase 4 update: replaced console.error with logger
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { sanitizeNumber } from "../utils/number.js";
 
 let bom;         // collection: bom_san_pham
 let san_pham;    // đọc sản phẩm
@@ -25,8 +26,7 @@ export default class BomDAO {
 
   /* ====================== Helpers ====================== */
   static _n(v, def = 0) {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : def;
+    return sanitizeNumber(v, def);
   }
 
   static _normalizeItems(items = []) {
@@ -66,6 +66,15 @@ export default class BomDAO {
   // Phase 3: after updating bom_san_pham, syncs san_pham.nguyen_lieu so that
   //          PROD_RECEIPT inventory logic (_bomFromSanPhamDoc) stays consistent.
   static async setBOM(san_pham_id, items = [], { ghi_chu = "", session } = {}) {
+    // Capture the previous BOM snapshot BEFORE writing so that, if the
+    // syncing step (2) fails, we can roll back (1) manually. Without this,
+    // a partial success leaves bom_san_pham updated but san_pham.nguyen_lieu
+    // stale — PROD_RECEIPT reads the stale copy and reports wrong material
+    // needs. Only used in the non-transactional fallback path; when a
+    // session is provided, Mongo's transaction abort already handles this.
+    let prevBomDoc = null;
+    let prevSanPhamNguyenLieu = null;
+
     try {
       if (!san_pham_id) return { error: new Error("Thiếu san_pham_id") };
 
@@ -92,6 +101,13 @@ export default class BomDAO {
         }
       }
       const nlMap = new Map(nlDocs.map((nl) => [nl._id.toString(), nl]));
+
+      // Pre-step: snapshot previous state for rollback (non-txn fallback only).
+      // With a session, Mongo's transaction abort handles this automatically.
+      if (!session) {
+        prevBomDoc = await bom.findOne({ san_pham_id: spOid });
+        if (sp.nguyen_lieu) prevSanPhamNguyenLieu = sp.nguyen_lieu;
+      }
 
       // 1) Update bom_san_pham collection
       const res = await bom.updateOne(
@@ -133,6 +149,30 @@ export default class BomDAO {
       return { upserted: res.upsertedCount === 1, modifiedCount: res.modifiedCount };
     } catch (e) {
       logger.error(`bomDAO.setBOM error`, { error: e.message });
+
+      // Manual rollback for the no-session path: re-write the previous BOM
+      // and previous san_pham.nguyen_lieu so the two collections stay in
+      // sync. Best-effort — if rollback itself fails we log loudly so an
+      // operator can reconcile. Transactions abort on their own, so this
+      // branch is a no-op when a session is in play.
+      if (!session && prevBomDoc !== null) {
+        try {
+          await bom.replaceOne(
+            { san_pham_id: new ObjectId(san_pham_id) },
+            prevBomDoc || { san_pham_id: new ObjectId(san_pham_id) },
+            { upsert: !!prevBomDoc }
+          );
+          await san_pham.updateOne(
+            { _id: new ObjectId(san_pham_id) },
+            { $set: { nguyen_lieu: prevSanPhamNguyenLieu || [], updateAt: new Date() } }
+          );
+        } catch (rbErr) {
+          logger.error(`bomDAO.setBOM rollback FAILED — bom_san_pham and san_pham.nguyen_lieu may be out of sync`, {
+            san_pham_id, rbError: rbErr.message,
+          });
+        }
+      }
+
       return { error: e };
     }
   }

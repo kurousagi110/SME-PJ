@@ -2,6 +2,7 @@
 
 import UsersDAO from "../models/usersDAO.js";
 import ApiError from "../utils/ApiError.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 /**
  * UserService – business logic for user management and authentication.
@@ -23,7 +24,13 @@ export default class UserService {
     // Pass null để DAO biết user mới chưa có chức vụ / phòng ban.
     // Permission escalation phải qua endpoint admin (verifyAdmin + verifyToken).
     const result = await UsersDAO.registerUser(ho_ten, ngay_sinh, tai_khoan, password, null, null);
-    this._daoError(result, "Đăng ký thất bại", "REGISTER_FAILED");
+    if (result?.error) {
+      // SECURITY: DAO trả { error } khi tài khoản đã tồn tại — phải trả 409 Conflict
+      // chứ không phải 400, và KHÔNG để lộ thêm thông tin (anti-enumeration).
+      const msg = result.error.message || "Đăng ký thất bại";
+      const code = msg.includes("đã tồn tại") ? "USERNAME_TAKEN" : "REGISTER_FAILED";
+      throw ApiError.conflict(msg, code);
+    }
     return { insertedId: result.insertedId };
   }
 
@@ -166,14 +173,21 @@ export default class UserService {
     const filter = {};
 
     if (q) {
+      // SECURITY: escape regex metacharacters before building the $regex.
+      // Without this, a search like q=.*.*.*.*(a+)+$ causes ReDoS on the
+      // mongod event loop. Round 4 escaped user-side DAO queries but
+      // missed this server-side filter.
+      const safe = escapeRegex(q);
       filter.$or = [
-        { ma_nv: { $regex: q, $options: "i" } },
-        { ho_ten: { $regex: q, $options: "i" } },
+        { ma_nv: { $regex: safe, $options: "i" } },
+        { ho_ten: { $regex: safe, $options: "i" } },
       ];
     }
 
     if (isManager) {
-      if (phong_ban_query) filter["phong_ban.ten"] = phong_ban_query;
+      // Same hardening as above for the department filter when a manager
+      // narrows the list via ?phong_ban=...
+      if (phong_ban_query) filter["phong_ban.ten"] = { $regex: escapeRegex(phong_ban_query), $options: "i" };
     } else {
       const pbTen = currentUser?.phong_ban?.ten;
       if (!pbTen) throw ApiError.badRequest("Tài khoản chưa có phòng ban", "NO_PHONGBAN");

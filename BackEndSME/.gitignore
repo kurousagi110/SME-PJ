@@ -37,6 +37,10 @@ local.properties
 node_modules/
 npm-debug.log
 yarn-error.log
+# This project uses npm (not yarn). yarn.lock is dead weight that breaks
+# reproducible builds (npm ci reads package-lock.json; yarn install would
+# read yarn.lock and produce a different dep tree).
+yarn.lock
 
 # Environment — secrets must never be committed
 .env

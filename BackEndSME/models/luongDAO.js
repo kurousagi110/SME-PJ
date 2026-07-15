@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { sanitizeNumber } from "../utils/number.js";
 
 let luongCol;
 let usersCol;
@@ -30,8 +31,7 @@ export default class LuongDAO {
   }
 
   static _n(v, def = 0) {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : def;
+    return sanitizeNumber(v, def);
   }
 
   // parse "YYYY-MM-DD" -> Date local 00:00

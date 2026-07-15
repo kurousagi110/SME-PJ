@@ -1,6 +1,4 @@
 // Refactored: 2026-04-02 | Issues fixed: W1, W5, G6 | Phase 1 – Foundation
-// Consolidates middleware/middleware.js (dead code) + middleware/verifyToken.js (active)
-// middleware/middleware.js is now dead code and can be deleted.
 // 2026-05-25: Added isAdminUser helper + verifySelfOrAdmin middleware
 
 import jwt from "jsonwebtoken";
@@ -126,4 +124,31 @@ export function verifyProductionManager(req, res, next) {
     return next(ApiError.forbidden("Không có quyền tạo lệnh sản xuất", "FORBIDDEN"));
   }
   next();
+}
+
+/**
+ * verifySelfOrAdminByMaNV – scope a request to either the user identified by
+ * `ma_nv` in body/query OR an admin/approver. Used for payroll + attendance
+ * endpoints where a non-privileged user must not read another employee's
+ * salary or attendance record.
+ *
+ * Looks at `req.body.ma_nv` first (POST/PATCH), then `req.query.ma_nv` (GET).
+ * The user's own `ma_nv` is read from `req.user.ma_nv`.
+ *
+ * Must be used AFTER verifyToken.
+ */
+export function verifySelfOrAdminByMaNV(req, _res, next) {
+  const user = req.user;
+  if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
+
+  // Admin/approver can read or write anyone's payroll.
+  if (isAdminUser(user) || user?.chuc_vu?.ten === "Thủ kho") return next();
+
+  const targetMaNV = req?.body?.ma_nv ?? req?.query?.ma_nv;
+  if (!targetMaNV) {
+    return next(ApiError.badRequest("Thiếu ma_nv", "VALIDATION_ERROR"));
+  }
+  if (String(user.ma_nv || "") === String(targetMaNV)) return next();
+
+  return next(ApiError.forbidden("Không có quyền xem dữ liệu chấm công / lương của nhân viên khác", "FORBIDDEN"));
 }

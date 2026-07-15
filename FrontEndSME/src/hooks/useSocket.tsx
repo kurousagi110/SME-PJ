@@ -54,9 +54,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     // Connect same-origin; nginx sẽ proxy /socket.io/ đến backend
     // Token được Backend tự đọc từ HttpOnly Cookie
+    //
+    // reconnection: socket.io-client handles transient network drops by
+    //   re-attempting the handshake. Without this, a single Wi-Fi blip
+    //   permanently disconnects the user until full reload.
+    // reconnectionAttempts: cap so we don't hammer a down server forever.
+    // randomizationFactor: spread retries to avoid thundering herd on
+    //   backend recovery.
     const socket = io("", {
       path: "/socket.io/",
       withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+      randomizationFactor: 0.5,
+      timeout: 20000,
     });
 
     socketRef.current = socket;
@@ -71,12 +84,23 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         { ...data, read: false },
         ...prev.slice(0, 19),
       ]);
+      // Invalidate the actual query keys the consuming hooks subscribe to.
+      // Previously this listed don-nhap-hang / don-san-xuat / don-ban-hang,
+      // which no hook uses — the resulting notifications updated the badge
+      // but the lists themselves never refetched.
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
-      queryClient.invalidateQueries({ queryKey: ["san-pham"] });
-      queryClient.invalidateQueries({ queryKey: ["nguyen-lieu"] });
-      queryClient.invalidateQueries({ queryKey: ["don-nhap-hang"] });
-      queryClient.invalidateQueries({ queryKey: ["don-san-xuat"] });
-      queryClient.invalidateQueries({ queryKey: ["don-ban-hang"] });
+      queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["material-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["nguyen-lieu-stock-map"] });
+      queryClient.invalidateQueries({ queryKey: ["product-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["product-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["prod-receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["production-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["order-sale"] });
+      queryClient.invalidateQueries({ queryKey: ["dash-chart"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-table"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
     });
 
     return () => {

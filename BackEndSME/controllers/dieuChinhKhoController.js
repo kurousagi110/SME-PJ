@@ -6,6 +6,8 @@ import NguyenLieuDAO        from "../models/nguyenLieuDAO.js";
 import SanPhamDAO           from "../models/sanPhamDAO.js";
 import { notifyAdmin, notifyApprover, notifyUser } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
+import { performedByOf } from "../utils/auditIdentity.js";
+import logger from "../utils/logger.js";
 
 export default class DieuChinhKhoController {
   /* ─── CREATE ─── */
@@ -27,10 +29,7 @@ export default class DieuChinhKhoController {
       throw ApiError.badRequest("Số lượng điều chỉnh không được bằng 0", "VALIDATION_ERROR");
     }
 
-    const created_by = {
-      tai_khoan: req.user.tai_khoan,
-      ho_ten:    req.user.ho_ten,
-    };
+    const created_by = performedByOf(req);
 
     const result = await DieuChinhKhoDAO.createPhieu({
       loai, item_id, ma_hang, ten_hang,
@@ -97,7 +96,7 @@ export default class DieuChinhKhoController {
       throw ApiError.forbidden("Không thể tự duyệt phiếu của mình", "SELF_APPROVE_FORBIDDEN");
     }
 
-    const approvedBy = { tai_khoan: req.user.tai_khoan, ho_ten: req.user.ho_ten };
+    const approvedBy = performedByOf(req);
 
     // Atomic: trừ kho + set trạng thái phiếu phải là 1 operation.
     // Nếu chỉ chạy tuần tự: race giữa 2 admin → cả 2 pass check → trừ kho 2 lần
@@ -215,7 +214,7 @@ export default class DieuChinhKhoController {
       throw ApiError.badRequest("Phiếu đã được xử lý trước đó", "ALREADY_PROCESSED");
     }
 
-    const rejectedBy = { tai_khoan: req.user.tai_khoan, ho_ten: req.user.ho_ten };
+    const rejectedBy = performedByOf(req);
     const updated = await DieuChinhKhoDAO.reject(id, rejectedBy);
     if (!updated) {
       throw ApiError.badRequest("Từ chối phiếu thất bại", "REJECT_FAILED");

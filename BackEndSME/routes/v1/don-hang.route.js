@@ -5,7 +5,7 @@
 
 import express from "express";
 import DonHangController from "../../controllers/donHangControllers.js";
-import { verifyToken, verifyAdmin, verifyApprover } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyApprover, verifyProductionManager } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -15,10 +15,21 @@ function setLoaiProdReceipt(req, _res, next)    { req.body = { ...(req.body || {
 function setLoaiPurchaseReceipt(req, _res, next){ req.body = { ...(req.body || {}), loai_don: "purchase_receipt" }; next(); }
 function filterProdReceipt(req, _res, next)     { req.query = { ...(req.query || {}), loai_don: "prod_receipt" };   next(); }
 
-/* ─── 3 LOẠI CHỨNG TỪ ─── */
-router.post("/sales",             verifyToken, setLoaiSale,             DonHangController.create);
-router.post("/receipts/production",  verifyToken, setLoaiProdReceipt,      DonHangController.create);
-router.post("/receipts/purchase",    verifyToken, setLoaiPurchaseReceipt,   DonHangController.create);
+/* ─── 3 LOẠI CHỨNG TỪ ───
+ * SECURITY / WORKFLOW: each order type requires its own role:
+ *   • sale: any authenticated user can draft a sale order (sales staff /
+ *     floor workers). Once created, status transitions are gated by
+ *     verifyApprover (PATCH /:id/status).
+ *   • prod_receipt: Trưởng xưởng + Admin — these orders reduce material
+ *     stock atomically and represent production output. Floor workers
+ *     must not be able to inject finished-goods receipts.
+ *   • purchase_receipt: Thủ kho + Admin — these orders raise material
+ *     stock and record supplier cost. Locking to approver role matches
+ *     the existing `verifyApprover` policy used for stock-adjust approval.
+ */
+router.post("/sales",               verifyToken, setLoaiSale,             DonHangController.create);
+router.post("/receipts/production", verifyToken, verifyProductionManager, setLoaiProdReceipt,      DonHangController.create);
+router.post("/receipts/purchase",   verifyToken, verifyApprover,          setLoaiPurchaseReceipt,   DonHangController.create);
 
 /* ─── PRODUCTION RECEIPT LIST & NEEDS ─── */
 router.get("/receipts/production",          verifyToken, filterProdReceipt, DonHangController.list);

@@ -2,6 +2,8 @@
 node_modules
 npm-debug.log
 yarn-error.log
+# Backend uses npm ci — yarn.lock would cause non-determinism if present.
+yarn.lock
 
 # Environment secrets — injected at runtime via docker-compose / K8s secrets
 .env

@@ -61,9 +61,8 @@ export const ALLOWED_TRANSITIONS_BY_TYPE = {
 };
 
 /* ── Utilities ────────────────────────────────────────────────────────────── */
-export function escapeRegex(s) {
-  return String(s || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+// escapeRegex is now sourced exclusively from ../utils/escapeRegex.js —
+// keep this module focused on domain constants only.
 
 export function toObjectId(id) {
   if (!id) return null;

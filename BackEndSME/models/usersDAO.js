@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 let users;
 
@@ -94,20 +95,13 @@ export default class UsersDAO {
 
     try {
       const check = await users.findOne({ tai_khoan: doc.tai_khoan });
-      if (check && check.trang_thai !== 0) {
-        const res = await users.updateOne(
-          { _id: check._id },
-          { $set: {
-            ho_ten: doc.ho_ten,
-            ngay_sinh: doc.ngay_sinh,
-            mat_khau: doc.mat_khau,
-            chuc_vu: doc.chuc_vu,
-            phong_ban: doc.phong_ban,
-            trang_thai: 1,
-            updateAt: new Date(),
-          } }
-        );
-        return { insertedId: res._id };
+      if (check) {
+        // SECURITY: register is public. If the account already exists — even
+        // soft-deleted (trang_thai === 0) — we MUST refuse rather than
+        // overwrite password / role / department. Otherwise an attacker can
+        // take over any account by POSTing /register with the victim's
+        // tai_khoan + a new password.
+        return { error: new Error("Tài khoản đã tồn tại") };
       }
       const res = await users.insertOne(doc);
       return { insertedId: res.insertedId };
@@ -144,11 +138,14 @@ export default class UsersDAO {
   } = {}) {
     const filter = {};
 
-    // search theo tên / tài khoản
+    // SECURITY: escape regex metacharacters before passing to MongoDB.
+    // Without this, a search like ?q=.*.*.*.*.*(a+)+$ causes ReDoS on
+    // the mongod event loop, or a full scan via regex injection.
     if (q) {
+      const safe = escapeRegex(q);
       filter.$or = [
-        { ho_ten: { $regex: q, $options: "i" } },
-        { tai_khoan: { $regex: q, $options: "i" } },
+        { ho_ten: { $regex: safe, $options: "i" } },
+        { tai_khoan: { $regex: safe, $options: "i" } },
       ];
     }
 
@@ -159,22 +156,24 @@ export default class UsersDAO {
 
     // filter theo phòng ban (tên)
     if (phong_ban && phong_ban.trim()) {
-      filter["phong_ban.ten"] = { $regex: phong_ban.trim(), $options: "i" };
+      filter["phong_ban.ten"] = { $regex: escapeRegex(phong_ban.trim()), $options: "i" };
     }
 
     // filter theo chức vụ (tên)
     if (chuc_vu && chuc_vu.trim()) {
-      filter["chuc_vu.ten"] = { $regex: chuc_vu.trim(), $options: "i" };
+      filter["chuc_vu.ten"] = { $regex: escapeRegex(chuc_vu.trim()), $options: "i" };
     }
 
     const skip = Math.max(0, (Number(page) - 1) * Number(limit));
+    // SECURITY: Cap page size to prevent OOM via ?limit=99999999.
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 100);
     const projection = { mat_khau: 0, tokens: 0 };
 
     const [items, total] = await Promise.all([
       users
         .find(filter, { projection })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(safeLimit)
         .toArray(),
       users.countDocuments(filter),
     ]);
@@ -182,9 +181,9 @@ export default class UsersDAO {
     return {
       items,
       page: Number(page),
-      limit: Number(limit),
+      limit: safeLimit,
       total,
-      totalPages: Math.ceil(total / Number(limit)) || 1,
+      totalPages: Math.ceil(total / safeLimit) || 1,
     };
   }
 
@@ -331,8 +330,18 @@ export default class UsersDAO {
       const user = await users.findOne({ _id: new ObjectId(userId), trang_thai: 1 });
       if (!user) throw new Error("User not found or inactive");
 
-      const valid = await this._hasRefreshToken(user, refreshToken);
-      if (!valid) throw new Error("Refresh token not recognized");
+      // Single-use rotation: identify the SPECIFIC stored token matching this
+      // refreshToken (by bcrypt compare across stored hashes) so we can target
+      // it in the atomic update below. If no match → invalid/replayed.
+      let matchedTokenId = null;
+      for (const t of user?.tokens || []) {
+        // eslint-disable-next-line no-await-in-loop
+        if (await bcrypt.compare(refreshToken, t.hashed)) {
+          matchedTokenId = t._id;
+          break;
+        }
+      }
+      if (!matchedTokenId) throw new Error("Refresh token not recognized");
 
       const role = user.chuc_vu
         ? { ten: user.chuc_vu.ten || "", heSoluong: user.chuc_vu.heSoluong ?? null }
@@ -342,19 +351,39 @@ export default class UsersDAO {
       const newRefreshToken = this._signRefreshToken(userId, role);
       const hashedNewRefresh = await bcrypt.hash(newRefreshToken, SALT_ROUNDS);
 
-      // Phase 5: atomic token rotation — xoá token cũ + thêm token mới trong
-      // CÙNG một updateOne. Nếu fail, không có trạng thái "đã xoá mà chưa thêm"
-      // (race condition cũ có thể làm user mất hết token nếu lệnh 2 fail).
-      await users.updateOne(
-        { _id: new ObjectId(userId) },
+      // SECURITY: Atomic single-use rotation. The filter requires the OLD token
+      // to still exist by its _id — if another concurrent /refresh already
+      // pulled it, this update matches 0 docs and we throw "replay detected"
+      // instead of silently issuing a second valid refresh.
+      //
+      // Also: cap token history at MAX_REFRESH_TOKENS so storage cannot grow
+      // unbounded across many logins.
+      const MAX_REFRESH_TOKENS = 10;
+      const rotation = await users.findOneAndUpdate(
         {
-          $pull: { tokens: {} }, // xoá toàn bộ tokens cũ
+          _id: new ObjectId(userId),
+          trang_thai: 1,
+          "tokens._id": matchedTokenId,
+        },
+        {
+          $pull: { tokens: { _id: matchedTokenId } },
           $push: {
-            tokens: { _id: new ObjectId(), hashed: hashedNewRefresh, createdAt: new Date() },
+            // $slice keeps only the newest MAX_REFRESH_TOKENS entries
+            tokens: {
+              $each: [
+                { _id: new ObjectId(), hashed: hashedNewRefresh, createdAt: new Date() },
+              ],
+              $slice: -MAX_REFRESH_TOKENS,
+            },
           },
           $set: { updateAt: new Date() },
-        }
+        },
+        { returnDocument: "after" }
       );
+
+      if (!rotation) {
+        throw new Error("Refresh token already rotated — possible replay");
+      }
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (error) {

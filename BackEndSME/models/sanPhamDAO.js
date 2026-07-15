@@ -1,5 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
+import { sanitizeNumber, clampNumber } from "../utils/number.js";
 
 let sanPham;
 
@@ -129,11 +131,6 @@ export default class SanPhamDAO {
   }
 
   /* ====================== Helpers ====================== */
-  static _sanitizeNumber(n, def = 0) {
-    const v = Number(n);
-    return Number.isFinite(v) ? v : def;
-  }
-
   static _sanitizeString(s, def = "") {
     if (s === undefined || s === null) return def;
     return String(s).trim();
@@ -155,7 +152,7 @@ export default class SanPhamDAO {
 
       const mota = this._sanitizeString(it.mota);
       const don_vi = this._sanitizeString(it.don_vi);
-      const so_luong = Math.max(0, this._sanitizeNumber(it.so_luong, 0));
+      const so_luong = clampNumber(it.so_luong, 0, Infinity, 0);
 
       // ✅ NEW: optional field
       const ma_nl = this._sanitizeString(it.ma_nl);
@@ -185,8 +182,8 @@ export default class SanPhamDAO {
     const doc = {
       ma_sp: this._sanitizeString(ma_sp),
       ten_sp: this._sanitizeString(ten_sp),
-      don_gia: this._sanitizeNumber(don_gia, 0),
-      so_luong: Math.max(0, this._sanitizeNumber(so_luong, 0)),
+      don_gia: sanitizeNumber(don_gia, 0),
+      so_luong: clampNumber(so_luong, 0, Infinity, 0),
       mo_ta: this._sanitizeString(mo_ta),
       nguyen_lieu: this._normalizeNguyenLieu(nguyen_lieu),
       createAt: new Date(),
@@ -217,8 +214,8 @@ export default class SanPhamDAO {
       ]);
 
       if (allowed.ten_sp !== undefined) allowed.ten_sp = this._sanitizeString(allowed.ten_sp);
-      if (allowed.don_gia !== undefined) allowed.don_gia = this._sanitizeNumber(allowed.don_gia, 0);
-      if (allowed.so_luong !== undefined) allowed.so_luong = Math.max(0, this._sanitizeNumber(allowed.so_luong, 0));
+      if (allowed.don_gia !== undefined) allowed.don_gia = sanitizeNumber(allowed.don_gia, 0);
+      if (allowed.so_luong !== undefined) allowed.so_luong = clampNumber(allowed.so_luong, 0, Infinity, 0);
       if (allowed.mo_ta !== undefined) allowed.mo_ta = this._sanitizeString(allowed.mo_ta);
 
       if (allowed.nguyen_lieu !== undefined) {
@@ -328,8 +325,8 @@ export default class SanPhamDAO {
       }
 
       const priceFilter = {};
-      if (minPrice !== undefined) priceFilter.$gte = this._sanitizeNumber(minPrice, 0);
-      if (maxPrice !== undefined) priceFilter.$lte = this._sanitizeNumber(maxPrice, 0);
+      if (minPrice !== undefined) priceFilter.$gte = sanitizeNumber(minPrice, 0);
+      if (maxPrice !== undefined) priceFilter.$lte = sanitizeNumber(maxPrice, 0);
       if (Object.keys(priceFilter).length) filter.don_gia = priceFilter;
 
       const skip = Math.max(0, (Number(page) - 1) * Number(limit));
@@ -355,7 +352,7 @@ export default class SanPhamDAO {
           total = await sanPham.countDocuments(filterText);
 
           if (!items.length) {
-            const regex = new RegExp(qTrim, "i");
+            const regex = new RegExp(escapeRegex(qTrim), "i");
             const filterRegex = {
               ...filter,
               $or: [
@@ -369,7 +366,7 @@ export default class SanPhamDAO {
             total = await sanPham.countDocuments(filterRegex);
           }
         } catch (err) {
-          const regex = new RegExp(qTrim, "i");
+          const regex = new RegExp(escapeRegex(qTrim), "i");
           const filterRegex = {
             ...filter,
             $or: [
@@ -411,7 +408,7 @@ export default class SanPhamDAO {
         if (docs.length) return docs;
       } catch (e) { }
 
-      const regex = new RegExp(q, "i");
+      const regex = new RegExp(escapeRegex(q), "i");
       return await sanPham
         .find({
           trang_thai: { $ne: STATUS.DELETED },
@@ -437,8 +434,8 @@ export default class SanPhamDAO {
       const set = { updateAt: new Date() };
 
       // ✅ optional: update giá/ton tối thiểu/đơn vị nếu muốn
-      if (newPrice !== undefined) set.don_gia = this._sanitizeNumber(newPrice, 0);
-      if (newMinStock !== undefined) set.ton_toi_thieu = this._sanitizeNumber(newMinStock, 0);
+      if (newPrice !== undefined) set.don_gia = sanitizeNumber(newPrice, 0);
+      if (newMinStock !== undefined) set.ton_toi_thieu = sanitizeNumber(newMinStock, 0);
       if (newDonVi !== undefined) set.don_vi = String(newDonVi);
 
       const opts = { returnDocument: "after" };

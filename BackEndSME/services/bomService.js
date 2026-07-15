@@ -5,6 +5,7 @@
 
 import BomDAO from "../models/bomDAO.js";
 import ApiError from "../utils/ApiError.js";
+import logger from "../utils/logger.js";
 
 /**
  * BomService – business logic for Bill of Materials management.
@@ -31,6 +32,10 @@ export default class BomService {
     if (!san_pham_id) throw ApiError.badRequest("Thiếu san_pham_id", "VALIDATION_ERROR");
     if (!Array.isArray(items)) throw ApiError.badRequest("items phải là mảng", "VALIDATION_ERROR");
 
+    // If a mongoClient is available AND it supports sessions (replica set /
+    // sharded cluster), use a real transaction. Any error inside the txn
+    // other than the documented standalone-Mongo message re-throws — the
+    // controller surfaces it to the user, nothing partial is persisted.
     if (mongoClient?.startSession) {
       const session = mongoClient.startSession();
       try {
@@ -42,9 +47,14 @@ export default class BomService {
         });
         return outcome;
       } catch (e) {
-        // MongoDB standalone (non-replica-set) does not support transactions.
-        // Fall through to the non-transactional path below.
+        // Standalone Mongo (no replica set) does not support transactions.
+        // Surface the txn-not-supported error so the operator can see they
+        // are running a degraded config, then run the non-transactional
+        // fallback so the call still succeeds. The DAO writes
+        // bom_san_pham + san_pham.nguyen_lieu sequentially; if the second
+        // write fails we surface that error rather than swallowing it.
         if (!e?.message?.includes("Transaction numbers are only allowed")) throw e;
+        logger.warn("[bomService] MongoDB transactions unavailable; running setBOM without atomicity (single-step writes only)");
       } finally {
         await session.endSession();
       }

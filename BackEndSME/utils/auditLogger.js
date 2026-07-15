@@ -1,3 +1,5 @@
+import logger from "./logger.js";
+
 let col = null;
 
 /**
@@ -20,7 +22,10 @@ export function injectAuditDB(conn) {
  * @param {string|null} ip      — client IP (req.ip or req.headers['x-forwarded-for'])
  */
 export async function logAction(action, module, targetId, description, performedBy, ip = null) {
-  if (!col) return; // silently skip if DB not injected (e.g. during tests)
+  if (!col) {
+    logger.warn("auditLogger skipped: DB not injected", { action, module });
+    return;
+  }
   try {
     await col.insertOne({
       action,
@@ -31,7 +36,15 @@ export async function logAction(action, module, targetId, description, performed
       ip_address: ip          ?? null,   // matched to frontend field log.ip_address
       created_at: new Date(),
     });
-  } catch {
-    // Audit log failures must never crash the main request
+  } catch (e) {
+    // SECURITY: Audit log failures must NEVER crash the main request, but they
+    // MUST be logged so an admin can see the gap. Otherwise during incidents
+    // we silently lose the audit trail (compliance + forensics).
+    logger.error("auditLogger insert failed", {
+      action,
+      module,
+      target_id: targetId,
+      error: e.message,
+    });
   }
 }

@@ -188,9 +188,22 @@ export default function Orders() {
   );
 
   const tongThanhToan = useMemo(() => {
-    return (
-      tamTinh + tienThue + Math.max(0, n0(phi_vc)) - Math.max(0, n0(giam_gia))
-    );
+    // SECURITY / DATA-INTEGRITY: clamp >= 0 to prevent a malicious or
+    // careless operator from creating an order with a negative total
+    // (e.g. by typing giam_gia larger than tamTinh + thue + phi_vc).
+    // A negative tongThanhToan would corrupt accounting and downstream
+    // reporting. Both UI display and submit payload use this value.
+    const raw =
+      tamTinh + tienThue + Math.max(0, n0(phi_vc)) - Math.max(0, n0(giam_gia));
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  }, [tamTinh, tienThue, phi_vc, giam_gia]);
+
+  // True when the typed discount would push the order below 0 — used to
+  // block submit and surface a warning next to the discount field.
+  const giamGiaVuot = useMemo(() => {
+    const max =
+      tamTinh + tienThue + Math.max(0, n0(phi_vc));
+    return Math.max(0, n0(giam_gia)) > max;
   }, [tamTinh, tienThue, phi_vc, giam_gia]);
 
   const hasOverStock = useMemo(() => {
@@ -231,9 +244,17 @@ export default function Orders() {
 
   /* ===== Submit ===== */
   const onSubmit = async (values: FormValues) => {
+    // SECURITY / DATA-INTEGRITY: never submit with an empty creator id.
+    // If profile is still loading or unavailable, surface a clear error
+    // instead of silently sending nguoi_lap_id: "" which would create
+    // an "orphan" order in the database (no creator = no audit trail).
+    if (!values.nguoi_lap_id) {
+      toast.error("Không xác định được người lập. Vui lòng tải lại trang sau khi đăng nhập.");
+      return;
+    }
     const payload = {
       khach_hang_ten: values.khach_hang_ten.trim(),
-      nguoi_lap_id: values.nguoi_lap_id || "",
+      nguoi_lap_id: values.nguoi_lap_id,
       san_pham: values.san_pham.map((l) => ({
         loai_hang: "san_pham",
         san_pham_id: l.san_pham_id,
@@ -308,7 +329,17 @@ export default function Orders() {
 
               <div className="flex flex-col gap-1.5">
                 <Label>Giảm giá</Label>
-                <Input type="number" min={0} {...register("giam_gia")} />
+                <Input
+                  type="number"
+                  min={0}
+                  className={cn(giamGiaVuot && "border-red-500")}
+                  {...register("giam_gia")}
+                />
+                {giamGiaVuot ? (
+                  <p className="text-xs text-red-500">
+                    Giảm giá vượt quá tổng (tạm tính + thuế + phí VC). Vui lòng giảm.
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -535,8 +566,11 @@ export default function Orders() {
                 disabled={
                   createMutation.isPending ||
                   productQuery.isLoading ||
+                  myProfileQuery.isLoading ||
+                  !nguoiLapId ||
                   !isValid ||
-                  hasOverStock
+                  hasOverStock ||
+                  giamGiaVuot
                 }
               >
                 {createMutation.isPending ? "Đang tạo..." : "Tạo hóa đơn"}

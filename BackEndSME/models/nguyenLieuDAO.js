@@ -1,5 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
+import { sanitizeNumber } from "../utils/number.js";
 
 let nguyen_lieu;
 
@@ -139,9 +141,9 @@ export default class NguyenLieuDAO {
   }
 
   /* ====================== Helpers ====================== */
+  // Thin alias for the shared sanitizer so internal call-sites stay short.
   static _n(v, def = 0) {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : def;
+    return sanitizeNumber(v, def);
   }
 
   static _s(v, def = "") {
@@ -364,13 +366,13 @@ export default class NguyenLieuDAO {
           total = await nguyen_lieu.countDocuments(fText);
 
           if (!items.length) {
-            const rx = new RegExp(qTrim, "i");
+            const rx = new RegExp(escapeRegex(qTrim), "i");
             const fRx = { ...filter, $or: [{ ma_nl: rx }, { ten_nl: rx }, { mo_ta: rx }] };
             items = await nguyen_lieu.find(fRx).sort({ [sb]: sortDir }).skip(skip).limit(Number(limit)).toArray();
             total = await nguyen_lieu.countDocuments(fRx);
           }
         } catch (e) {
-          const rx = new RegExp(qTrim, "i");
+          const rx = new RegExp(escapeRegex(qTrim), "i");
           const fRx = { ...filter, $or: [{ ma_nl: rx }, { ten_nl: rx }, { mo_ta: rx }] };
           items = await nguyen_lieu.find(fRx).sort({ [sb]: sortDir }).skip(skip).limit(Number(limit)).toArray();
           total = await nguyen_lieu.countDocuments(fRx);
@@ -404,7 +406,7 @@ export default class NguyenLieuDAO {
         if (docs.length) return docs;
       } catch (e) { }
 
-      const rx = new RegExp(s, "i");
+      const rx = new RegExp(escapeRegex(s), "i");
       return await nguyen_lieu
         .find({ trang_thai: { $ne: STATUS.DELETED }, $or: [{ ma_nl: rx }, { ten_nl: rx }] })
         .sort({ ten_nl: 1 })

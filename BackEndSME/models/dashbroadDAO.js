@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 
 let don_hang;
 let users;
@@ -278,7 +279,7 @@ export default class DashboardDAO {
       }
 
       if (q && String(q).trim()) {
-        const s = String(q).trim();
+        const s = escapeRegex(String(q).trim());
         filter.$or = [
           { ma_dh: { $regex: s, $options: "i" } },
           { khach_hang_ten: { $regex: s, $options: "i" } },

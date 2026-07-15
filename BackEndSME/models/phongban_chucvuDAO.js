@@ -1,5 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
+import { sanitizeNumber } from "../utils/number.js";
 
 let phongban_chucvu;
 
@@ -37,10 +39,8 @@ export default class phongban_chucvuDAO {
   }
 
   /* ========== Helpers ========== */
-  static _sanitizeNumber(v, def = 0) {
-    const x = Number(v);
-    return Number.isFinite(x) ? x : def;
-  }
+  // Number coercion lives in utils/number.js — shared with sanPhamDAO.js
+  // and any future DAO that needs to defend against NaN injection.
 
   static _normalizeChucVu(chuc_vu) {
     if (!chuc_vu) return [];
@@ -52,7 +52,7 @@ export default class phongban_chucvuDAO {
         _id: new ObjectId(),
         ten_chuc_vu: String(cv.ten_chuc_vu || "").trim(),
         mo_ta: String(cv.mo_ta || "").trim(),
-        he_so_luong: this._sanitizeNumber(cv.he_so_luong, 1),
+        he_so_luong: sanitizeNumber(cv.he_so_luong, 1),
         trang_thai: STATUS.ACTIVE,
         createAt: new Date(),
         updateAt: new Date(),
@@ -128,9 +128,10 @@ export default class phongban_chucvuDAO {
       }
 
       if (q && q.trim()) {
+        const safe = escapeRegex(q.trim());
         filter.$or = [
-          { ten_phong_ban: { $regex: q.trim(), $options: "i" } },
-          { "chuc_vu.ten_chuc_vu": { $regex: q.trim(), $options: "i" } },
+          { ten_phong_ban: { $regex: safe, $options: "i" } },
+          { "chuc_vu.ten_chuc_vu": { $regex: safe, $options: "i" } },
         ];
       }
 
@@ -261,7 +262,7 @@ export default class phongban_chucvuDAO {
     if (payload.mo_ta !== undefined)
       $set["chuc_vu.$[cv].mo_ta"] = String(payload.mo_ta || "").trim();
     if (payload.he_so_luong !== undefined)
-      $set["chuc_vu.$[cv].he_so_luong"] = this._sanitizeNumber(payload.he_so_luong, 1);
+      $set["chuc_vu.$[cv].he_so_luong"] = sanitizeNumber(payload.he_so_luong, 1);
     if (payload.trang_thai !== undefined)
       $set["chuc_vu.$[cv].trang_thai"] = payload.trang_thai;
 

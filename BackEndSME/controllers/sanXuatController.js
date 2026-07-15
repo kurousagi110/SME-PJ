@@ -14,9 +14,10 @@ import { ObjectId } from "mongodb";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
-import SanXuatService from "../service/sanXuatService.js";
+import SanXuatService from "../services/sanXuatService.js";
 import { notifyApprover } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
+import { performedByOf } from "../utils/auditIdentity.js";
 
 export default class SanXuatController {
   /* ─── PRODUCE (tạo lệnh sản xuất) ─── */
@@ -54,10 +55,7 @@ export default class SanXuatController {
     }
 
     // Side effects sau khi ghi kho thành công
-    const createdBy = {
-      tai_khoan: req.user.tai_khoan,
-      ho_ten:    req.user.ho_ten,
-    };
+    const createdBy = performedByOf(req);
 
     notifyApprover({
       type: "SX_CREATED",

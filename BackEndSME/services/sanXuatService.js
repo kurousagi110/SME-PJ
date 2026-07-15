@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { sanitizeNumber } from "../utils/number.js";
 
 let san_pham;
 let nguyen_lieu;
@@ -28,7 +29,7 @@ export default class SanXuatService {
     await san_xuat_logs.createIndex({ created_at: -1 });
   }
 
-  static _n(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
+  static _n(v, d = 0) { return sanitizeNumber(v, d); }
 
   /**
    * Sản xuất sản phẩm.

@@ -8,6 +8,7 @@ import {
   STATUS,
   ORDER_TYPE,
 } from "./donHangConstants.js";
+import { escapeRegex } from "../utils/escapeRegex.js";
 import {
   genOrderCode,
   num,
@@ -203,12 +204,12 @@ export async function listDonHang({
 
     if (khach_hang_ten)
       filter.khach_hang_ten = {
-        $regex: String(khach_hang_ten).trim(),
+        $regex: escapeRegex(String(khach_hang_ten).trim()),
         $options: "i",
       };
     if (nha_cung_cap_ten)
       filter.nha_cung_cap_ten = {
-        $regex: String(nha_cung_cap_ten).trim(),
+        $regex: escapeRegex(String(nha_cung_cap_ten).trim()),
         $options: "i",
       };
 
@@ -223,7 +224,10 @@ export async function listDonHang({
     }
 
     if (q && q.trim()) {
-      const s = q.trim();
+      // SECURITY: escape regex metacharacters. Without this an attacker can
+      // ReDoS the mongod event loop with a payload like (a+)+$ — round 4
+      // escape covered other DAOs but missed this list endpoint.
+      const s = escapeRegex(q.trim());
       filter.$or = [
         { ma_dh: { $regex: s, $options: "i" } },
         { khach_hang_ten: { $regex: s, $options: "i" } },

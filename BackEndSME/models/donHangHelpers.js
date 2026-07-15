@@ -10,6 +10,7 @@ import {
   ALLOWED_TRANSITIONS_BY_TYPE,
   toObjectId,
 } from "./donHangConstants.js";
+import { sanitizeNumber } from "../utils/number.js";
 
 /* ────────────────── Generators ────────────────── */
 export function genOrderCode(prefix = "DH") {
@@ -22,11 +23,9 @@ export function genOrderCode(prefix = "DH") {
   return `${prefix}-${ymd}-${rand}`;
 }
 
-/* ────────────────── Number coercion ────────────────── */
-export function num(v, def = 0) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
-}
+// Re-export under the local `num` name so call-sites in donHangCRUD /
+// donHangInventory keep working unchanged.
+export const num = sanitizeNumber;
 
 /* ────────────────── Order type helpers ────────────────── */
 export function ensureOrderType(loai_don) {
