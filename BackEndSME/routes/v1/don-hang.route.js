@@ -28,6 +28,7 @@ function filterProdReceipt(req, _res, next)     { req.query = { ...(req.query ||
  *     the existing `verifyApprover` policy used for stock-adjust approval.
  */
 router.post("/sales",               verifyToken, setLoaiSale,             DonHangController.create);
+router.post("/pos",                 verifyToken, setLoaiSale,             DonHangController.createPOS);
 router.post("/receipts/production", verifyToken, verifyProductionManager, setLoaiProdReceipt,      DonHangController.create);
 router.post("/receipts/purchase",   verifyToken, verifyApprover,          setLoaiPurchaseReceipt,   DonHangController.create);
 

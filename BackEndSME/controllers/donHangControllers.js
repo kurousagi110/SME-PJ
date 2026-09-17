@@ -7,8 +7,94 @@ import DonHangService from "../services/donHangService.js";
 import { notifyAdmin, notifyApprover } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
+import ApiError from "../utils/ApiError.js";
+import logger from "../utils/logger.js";
+import SoQuyDAO from "../models/soQuyDAO.js";
 
 export default class DonHangController {
+  /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
+  static createPOS = asyncHandler(async (req, res) => {
+    const performedBy = performedByOf(req);
+    const userId = performedBy?.user_id || req.user?._id;
+    const body = req.body || {};
+
+    const {
+      khach_hang_ten = "Khách lẻ tại quầy",
+      san_pham = [],
+      giam_gia = 0,
+      thue_rate = 0,
+      phi_vc = 0,
+      phuong_thuc_tt = "tien_mat",
+      tien_khach_dua = 0,
+      ghi_chu = "Bán lẻ tại quầy (POS)",
+      so_dien_thoai = "",
+    } = body;
+
+    if (!san_pham || !san_pham.length) {
+      throw ApiError.badRequest("Giỏ hàng POS cần ít nhất 1 sản phẩm", "EMPTY_CART");
+    }
+
+    // 1. Create order with confirmed status
+    const createResult = await DonHangService.create({
+      loai_don: "sale",
+      khach_hang_ten,
+      san_pham,
+      giam_gia: Number(giam_gia) || 0,
+      thue_rate: Number(thue_rate) || 0,
+      phi_vc: Number(phi_vc) || 0,
+      ghi_chu,
+      trang_thai: "confirmed",
+    }, userId);
+
+    const orderId = createResult.insertedId || createResult.id;
+    const ma_dh = createResult.ma_dh;
+
+    // 2. Transition to completed (this automatically checks stock and deducts inventory!)
+    const statusResult = await DonHangService.updateStatus(orderId, "completed", {
+      mongoClient: req.app?.locals?.mongoClient,
+      nguoi_thao_tac_id: userId,
+    });
+    if (statusResult?.error) {
+      throw ApiError.badRequest(statusResult.error.message || "Không thể xuất kho sản phẩm");
+    }
+
+    // 3. Fetch full completed order to get final totals
+    const orderDoc = await DonHangService.getById(orderId);
+
+    // 4. Automatically create receipt in so_quy
+    try {
+      await SoQuyDAO.taoPhieu({
+        loai_phieu: "thu",
+        hang_muc: "thu_tien_ban_hang",
+        so_tien: orderDoc.tong_tien || 0,
+        phuong_thuc: phuong_thuc_tt === "chuyen_khoan" ? "chuyen_khoan" : "tien_mat",
+        doi_tuong: {
+          loai: "khach_hang",
+          ten: khach_hang_ten,
+          so_dien_thoai,
+          dia_chi: "",
+        },
+        ma_chung_tu: ma_dh,
+        ghi_chu: `Thu tiền đơn POS ${ma_dh}`,
+        user: req.user,
+      });
+    } catch (e) {
+      logger.warn("Auto create POS receipt in so_quy warning", { error: e.message });
+    }
+
+    const payload = { type: "SALE_COMPLETED", id: orderId, loai: "sale", created_by: performedBy };
+    notifyAdmin(payload);
+    notifyApprover(payload);
+    logAction("CREATE_POS", "sale", orderId.toString(), `Bán lẻ POS: ${ma_dh}`, performedBy, req.ip);
+
+    return sendSuccess(res, {
+      order: orderDoc,
+      ma_dh,
+      tien_khach_dua: Number(tien_khach_dua) || orderDoc.tong_tien,
+      tien_thoi: Math.max(0, (Number(tien_khach_dua) || orderDoc.tong_tien) - (orderDoc.tong_tien || 0)),
+    }, "Thanh toán đơn hàng POS thành công", 201);
+  });
+
   /* ─── CREATE ─── */
   static create = asyncHandler(async (req, res) => {
     const body = { ...(req.body || {}) };
