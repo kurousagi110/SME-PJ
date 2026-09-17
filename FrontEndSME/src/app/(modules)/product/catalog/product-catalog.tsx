@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { MoreHorizontal } from "lucide-react";
-import { IconEdit, IconTrash } from "@tabler/icons-react";
+import { IconEdit, IconTrash, IconFileSpreadsheet } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { printBarcodeLabels } from "@/lib/barcode";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -510,6 +512,25 @@ export default function ProductCatalog() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeLabels(
+                        [
+                          {
+                            id: s._id,
+                            code: s.ma_sp,
+                            name: s.ten_sp,
+                            price: s.gia_ban,
+                            unit: s.don_vi,
+                            count: 1,
+                          },
+                        ],
+                        "thermal_35x22"
+                      )
+                    }
+                  >
+                    🏷️ In tem mã vạch
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleOpenAdjust(s)}>
                     ⚖️ Điều chỉnh kho
                   </DropdownMenuItem>
@@ -551,11 +572,19 @@ export default function ProductCatalog() {
           }}
         />
 
-        {isDirectorDept ? (
-          <Button onClick={() => setIsCreateModalOpen(true)}>
-            + Tạo mới sản phẩm
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild className="gap-1.5">
+            <Link href="/import">
+              <IconFileSpreadsheet className="h-4 w-4 text-emerald-600" />
+              Nhập từ Excel
+            </Link>
           </Button>
-        ) : null}
+          {isDirectorDept ? (
+            <Button onClick={() => setIsCreateModalOpen(true)}>
+              + Tạo mới sản phẩm
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <DataTable

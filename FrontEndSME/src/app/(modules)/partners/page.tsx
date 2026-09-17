@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   IconBuilding,
   IconBuildingStore,
   IconCrown,
   IconDownload,
+  IconFileSpreadsheet,
   IconEdit,
   IconEye,
   IconHistory,
@@ -279,6 +281,18 @@ export default function PartnersPage() {
           >
             <IconDownload className="w-4 h-4 text-emerald-600" />
             Xuất Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="flex items-center gap-1 text-slate-700 bg-white border-slate-300 hover:bg-slate-50"
+          >
+            <Link href="/import">
+              <IconFileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              Nhập từ Excel
+            </Link>
           </Button>
 
           <Button
