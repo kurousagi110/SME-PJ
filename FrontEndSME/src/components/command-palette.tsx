@@ -17,6 +17,9 @@ import {
   IconPlus,
   IconReceipt2,
   IconUsersGroup,
+  IconShoppingCart,
+  IconBarcode,
+  IconFileSpreadsheet,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -70,6 +73,20 @@ export function CommandPalette({
         {/* THAO TÁC NHANH */}
         <CommandGroup heading="Thao tác nhanh">
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/pos"))}
+            className="cursor-pointer"
+          >
+            <IconShoppingCart className="mr-2 h-4 w-4 text-emerald-600" />
+            <span>Mở quầy bán hàng nhanh (POS)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/barcode"))}
+            className="cursor-pointer"
+          >
+            <IconBarcode className="mr-2 h-4 w-4 text-sky-600" />
+            <span>In tem nhãn mã vạch (Barcode Code128)</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/sales"))}
             className="cursor-pointer"
           >
@@ -91,6 +108,13 @@ export function CommandPalette({
             <span>Tính bảng lương tháng</span>
           </CommandItem>
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/import"))}
+            className="cursor-pointer"
+          >
+            <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+            <span>Nhập dữ liệu Excel hàng loạt (Bulk Import)</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/dieu-chinh-kho"))}
             className="cursor-pointer"
           >
@@ -109,6 +133,22 @@ export function CommandPalette({
           >
             <IconDashboard className="mr-2 h-4 w-4" />
             <span>Bảng điều khiển Thống kê</span>
+          </CommandItem>
+
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/pos"))}
+            className="cursor-pointer"
+          >
+            <IconShoppingCart className="mr-2 h-4 w-4 text-emerald-600" />
+            <span>Quầy Bán Hàng Thu Ngân (POS)</span>
+          </CommandItem>
+
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/barcode"))}
+            className="cursor-pointer"
+          >
+            <IconBarcode className="mr-2 h-4 w-4 text-sky-600" />
+            <span>In Tem Mã Vạch (Barcode Generator)</span>
           </CommandItem>
 
           <CommandItem
@@ -197,6 +237,14 @@ export function CommandPalette({
           >
             <IconUsersGroup className="mr-2 h-4 w-4" />
             <span>Quản lý Khách Hàng & NCC (Mini CRM)</span>
+          </CommandItem>
+
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/import"))}
+            className="cursor-pointer"
+          >
+            <IconFileSpreadsheet className="mr-2 h-4 w-4" />
+            <span>Nhập dữ liệu Excel hàng loạt (Bulk Import)</span>
           </CommandItem>
 
           <CommandItem

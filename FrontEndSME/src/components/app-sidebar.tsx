@@ -16,6 +16,9 @@ import {
   IconReportMoney,
   IconReceipt2,
   IconUsersGroup,
+  IconShoppingCart,
+  IconBarcode,
+  IconFileSpreadsheet,
 } from "@tabler/icons-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -87,11 +90,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         canSeeSalesMenu
           ? {
+              title: "Bán hàng POS",
+              url: "/pos",
+              icon: IconShoppingCart,
+            }
+          : null,
+        canSeeSalesMenu
+          ? {
               title: "Đơn bán hàng",
               url: "/sales",
               icon: IconListDetails,
             }
           : null,
+        {
+          title: "In mã vạch",
+          url: "/barcode",
+          icon: IconBarcode,
+        },
         {
           title: "Khách hàng & NCC",
           url: "/partners",
@@ -124,6 +139,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Sổ quỹ & Công nợ",
           url: "/cashbook",
           icon: IconReceipt2,
+        },
+        {
+          title: "Nhập dữ liệu Excel",
+          url: "/import",
+          icon: IconFileSpreadsheet,
         },
 
         canSeeAuditLog
