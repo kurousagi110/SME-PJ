@@ -92,12 +92,17 @@ app.use(express.urlencoded({ extended: false, limit: "20mb" }));
  * attacks (e.g. {"tai_khoan":{"$ne":null}} bypassing login). Must come AFTER
  * express.json() (so the parsed body is sanitized) and BEFORE all routes.
  */
-app.use(mongoSanitize({
-  replaceWith: "_",
-  onSanitize: ({ req, key }) => {
-    logger.warn("Stripped NoSQL operator", { key, path: req.path, method: req.method });
-  },
-}));
+app.use((req, res, next) => {
+  ["body", "params", "query"].forEach((key) => {
+    if (req[key]) {
+      if (mongoSanitize.has(req[key])) {
+        logger.warn("Stripped NoSQL operator", { key, path: req.path, method: req.method });
+      }
+      mongoSanitize.sanitize(req[key], { replaceWith: "_" });
+    }
+  });
+  next();
+});
 
 /* ─── Health check ─── */
 app.get("/", (_req, res) => {

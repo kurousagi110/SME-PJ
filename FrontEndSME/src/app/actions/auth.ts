@@ -154,8 +154,9 @@ export async function refreshTokenAction() {
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",
     });
-    return { success: true };
+    return { success: true, accessToken };
   } catch (err: any) {
+    if (err?.message?.includes("NEXT_REDIRECT")) throw err;
     return {
       success: false,
       message: err.message || "Làm mới token không thành công",

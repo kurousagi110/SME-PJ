@@ -40,7 +40,8 @@ import {
   TableBody,
 } from "@/components/ui/table";
 
-import { ChevronDown, MoreHorizontal } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Download } from "lucide-react";
+import { exportToCSV } from "@/lib/export";
 import confirmToast from "@/components/confirm-toast";
 import { toast } from "sonner";
 
@@ -410,6 +411,28 @@ export function StaffTablePage() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button
+            variant="outline"
+            disabled={!filteredList.length}
+            onClick={() => {
+              exportToCSV(
+                "Danh_sach_nhan_vien",
+                [
+                  { key: "ma_nv", label: "Mã NV", formatter: (v, r) => v || r._id?.slice(-6)?.toUpperCase() },
+                  { key: "ho_ten", label: "Họ và tên" },
+                  { key: "tai_khoan", label: "Tài khoản" },
+                  { key: "phong_ban", label: "Phòng ban", formatter: (v) => v?.ten || "-" },
+                  { key: "chuc_vu", label: "Chức vụ", formatter: (v) => v?.ten || "-" },
+                  { key: "ngay_sinh", label: "Ngày sinh", formatter: (v) => v ? new Date(v).toLocaleDateString("vi-VN") : "-" },
+                  { key: "trang_thai", label: "Trạng thái", formatter: (v) => v === 1 ? "Hoạt động" : "Đã khóa" },
+                ],
+                filteredList
+              );
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Xuất Excel
+          </Button>
 
           {/* BUTTON CREATE: Ẩn nút nếu là Thư ký */}
           {profile?.chuc_vu?.ten !== "Thư ký" &&

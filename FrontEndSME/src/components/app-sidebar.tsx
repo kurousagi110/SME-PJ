@@ -13,6 +13,9 @@ import {
   IconBlocks,
   IconAdjustments,
   IconClipboardList,
+  IconReportMoney,
+  IconReceipt2,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -89,6 +92,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               icon: IconListDetails,
             }
           : null,
+        {
+          title: "Khách hàng & NCC",
+          url: "/partners",
+          icon: IconUsersGroup,
+        },
 
         isDirectorDepartment
           ? {
@@ -106,6 +114,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Chấm công",
           url: "/check-in",
           icon: IconCalendar,
+        },
+        {
+          title: "Bảng lương",
+          url: "/payroll",
+          icon: IconReportMoney,
+        },
+        {
+          title: "Sổ quỹ & Công nợ",
+          url: "/cashbook",
+          icon: IconReceipt2,
         },
 
         canSeeAuditLog

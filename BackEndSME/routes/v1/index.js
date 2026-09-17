@@ -16,6 +16,8 @@ import healthRoute        from "./health.route.js";
 import dieuChinhKhoRoute  from "./dieu-chinh-kho.route.js";
 import auditLogRoute      from "./audit-log.route.js";
 import sanXuatRoute       from "./san-xuat.route.js";
+import soQuyRoute         from "./so-quy.route.js";
+import doiTacRoute        from "./doi-tac.route.js";
 
 const v1Router = Router();
 
@@ -31,5 +33,7 @@ v1Router.use("/dashboard",         dashboardRoute);
 v1Router.use("/phongban-chucvu",   phongBanRoute);
 v1Router.use("/dieu-chinh-kho",    dieuChinhKhoRoute);
 v1Router.use("/audit-log",         auditLogRoute);
+v1Router.use("/so-quy",            soQuyRoute);
+v1Router.use("/doi-tac",           doiTacRoute);
 
 export default v1Router;

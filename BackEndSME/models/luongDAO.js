@@ -312,7 +312,7 @@ export default class LuongDAO {
         trang_thai: { $ne: STATUS.DELETED },
         ngay_thang: { $gte: startDate, $lt: endDate },
       };
-      if (ma_nv) filter.ma_nv = String(ma_nv);
+      if (ma_nv && ma_nv !== "ALL") filter.ma_nv = String(ma_nv);
 
       // Aggregate chamcong by ma_nv
       const chamCongsRaw = await luongCol.aggregate([

@@ -1,8 +1,9 @@
 "use client";
 
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Download } from "lucide-react";
 // import { IconEdit } from "@tabler/icons-react";
 import React, { useMemo, useState } from "react";
+import { exportToCSV } from "@/lib/export";
 
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -321,6 +322,28 @@ export default function MaterialCatalog() {
         />
 
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            disabled={!materialList.length}
+            onClick={() => {
+              exportToCSV(
+                "Danh_muc_nguyen_lieu",
+                [
+                  { key: "ma_nl", label: "Mã NL" },
+                  { key: "ten_nl", label: "Tên nguyên liệu" },
+                  { key: "don_vi", label: "Đơn vị tính" },
+                  { key: "so_luong", label: "Tồn kho" },
+                  { key: "ton_toi_thieu", label: "Tồn tối thiểu" },
+                  { key: "gia_nhap", label: "Giá nhập (VNĐ)", formatter: (v) => (v ? Number(v).toLocaleString("vi-VN") : "0") },
+                  { key: "mo_ta", label: "Mô tả" },
+                ],
+                materialList
+              );
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" /> Xuất Excel
+          </Button>
+
           {isDirectorDept ? (
             <Button onClick={() => setIsCreateModalOpen(true)}>
               + Tạo mới nguyên liệu

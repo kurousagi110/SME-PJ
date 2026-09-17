@@ -27,6 +27,6 @@ router.get("/cham-cong",        verifyToken, verifySelfOrAdminByMaNV, LuongContr
 router.delete("/cham-cong/:id", verifyToken, verifyAdmin, LuongController.softDeleteChamCong);
 
 /* ─── TÍNH LƯƠNG (chỉ Admin — payroll integrity) ─── */
-router.post("/tinh-luong", verifyToken, verifyAdmin, requireBody("ma_nv", "thang", "nam"), LuongController.tinhLuongThang);
+router.post("/tinh-luong", verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.tinhLuongThang);
 
 export default router;

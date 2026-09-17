@@ -43,6 +43,14 @@ import {
 import { useProductList } from "@/hooks/use-product";
 import { useCreateOrderSale } from "@/hooks/use-order-sale";
 import { useMyProfile } from "@/hooks/use-account";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { fetchDoiTacAction, DoiTacItem } from "@/app/actions/doi-tac";
 
 /* ================= Types ================= */
 type Product = {
@@ -129,6 +137,15 @@ export default function Orders() {
   /* ===== Create order hook ===== */
   const createMutation = useCreateOrderSale();
 
+  const [customers, setCustomers] = React.useState<DoiTacItem[]>([]);
+  React.useEffect(() => {
+    fetchDoiTacAction({ loai_doi_tac: "khach_hang", limit: 100 })
+      .then((res) => {
+        if (res.success && res.items) setCustomers(res.items);
+      })
+      .catch(() => {});
+  }, []);
+
   /* ===== Form ===== */
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as unknown as Resolver<FormValues>,
@@ -152,7 +169,7 @@ export default function Orders() {
     mode: "onChange",
   });
 
-  const { control, register, setValue, handleSubmit, reset, formState } = form;
+  const { control, register, setValue, getValues, handleSubmit, reset, formState } = form;
   const { errors, isValid } = formState;
 
   const { fields, append, remove } = useFieldArray({
@@ -290,11 +307,45 @@ export default function Orders() {
             {/* Header */}
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <Label>Khách hàng</Label>
-                <Input
-                  placeholder="VD: Nguyễn Văn A"
-                  {...register("khach_hang_ten")}
-                />
+                <div className="flex items-center justify-between">
+                  <Label>Khách hàng *</Label>
+                  {customers.length > 0 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Hoặc chọn từ danh bạ đối tác:
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="VD: Nguyễn Văn A"
+                    {...register("khach_hang_ten")}
+                    className="flex-1"
+                  />
+                  {customers.length > 0 && (
+                    <Select
+                      onValueChange={(val) => {
+                        const c = customers.find((x) => x._id === val || x.ten === val);
+                        if (c) {
+                          setValue("khach_hang_ten", c.ten, { shouldValidate: true });
+                          if (c.dia_chi && !getValues("ghi_chu")) {
+                            setValue("ghi_chu", `Địa chỉ: ${c.dia_chi}${c.so_dien_thoai ? ` - SĐT: ${c.so_dien_thoai}` : ""}`);
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px] bg-slate-50 text-xs">
+                        <SelectValue placeholder="Chọn từ danh bạ..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c._id} value={c._id}>
+                            {c.ten} {c.nhom === "vip" ? "(VIP)" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 {errors.khach_hang_ten ? (
                   <p className="text-xs text-red-500">
                     {errors.khach_hang_ten.message}

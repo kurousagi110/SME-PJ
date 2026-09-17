@@ -27,7 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Printer, Download } from "lucide-react";
+import { exportToCSV, printInvoice } from "@/lib/export";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -276,6 +277,37 @@ export default function OrdersManagement() {
           >
             Reset
           </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              exportToCSV(
+                "Danh_sach_don_ban_hang",
+                [
+                  { key: "ma_dh", label: "Mã đơn hàng" },
+                  { key: "ngay_dat", label: "Ngày đặt", formatter: (v) => toVNDate(v) },
+                  { key: "khach_hang_ten", label: "Khách hàng" },
+                  { key: "tong_tien", label: "Tổng tiền (VNĐ)", formatter: (v) => Number(v || 0) },
+                  {
+                    key: "trang_thai",
+                    label: "Trạng thái",
+                    formatter: (v) => {
+                      if (v === "completed") return "Hoàn thành";
+                      if (v === "confirmed") return "Đã duyệt";
+                      if (v === "cancelled") return "Từ chối";
+                      return "Chờ duyệt";
+                    },
+                  },
+                  { key: "ghi_chu", label: "Ghi chú" },
+                ],
+                items
+              );
+            }}
+            disabled={items.length === 0}
+            title="Xuất danh sách đơn hàng sang file Excel/CSV"
+          >
+            <Download className="mr-1.5 h-4 w-4 text-emerald-600" /> Xuất Excel
+          </Button>
         </div>
       </div>
 
@@ -348,6 +380,11 @@ export default function OrdersManagement() {
 
                             <DropdownMenuItem onClick={() => openDetail(o._id)}>
                               Xem chi tiết
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem onClick={() => printInvoice(o)}>
+                              <Printer className="mr-2 h-4 w-4 text-blue-600" />
+                              In hóa đơn
                             </DropdownMenuItem>
 
                             {/* draft: duyệt / từ chối */}
@@ -543,7 +580,18 @@ export default function OrdersManagement() {
             </div>
           )}
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 sm:justify-between">
+            {selected ? (
+              <Button
+                variant="outline"
+                onClick={() => printInvoice(selected)}
+              >
+                <Printer className="mr-1.5 h-4 w-4 text-blue-600" />
+                In hóa đơn
+              </Button>
+            ) : <div />}
+
+            <div className="flex gap-2">
             {/* draft: duyệt / từ chối */}
             {selected &&
             canOperateSalesOrders &&
@@ -585,6 +633,7 @@ export default function OrdersManagement() {
             <Button variant="ghost" onClick={() => setOpenView(false)}>
               Đóng
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

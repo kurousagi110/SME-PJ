@@ -226,3 +226,18 @@ export async function fetchDashboardChartCompare(params: {
     };
   });
 }
+
+export async function fetchDashboardOrdersTable(params: {
+  loai_don?: OrderType;
+  page?: number;
+  limit?: number;
+}) {
+  const qs = new URLSearchParams({
+    page: String(params.page || 1),
+    limit: String(params.limit || 50),
+    ...(params.loai_don && params.loai_don !== "ALL" ? { loai_don: params.loai_don } : {}),
+  });
+  const res = await http.get("/don-hang/?" + qs.toString());
+  return res;
+}
+

@@ -24,6 +24,8 @@ import LuongDAO           from "./models/luongDAO.js";
 import DashboardDAO       from "./models/dashbroadDAO.js";
 import SanXuatService     from "./services/sanXuatService.js";
 import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
+import SoQuyDAO           from "./models/soQuyDAO.js";
+import DoiTacDAO          from "./models/doiTacDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { seedIfEmpty } from "./seed.js";
@@ -89,6 +91,8 @@ async function main() {
       DashboardDAO.injectDB(client),
       SanXuatService.injectDB(client), // M5 fix: was never called before (dead code)
       DieuChinhKhoDAO.injectDB(client),
+      SoQuyDAO.injectDB(client),
+      DoiTacDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");

@@ -9,13 +9,16 @@ import { refreshTokenAction } from "@/app/actions/auth";
 //      (atomic $pull+$push rotates the slot, so a 2nd concurrent
 //      refresh hits a slot that no longer contains the original token).
 //   2) Multiple Set-Cookie responses overwriting each other.
-let refreshInFlight: Promise<void> | null = null;
+let refreshInFlight: Promise<string | null> | null = null;
 
-async function ensureFreshToken(): Promise<void> {
+async function ensureFreshToken(): Promise<string | null> {
   if (!refreshInFlight) {
-    refreshInFlight = refreshTokenAction().finally(() => {
-      refreshInFlight = null;
-    });
+    refreshInFlight = refreshTokenAction()
+      .then((res) => (res?.success && res?.accessToken ? (res.accessToken as string) : null))
+      .catch(() => null)
+      .finally(() => {
+        refreshInFlight = null;
+      });
   }
   return refreshInFlight;
 }
@@ -29,7 +32,16 @@ async function request(path: string, options: RequestInit = {}, retry = false) {
   const url = `${baseUrl}${path}`;
 
   const cookieStore = await cookies();
-  const token = cookieStore.get("access_token")?.value ?? "";
+  let token = cookieStore.get("access_token")?.value ?? "";
+
+  // If access token is absent but refresh token exists, proactively refresh upfront
+  if (!token && !retry) {
+    const refreshToken = cookieStore.get("refresh_token")?.value;
+    if (refreshToken) {
+      const refreshed = await ensureFreshToken();
+      if (refreshed) token = refreshed;
+    }
+  }
 
   const res = await fetch(url, {
     ...options,
@@ -54,10 +66,23 @@ async function request(path: string, options: RequestInit = {}, retry = false) {
 
     // SECURITY: do NOT pass userId — backend now derives it from the JWT.
     // Use the in-flight dedupe so parallel 401s share one refresh call.
-    await ensureFreshToken();
+    const newAccessToken = await ensureFreshToken();
+    if (!newAccessToken) {
+      throw new Error("Hết phiên đăng nhập, vui lòng đăng nhập lại.");
+    }
 
-    // Sau khi refresh token thành công → gọi lại request ban đầu
-    return request(path, options, true);
+    // Sau khi refresh token thành công → gọi lại request ban đầu với Authorization header mới
+    return request(
+      path,
+      {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${newAccessToken}`,
+        },
+      },
+      true
+    );
   }
 
   // Nếu API lỗi khác

@@ -39,7 +39,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Download,
 } from "lucide-react";
+import { exportToCSV } from "@/lib/export";
 
 import { useMaterialStockList } from "@/hooks/use-material";
 
@@ -186,6 +188,39 @@ export default function RawMaterialInventory() {
 
           <Button variant="outline" onClick={resetAll}>
             Reset
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              exportToCSV(
+                "Ton_kho_nguyen_vat_lieu",
+                [
+                  { key: "ma_nl", label: "Mã nguyên liệu" },
+                  { key: "ten_nl", label: "Tên nguyên liệu" },
+                  { key: "don_vi", label: "Đơn vị tính" },
+                  { key: "so_luong", label: "Số lượng tồn", formatter: (v) => Number(v || 0) },
+                  { key: "ton_toi_thieu", label: "Tồn tối thiểu", formatter: (v) => Number(v || 0) },
+                  { key: "gia_nhap", label: "Giá nhập (VNĐ)", formatter: (v) => Number(v || 0) },
+                  {
+                    key: "status",
+                    label: "Tình trạng",
+                    formatter: (_v, row) => {
+                      const qty = Number(row.so_luong || 0);
+                      const min = Number(row.ton_toi_thieu || 0);
+                      if (qty <= 0) return "Hết hàng";
+                      if (qty < min) return "Sắp hết hàng";
+                      return "Đủ tồn kho";
+                    },
+                  },
+                ],
+                filtered
+              );
+            }}
+            disabled={filtered.length === 0}
+            title="Xuất danh sách tồn kho nguyên liệu sang Excel/CSV"
+          >
+            <Download className="mr-1.5 h-4 w-4 text-emerald-600" /> Xuất Excel
           </Button>
         </div>
       </div>

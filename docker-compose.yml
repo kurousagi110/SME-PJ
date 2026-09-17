@@ -77,7 +77,7 @@ services:
       # DB_POOL_MIN: 2
     healthcheck:
       # Hit the bare / endpoint — Express returns "ready" HTML.
-      test: ["CMD", "wget", "-qO-", "http://localhost:5000/", "||", "exit", "1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5000/ > /dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -110,7 +110,7 @@ services:
       API_INTERNAL_URL: http://api:5000/api/v1
     healthcheck:
       # Next.js default port returns 200 on /. Use --spider to not write body.
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/", "||", "exit", "1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

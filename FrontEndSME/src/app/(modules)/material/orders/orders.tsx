@@ -34,6 +34,14 @@ import { IconTrash, IconPlus } from "@tabler/icons-react";
 
 import { useMaterialStockList } from "@/hooks/use-material";
 import { useCreatePurchaseReceipt } from "@/hooks/use-purchase-receipt";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { fetchDoiTacAction, DoiTacItem } from "@/app/actions/doi-tac";
 
 type NguyenLieuStock = {
   _id: string;
@@ -62,6 +70,15 @@ export default function CreateOrder() {
   const [nhaCungCap, setNhaCungCap] = React.useState("");
   const [ghiChu, setGhiChu] = React.useState("");
   const [openPopover, setOpenPopover] = React.useState<number | null>(null);
+
+  const [suppliers, setSuppliers] = React.useState<DoiTacItem[]>([]);
+  React.useEffect(() => {
+    fetchDoiTacAction({ loai_doi_tac: "nha_cung_cap", limit: 100 })
+      .then((res) => {
+        if (res.success && res.items) setSuppliers(res.items);
+      })
+      .catch(() => {});
+  }, []);
 
   const stockQuery = useMaterialStockList({ name: "", page: 1, limit: 200 });
   const nlList: NguyenLieuStock[] = stockQuery.data?.items ?? [];
@@ -157,12 +174,46 @@ export default function CreateOrder() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label>Nhà cung cấp</Label>
-              <Input
-                placeholder="VD: Công ty ABC"
-                value={nhaCungCap}
-                onChange={(e) => setNhaCungCap(e.target.value)}
-              />
+              <div className="flex items-center justify-between">
+                <Label>Nhà cung cấp *</Label>
+                {suppliers.length > 0 && (
+                  <span className="text-[11px] text-muted-foreground">
+                    Hoặc chọn từ danh bạ:
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="VD: Công ty ABC"
+                  value={nhaCungCap}
+                  onChange={(e) => setNhaCungCap(e.target.value)}
+                  className="flex-1"
+                />
+                {suppliers.length > 0 && (
+                  <Select
+                    onValueChange={(val) => {
+                      const s = suppliers.find((x) => x._id === val || x.ten === val);
+                      if (s) {
+                        setNhaCungCap(s.ten);
+                        if (s.dia_chi && !ghiChu) {
+                          setGhiChu(`Địa chỉ: ${s.dia_chi}${s.so_dien_thoai ? ` - SĐT: ${s.so_dien_thoai}` : ""}`);
+                        }
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px] bg-slate-50 text-xs">
+                      <SelectValue placeholder="Chọn từ danh bạ..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {suppliers.map((s) => (
+                        <SelectItem key={s._id} value={s._id}>
+                          {s.ten}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">

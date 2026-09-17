@@ -67,8 +67,8 @@ export default class LuongService {
 
   /* ─── TÍNH LƯƠNG THÁNG ─── */
   static async tinhLuongThang({ ma_nv, thang, nam, don_gia_gio, thuong, phat, ghi_chu }) {
-    if (!ma_nv || !thang || !nam) {
-      throw ApiError.badRequest("Thiếu ma_nv / thang / nam", "VALIDATION_ERROR");
+    if (!thang || !nam) {
+      throw ApiError.badRequest("Thiếu thang / nam", "VALIDATION_ERROR");
     }
     const result = await LuongDAO.tinhLuongThang({ ma_nv, thang, nam, don_gia_gio, thuong, phat, ghi_chu });
     this._daoError(result, "Tính lương tháng thất bại", "TINH_LUONG_FAILED");

@@ -367,8 +367,18 @@ export default class UsersDAO {
         },
         {
           $pull: { tokens: { _id: matchedTokenId } },
+          $set: { updateAt: new Date() },
+        }
+      );
+
+      if (!rotation) {
+        throw new Error("Refresh token already rotated — possible replay");
+      }
+
+      await users.updateOne(
+        { _id: new ObjectId(userId) },
+        {
           $push: {
-            // $slice keeps only the newest MAX_REFRESH_TOKENS entries
             tokens: {
               $each: [
                 { _id: new ObjectId(), hashed: hashedNewRefresh, createdAt: new Date() },
@@ -377,13 +387,8 @@ export default class UsersDAO {
             },
           },
           $set: { updateAt: new Date() },
-        },
-        { returnDocument: "after" }
+        }
       );
-
-      if (!rotation) {
-        throw new Error("Refresh token already rotated — possible replay");
-      }
 
       return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     } catch (error) {
