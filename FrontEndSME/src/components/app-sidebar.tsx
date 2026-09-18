@@ -19,6 +19,7 @@ import {
   IconShoppingCart,
   IconBarcode,
   IconFileSpreadsheet,
+  IconTrendingUp,
 } from "@tabler/icons-react";
 
 import { NavMain } from "@/components/nav-main";
@@ -144,6 +145,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Nhập dữ liệu Excel",
           url: "/import",
           icon: IconFileSpreadsheet,
+        },
+        {
+          title: "Demand Planning",
+          url: "/planning",
+          icon: IconTrendingUp,
         },
 
         canSeeAuditLog

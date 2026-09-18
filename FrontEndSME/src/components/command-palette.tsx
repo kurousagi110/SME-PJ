@@ -20,6 +20,7 @@ import {
   IconShoppingCart,
   IconBarcode,
   IconFileSpreadsheet,
+  IconTrendingUp,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -113,6 +114,13 @@ export function CommandPalette({
           >
             <IconFileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
             <span>Nhập dữ liệu Excel hàng loạt (Bulk Import)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/planning"))}
+            className="cursor-pointer"
+          >
+            <IconTrendingUp className="mr-2 h-4 w-4 text-indigo-600" />
+            <span>Xem kế hoạch Demand Planning</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/dieu-chinh-kho"))}
@@ -245,6 +253,14 @@ export function CommandPalette({
           >
             <IconFileSpreadsheet className="mr-2 h-4 w-4" />
             <span>Nhập dữ liệu Excel hàng loạt (Bulk Import)</span>
+          </CommandItem>
+
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/planning"))}
+            className="cursor-pointer"
+          >
+            <IconTrendingUp className="mr-2 h-4 w-4" />
+            <span>Demand Planning (Dự báo & MRP)</span>
           </CommandItem>
 
           <CommandItem
