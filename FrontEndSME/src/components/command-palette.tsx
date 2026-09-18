@@ -33,9 +33,28 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 
-export function CommandPalette() {
-  const [open, setOpen] = React.useState(false);
+interface CommandPaletteProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function CommandPalette({ open: controlledOpen, onOpenChange: setControlledOpen }: CommandPaletteProps = {}) {
+  const [internalOpen, setInternalOpen] = React.useState(false);
   const router = useRouter();
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = React.useCallback(
+    (value: boolean | ((prev: boolean) => boolean)) => {
+      const nextValue = typeof value === "function" ? value(open) : value;
+      if (setControlledOpen) {
+        setControlledOpen(nextValue);
+      } else {
+        setInternalOpen(nextValue);
+      }
+    },
+    [open, setControlledOpen]
+  );
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -50,18 +69,18 @@ export function CommandPalette() {
         }
 
         e.preventDefault();
-        setOpen((open) => !open);
+        setOpen((prev) => !prev);
       }
     };
 
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, []);
+  }, [setOpen]);
 
   const runCommand = React.useCallback((command: () => unknown) => {
     setOpen(false);
     command();
-  }, []);
+  }, [setOpen]);
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
