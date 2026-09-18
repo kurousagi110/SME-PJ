@@ -37,6 +37,7 @@ import {
   IconAlertCircle,
   IconChevronDown,
   IconChevronUp,
+  IconBrandShopee,
 } from "@tabler/icons-react";
 import {
   BarChart,
@@ -57,6 +58,7 @@ import {
   type ABCItem,
   type AlertsData,
 } from "@/app/actions/planning";
+import { EcommercePlanningTab } from "./ecommerce-tab";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -967,7 +969,7 @@ export default function PlanningPage() {
       </div>
 
       <Tabs defaultValue="forecast">
-        <TabsList className="grid grid-cols-4 w-full max-w-xl">
+        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
           <TabsTrigger value="forecast" className="flex items-center gap-1 text-xs">
             <IconTrendingUp size={14} />
             Dự Báo
@@ -984,6 +986,10 @@ export default function PlanningPage() {
             <IconAlertTriangle size={14} />
             Cảnh Báo
           </TabsTrigger>
+          <TabsTrigger value="ecommerce" className="flex items-center gap-1 text-xs font-semibold text-orange-600 dark:text-orange-400">
+            <IconBrandShopee size={14} />
+            Kênh TMĐT
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="forecast" className="mt-4">
@@ -997,6 +1003,9 @@ export default function PlanningPage() {
         </TabsContent>
         <TabsContent value="alerts" className="mt-4">
           <AlertsTab />
+        </TabsContent>
+        <TabsContent value="ecommerce" className="mt-4">
+          <EcommercePlanningTab />
         </TabsContent>
       </Tabs>
     </div>

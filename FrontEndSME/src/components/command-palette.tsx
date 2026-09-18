@@ -21,6 +21,7 @@ import {
   IconBarcode,
   IconFileSpreadsheet,
   IconTrendingUp,
+  IconBrandShopee,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -121,6 +122,13 @@ export function CommandPalette({
           >
             <IconTrendingUp className="mr-2 h-4 w-4 text-indigo-600" />
             <span>Xem kế hoạch Demand Planning</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/planning"))}
+            className="cursor-pointer"
+          >
+            <IconBrandShopee className="mr-2 h-4 w-4 text-orange-600" />
+            <span>Kế hoạch bán hàng & Khấu hao sàn TMĐT (Shopee/TikTok)</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/dieu-chinh-kho"))}
