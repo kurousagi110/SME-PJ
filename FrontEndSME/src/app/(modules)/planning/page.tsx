@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
+// Progress component replaced with inline div
 import {
   Tooltip,
   TooltipContent,
@@ -637,7 +637,12 @@ function ABCTab() {
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           <div className="flex items-center justify-end gap-2">
-                            <Progress value={item.revenue_pct} className="w-16 h-1.5" />
+                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full"
+                                style={{ width: `${Math.min(100, item.revenue_pct)}%` }}
+                              />
+                            </div>
                             {item.revenue_pct}%
                           </div>
                         </TableCell>
