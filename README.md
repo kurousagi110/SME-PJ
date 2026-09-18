@@ -42,6 +42,7 @@ Hệ thống được tổ chức phân tầng rõ ràng trên thanh Sidebar và
 ### 2. 🛒 Kinh Doanh & Bán Hàng
 - **Quầy Thu Ngân POS (`/pos`)**: Giao diện bán hàng tại quầy cảm ứng, hỗ trợ máy quét mã vạch, thanh toán tiền mặt/chuyển khoản, in hóa đơn nhiệt tức thì.
 - **Đơn Bán Hàng (`/sales`)**: Lập và theo dõi đơn xuất bán, chọn nhanh đối tác từ CRM, xuất Excel UTF-8 BOM, in hóa đơn A4 chuẩn đẹp.
+- **Vận Chuyển & Giao Hàng (`/shipping`)**: Quản lý vòng đời đơn giao hàng qua các đối tác vận chuyển hàng đầu Việt Nam (GHN, GHTK, Viettel Post, J&T Express), theo dõi trạng thái, tiền thu hộ COD và **in phiếu vận đơn chuẩn logistics A6 / 75x100mm**.
 - **Khách Hàng & Nhà Cung Cấp (`/partners`)**: Mini CRM quản lý đối tác 360°, phân loại khách VIP/khách buôn, tự động tổng hợp doanh số LTV, lịch sử mua hàng và công nợ.
 - **In Mã Vạch (`/barcode`)**: Tạo và in tem nhãn mã vạch (Code 128 / QR) dán lên sản phẩm xuất xưởng.
 
@@ -59,6 +60,7 @@ Hệ thống được tổ chức phân tầng rõ ràng trên thanh Sidebar và
 - **Phòng Ban & Chức Vụ (`/department`)**: Thiết lập sơ đồ cơ cấu tổ chức công ty.
 
 ### 5. ⚙️ Hệ Thống & Tiện Ích
+- **Trợ Lý AI SME Copilot (Widget toàn cục)**: Chatbot trí tuệ nhân tạo hỏi đáp số liệu doanh nghiệp tức thời bằng tiếng Việt (Doanh thu, Tồn kho cảnh báo, Công nợ, TMĐT đa kênh).
 - **Nhập Dữ Liệu Excel (`/import`)**: Nhập hàng loạt danh mục hàng hóa, nhân sự từ file Excel.
 - **Nhật Ký Hệ Thống (`/audit-log`)**: Ghi nhận toàn bộ thao tác nghiệp vụ quan trọng phục vụ kiểm toán và truy vết bảo mật (chỉ tài khoản Admin).
 - **Hộp Lệnh Nhanh (`Ctrl + K`)**: Tìm kiếm tính năng và mở form thao tác tắt chỉ với vài phím gõ.
