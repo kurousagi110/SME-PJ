@@ -103,7 +103,7 @@ export async function fetchForecastAction(
   months = 6
 ): Promise<{ success: boolean; items: ForecastItem[]; error?: string }> {
   try {
-    const res: any = await http.get(`planning/forecast?months=${months}`);
+    const res: any = await http.get(`/planning/forecast?months=${months}`);
     const items: ForecastItem[] = res?.data ?? res ?? [];
     return { success: true, items };
   } catch (e: any) {
@@ -115,7 +115,7 @@ export async function fetchMRPAction(
   lead_time = 7
 ): Promise<{ success: boolean; items: MRPItem[]; error?: string }> {
   try {
-    const res: any = await http.get(`planning/mrp?lead_time=${lead_time}`);
+    const res: any = await http.get(`/planning/mrp?lead_time=${lead_time}`);
     const items: MRPItem[] = res?.data ?? res ?? [];
     return { success: true, items };
   } catch (e: any) {
@@ -127,7 +127,7 @@ export async function fetchABCAction(
   months = 6
 ): Promise<{ success: boolean; items: ABCItem[]; error?: string }> {
   try {
-    const res: any = await http.get(`planning/abc?months=${months}`);
+    const res: any = await http.get(`/planning/abc?months=${months}`);
     const items: ABCItem[] = res?.data ?? res ?? [];
     return { success: true, items };
   } catch (e: any) {
@@ -139,7 +139,7 @@ export async function fetchAlertsAction(
   months = 6
 ): Promise<{ success: boolean; data: AlertsData | null; error?: string }> {
   try {
-    const res: any = await http.get(`planning/alerts?months=${months}`);
+    const res: any = await http.get(`/planning/alerts?months=${months}`);
     const data: AlertsData = res?.data ?? res ?? null;
     return { success: true, data };
   } catch (e: any) {

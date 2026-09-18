@@ -27,9 +27,9 @@ async function request(path: string, options: RequestInit = {}, retry = false) {
   // API_INTERNAL_URL is a runtime-only env var (not NEXT_PUBLIC_*) set in docker-compose.
   // It points to the Express container directly (http://api:5000/api/v1) so that
   // server-side fetch works inside Docker — Node.js fetch requires an absolute URL.
-  // NEXT_PUBLIC_API_URL is a relative path (/api/v1) baked at build time for browser use.
-  const baseUrl = process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL;
-  const url = `${baseUrl}${path}`;
+  const baseUrl = (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/+$/, "");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${baseUrl}${cleanPath}`;
 
   const cookieStore = await cookies();
   let token = cookieStore.get("access_token")?.value ?? "";
