@@ -22,6 +22,8 @@ import {
   IconTrendingUp,
   IconBrandShopee,
   IconPlus,
+  IconTruck,
+  IconSparkles,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -178,6 +180,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
           >
             <IconListDetails className="mr-2 h-4 w-4" />
             <span>Quản lý Đơn Bán Hàng & In Hóa Đơn</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/shipping"))}
+            className="cursor-pointer"
+          >
+            <IconTruck className="mr-2 h-4 w-4 text-orange-600" />
+            <span>Vận Chuyển & Giao Hàng (In Tem Vận Đơn A6)</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/partners"))}

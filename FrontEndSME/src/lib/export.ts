@@ -313,3 +313,240 @@ export function printCashReceipt(receipt: {
   }
 }
 
+export function printWaybill(shipment: {
+  ma_van_don: string;
+  ma_don_hang?: string;
+  don_vi_van_chuyen?: string;
+  nguoi_gui?: { ten?: string; sdt?: string; dia_chi?: string };
+  nguoi_nhan?: { ten?: string; sdt?: string; dia_chi?: string };
+  tien_thu_ho_cod?: number;
+  phi_van_chuyen?: number;
+  nguoi_tra_phi?: string;
+  trong_luong_gram?: number;
+  san_pham?: Array<{ ten_sp?: string; so_luong?: number; don_vi?: string }>;
+  ghi_chu?: string;
+  ngay_tao?: string | Date;
+}) {
+  const toVND = (n?: number) =>
+    (Number.isFinite(n) ? Number(n) : 0).toLocaleString("vi-VN") + " đ";
+
+  const dateStr = shipment.ngay_tao
+    ? new Date(shipment.ngay_tao).toLocaleString("vi-VN")
+    : new Date().toLocaleString("vi-VN");
+
+  const dv = shipment.don_vi_van_chuyen || "GHN";
+  const brandColor = dv === "GHTK" ? "#008543" : dv === "ViettelPost" ? "#ee0033" : dv === "J&T Express" ? "#e60012" : "#f26522";
+
+  const itemsList = Array.isArray(shipment.san_pham) && shipment.san_pham.length > 0
+    ? shipment.san_pham.map((sp, idx) => `<div>${idx + 1}. ${sp.ten_sp || "Sản phẩm"} (SL: ${sp.so_luong || 1})</div>`).join("")
+    : "<div>1. Kiện hàng thiết bị/nội thất SME (Đóng gói tiêu chuẩn)</div>";
+
+  const printHtml = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="utf-8">
+      <title>Phiếu Vận Đơn - ${shipment.ma_van_don}</title>
+      <style>
+        @page { size: 100mm 150mm; margin: 4mm; }
+        body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          margin: 0;
+          padding: 8px;
+          color: #111;
+          background: #fff;
+          font-size: 12px;
+          border: 2px dashed #333;
+          border-radius: 4px;
+        }
+        .header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 2px solid ${brandColor};
+          padding-bottom: 6px;
+          margin-bottom: 8px;
+        }
+        .carrier-badge {
+          background: ${brandColor};
+          color: #fff;
+          font-weight: 800;
+          font-size: 15px;
+          padding: 3px 8px;
+          border-radius: 4px;
+          text-transform: uppercase;
+        }
+        .waybill-code {
+          text-align: right;
+          font-weight: bold;
+          font-size: 13px;
+        }
+        .barcode-box {
+          text-align: center;
+          background: #f8fafc;
+          padding: 8px;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          margin-bottom: 8px;
+        }
+        .barcode-lines {
+          font-family: monospace;
+          font-size: 26px;
+          letter-spacing: 5px;
+          font-weight: 900;
+          color: #0f172a;
+        }
+        .barcode-sub {
+          font-size: 13px;
+          font-weight: bold;
+          letter-spacing: 2px;
+          margin-top: 2px;
+        }
+        .address-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          border-bottom: 1px solid #ddd;
+          padding-bottom: 6px;
+          margin-bottom: 6px;
+        }
+        .addr-box {
+          padding: 4px;
+          background: #fdfdfd;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+        }
+        .addr-title {
+          font-size: 10px;
+          font-weight: bold;
+          text-transform: uppercase;
+          color: #64748b;
+          margin-bottom: 2px;
+        }
+        .highlight-name {
+          font-weight: 700;
+          font-size: 13px;
+          color: #0f172a;
+        }
+        .cod-section {
+          background: #fff1f2;
+          border: 2px solid #e11d48;
+          border-radius: 6px;
+          padding: 8px;
+          text-align: center;
+          margin-bottom: 8px;
+        }
+        .cod-label {
+          font-size: 11px;
+          font-weight: bold;
+          color: #9f1239;
+          text-transform: uppercase;
+        }
+        .cod-amount {
+          font-size: 20px;
+          font-weight: 900;
+          color: #e11d48;
+        }
+        .info-row {
+          display: flex;
+          justify-content: space-between;
+          font-size: 11px;
+          margin-bottom: 4px;
+        }
+        .goods-box {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          padding: 6px;
+          border-radius: 4px;
+          font-size: 11px;
+          margin-bottom: 6px;
+        }
+        .sign-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          text-align: center;
+          font-size: 11px;
+          margin-top: 8px;
+          padding-top: 4px;
+          border-top: 1px dashed #cbd5e1;
+        }
+        .sign-space {
+          height: 35px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="carrier-badge">${dv}</div>
+        <div class="waybill-code">
+          <div>MÃ VẬN ĐƠN</div>
+          <div style="color: ${brandColor};">${shipment.ma_van_don}</div>
+        </div>
+      </div>
+
+      <div class="barcode-box">
+        <div class="barcode-lines">||| | |||| | ||||| |||</div>
+        <div class="barcode-sub">${shipment.ma_van_don}</div>
+        <div style="font-size: 10px; color: #64748b;">Đơn hàng: <strong>${shipment.ma_don_hang || "N/A"}</strong> — Ngày: ${dateStr}</div>
+      </div>
+
+      <div class="address-grid">
+        <div class="addr-box">
+          <div class="addr-title">📤 Bên Gửi (Kho SME)</div>
+          <div class="highlight-name">${shipment.nguoi_gui?.ten || "Nội Thất SME"}</div>
+          <div>SĐT: <strong>${shipment.nguoi_gui?.sdt || "1900 6868"}</strong></div>
+          <div style="font-size: 10px; color: #475569;">${shipment.nguoi_gui?.dia_chi || "KCN Tân Bình, TP.HCM"}</div>
+        </div>
+        <div class="addr-box" style="background: #eff6ff; border-color: #bfdbfe;">
+          <div class="addr-title" style="color: #1d4ed8;">📥 Bên Nhận (Khách Hàng)</div>
+          <div class="highlight-name" style="color: #1e3a8a;">${shipment.nguoi_nhan?.ten || "Khách Hàng"}</div>
+          <div>SĐT: <strong style="color: #b91c1c;">${shipment.nguoi_nhan?.sdt || "Chưa có SĐT"}</strong></div>
+          <div style="font-size: 10px; color: #1e293b;">${shipment.nguoi_nhan?.dia_chi || "Chưa có địa chỉ"}</div>
+        </div>
+      </div>
+
+      <div class="cod-section">
+        <div class="cod-label">Tiền Thu Hộ (COD)</div>
+        <div class="cod-amount">${toVND(shipment.tien_thu_ho_cod)}</div>
+        <div style="font-size: 10px; color: #4b5563;">
+          Phí vận chuyển: <strong>${toVND(shipment.phi_van_chuyen)}</strong> (${shipment.nguoi_tra_phi === "shop" ? "Shop trả cước" : "Khách trả cước"})
+        </div>
+      </div>
+
+      <div class="goods-box">
+        <div style="font-weight: bold; margin-bottom: 2px;">Nội dung hàng (${((shipment.trong_luong_gram || 1000) / 1000).toFixed(1)} kg):</div>
+        ${itemsList}
+        <div style="margin-top: 4px; font-style: italic; color: #dc2626;">
+          📌 Chỉ dẫn: <strong>${shipment.ghi_chu || "Cho xem hàng, không cho thử"}</strong>
+        </div>
+      </div>
+
+      <div class="sign-grid">
+        <div>
+          <strong>Chữ ký Shipper lấy hàng</strong>
+          <div class="sign-space"></div>
+        </div>
+        <div>
+          <strong>Chữ ký Người nhận hàng</strong>
+          <div class="sign-space"></div>
+          <div style="font-size: 9px; color: #64748b;">(Xác nhận hàng nguyên vẹn)</div>
+        </div>
+      </div>
+
+      <script>
+        window.onload = function() {
+          window.print();
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank", "width=450,height=650");
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+  }
+}
+

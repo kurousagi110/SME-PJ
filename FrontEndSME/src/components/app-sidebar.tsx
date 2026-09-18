@@ -22,6 +22,7 @@ import {
   IconTrendingUp,
   IconBrandShopee,
   IconScale,
+  IconTruck,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -99,6 +100,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: IconListDetails,
               }
             : null,
+          {
+            title: "Vận Chuyển & Giao Hàng",
+            url: "/shipping",
+            icon: IconTruck,
+            badge: "Mới",
+          },
           {
             title: "Khách Hàng & NCC",
             url: "/partners",

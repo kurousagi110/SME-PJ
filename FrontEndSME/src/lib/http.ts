@@ -95,24 +95,24 @@ async function request(path: string, options: RequestInit = {}, retry = false) {
 }
 
 export const http = {
-  get: (path: string) => request(path),
-  post: (path: string, body?: any) =>
+  get: <T = any>(path: string): Promise<T> => request(path) as Promise<T>,
+  post: <T = any>(path: string, body?: any): Promise<T> =>
     request(path, {
       method: "POST",
       body: JSON.stringify(body),
-    }),
-  put: (path: string, body?: any) =>
+    }) as Promise<T>,
+  put: <T = any>(path: string, body?: any): Promise<T> =>
     request(path, {
       method: "PUT",
       body: JSON.stringify(body),
-    }),
-  delete: (path: string) =>
+    }) as Promise<T>,
+  delete: <T = any>(path: string): Promise<T> =>
     request(path, {
       method: "DELETE",
-    }),
-  patch: (path: string, body?: any) =>
+    }) as Promise<T>,
+  patch: <T = any>(path: string, body?: any): Promise<T> =>
     request(path, {
       method: "PATCH",
       body: JSON.stringify(body),
-    }),
+    }) as Promise<T>,
 };
