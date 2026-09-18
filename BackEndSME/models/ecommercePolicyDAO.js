@@ -93,6 +93,14 @@ export class EcommercePolicyDAO {
     }
   }
 
+  static getAllPolicies() {
+    return DEFAULT_ECOMMERCE_POLICIES;
+  }
+
+  static compareChannels(gia_niem_yet = 1000000, gia_von = 550000) {
+    return this.compareOmnichannel({ gia_niem_yet, gia_von });
+  }
+
   /**
    * Tính toán chi phí, khấu hao và lợi nhuận ròng của 1 sản phẩm trên 1 sàn TMĐT
    */

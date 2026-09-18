@@ -1,5 +1,5 @@
 import logger from "../utils/logger.js";
-import { EcommercePolicyDAO } from "./ecommercePolicyDAO.js";
+import { EcommercePolicyDAO, DEFAULT_ECOMMERCE_POLICIES } from "./ecommercePolicyDAO.js";
 
 let dbInstance = null;
 let donHangCol = null;
@@ -344,9 +344,11 @@ export default class AiCopilotDAO {
 
   /* ─── 4. Xử lý TMĐT & Bán đa kênh ─── */
   static async handleEcommerceQuery(q, originalQuery) {
-    const policies = EcommercePolicyDAO.getAllPolicies();
+    const policies = (typeof EcommercePolicyDAO.getPolicies === "function" ? await EcommercePolicyDAO.getPolicies() : null) || DEFAULT_ECOMMERCE_POLICIES;
     const samplePrice = 1000000; // 1tr sample
-    const comparison = EcommercePolicyDAO.compareChannels(samplePrice, 550000);
+    const comparison = typeof EcommercePolicyDAO.compareOmnichannel === "function"
+      ? EcommercePolicyDAO.compareOmnichannel({ gia_niem_yet: samplePrice, gia_von: 550000 })
+      : null;
 
     let answer = `### 🛒 Phân Tích Hiệu Quả Bán Hàng Đa Kênh & Khấu Hao Phí Sàn TMĐT\n\n`;
     answer += `Biểu phí cập nhật mới nhất theo chính sách sàn thương mại điện tử tại Việt Nam:\n\n`;
