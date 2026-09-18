@@ -31,6 +31,7 @@ function parseRangeDays(range = "90d") {
   const r = String(range).toLowerCase();
   if (r === "7d") return 7;
   if (r === "30d") return 30;
+  if (r === "1y" || r === "365d") return 365;
   return 90;
 }
 
@@ -253,6 +254,160 @@ export default class DashboardDAO {
       sx_sp: b.rows,
       ban_sp: c.rows,
     };
+  }
+
+  /**
+   * API TỔNG HỢP SO SÁNH NĂM (YoY Financial & Operational Overview)
+   * GET /dashboard/orders/yearly-compare?yearA=2026&yearB=2025
+   */
+  static async getYearlySummaryCompare({ yearA, yearB }) {
+    try {
+      const yA = Number(yearA) || new Date().getFullYear();
+      const hasB = yearB && yearB !== "none" && yearB !== "null";
+      const yB = hasB ? Number(yearB) : null;
+
+      const tz = safeTz();
+
+      const yearsToQuery = [yA];
+      if (yB && yB !== yA) yearsToQuery.push(yB);
+
+      // Aggregation: tính theo từng năm & tháng cho 3 loại đơn
+      const fromDate = new Date(`${Math.min(...yearsToQuery)}-01-01T00:00:00.000+07:00`);
+      const toDate = new Date(`${Math.max(...yearsToQuery) + 1}-01-01T00:00:00.000+07:00`);
+
+      const agg = await don_hang
+        .aggregate([
+          {
+            $match: {
+              created_at: { $gte: fromDate, $lt: toDate },
+              trang_thai: { $nin: [STATUS.DELETED, STATUS.CANCELLED] },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                year: { $year: { date: "$created_at", timezone: tz } },
+                month: { $month: { date: "$created_at", timezone: tz } },
+                loai_don: "$loai_don",
+              },
+              count: { $sum: 1 },
+              total_amount: { $sum: { $ifNull: ["$tong_tien", 0] } },
+            },
+          },
+        ])
+        .toArray();
+
+      // Khởi tạo cấu trúc 12 tháng
+      const buildEmptyYear = () => {
+        const months = [];
+        for (let m = 1; m <= 12; m++) {
+          months.push({
+            month: m,
+            monthLabel: `Tháng ${m}`,
+            revenue: 0,       // sale tong_tien
+            purchaseCost: 0,  // purchase_receipt tong_tien
+            profit: 0,        // revenue - purchaseCost
+            saleCount: 0,
+            prodCount: 0,
+            purchaseCount: 0,
+          });
+        }
+        return {
+          months,
+          totalRevenue: 0,
+          totalPurchaseCost: 0,
+          grossProfit: 0,
+          profitMargin: 0,
+          totalSalesOrders: 0,
+          totalProdOrders: 0,
+          totalPurchaseOrders: 0,
+        };
+      };
+
+      const dataA = buildEmptyYear();
+      const dataB = hasB ? buildEmptyYear() : null;
+
+      for (const item of agg) {
+        const { year, month, loai_don } = item._id;
+        const target = year === yA ? dataA : (hasB && year === yB ? dataB : null);
+        if (!target || month < 1 || month > 12) continue;
+
+        const mIdx = month - 1;
+        const count = Number(item.count) || 0;
+        const amt = Number(item.total_amount) || 0;
+
+        if (loai_don === ORDER_TYPE.SALE) {
+          target.months[mIdx].revenue += amt;
+          target.months[mIdx].saleCount += count;
+          target.totalRevenue += amt;
+          target.totalSalesOrders += count;
+        } else if (loai_don === ORDER_TYPE.PURCHASE_RECEIPT) {
+          target.months[mIdx].purchaseCost += amt;
+          target.months[mIdx].purchaseCount += count;
+          target.totalPurchaseCost += amt;
+          target.totalPurchaseOrders += count;
+        } else if (loai_don === ORDER_TYPE.PROD_RECEIPT) {
+          target.months[mIdx].prodCount += count;
+          target.totalProdOrders += count;
+        }
+      }
+
+      // Tính profit cho từng tháng & tổng
+      const finalizeStats = (obj) => {
+        if (!obj) return;
+        for (const m of obj.months) {
+          m.profit = m.revenue - m.purchaseCost;
+        }
+        obj.grossProfit = obj.totalRevenue - obj.totalPurchaseCost;
+        obj.profitMargin = obj.totalRevenue > 0 ? Number(((obj.grossProfit / obj.totalRevenue) * 100).toFixed(1)) : 0;
+      };
+
+      finalizeStats(dataA);
+      finalizeStats(dataB);
+
+      // Tính tăng trưởng YoY
+      const calcGrowth = (curr, prev) => {
+        if (prev === 0) return curr > 0 ? 100 : 0;
+        return Number((((curr - prev) / Math.abs(prev)) * 100).toFixed(1));
+      };
+
+      const comparison = hasB ? {
+        revenueGrowth: calcGrowth(dataA.totalRevenue, dataB.totalRevenue),
+        costGrowth: calcGrowth(dataA.totalPurchaseCost, dataB.totalPurchaseCost),
+        profitGrowth: calcGrowth(dataA.grossProfit, dataB.grossProfit),
+        ordersGrowth: calcGrowth(dataA.totalSalesOrders, dataB.totalSalesOrders),
+      } : null;
+
+      // Biểu đồ so sánh 12 tháng giữa 2 năm
+      const monthlyTrends = [];
+      for (let m = 1; m <= 12; m++) {
+        const mA = dataA.months[m - 1];
+        const mB = hasB ? dataB.months[m - 1] : null;
+        monthlyTrends.push({
+          month: m,
+          monthLabel: `T${m}`,
+          revenueA: mA.revenue,
+          revenueB: mB ? mB.revenue : 0,
+          profitA: mA.profit,
+          profitB: mB ? mB.profit : 0,
+          ordersA: mA.saleCount,
+          ordersB: mB ? mB.saleCount : 0,
+        });
+      }
+
+      return {
+        ok: true,
+        yearA: yA,
+        yearB: yB,
+        dataA,
+        dataB,
+        comparison,
+        monthlyTrends,
+      };
+    } catch (e) {
+      logger.error("getYearlySummaryCompare error", { error: e.message });
+      return { error: e };
+    }
   }
 
   /**

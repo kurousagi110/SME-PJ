@@ -7,8 +7,9 @@ import { verifyToken } from "../../middleware/auth.js";
 
 const router = express.Router();
 
-router.get("/orders/compare",  verifyToken, DashboardController.ordersCompare);
-router.get("/orders/overview", verifyToken, DashboardController.ordersOverview);
-router.get("/orders/table",    verifyToken, DashboardController.ordersTable);
+router.get("/orders/compare",        verifyToken, DashboardController.ordersCompare);
+router.get("/orders/yearly-compare", verifyToken, DashboardController.yearlySummaryCompare);
+router.get("/orders/overview",       verifyToken, DashboardController.ordersOverview);
+router.get("/orders/table",          verifyToken, DashboardController.ordersTable);
 
 export default router;

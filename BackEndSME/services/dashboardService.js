@@ -28,6 +28,13 @@ export default class DashboardService {
     return result;
   }
 
+  /* ─── YEARLY SUMMARY COMPARE (YoY) ─── */
+  static async yearlySummaryCompare({ yearA, yearB = "none" } = {}) {
+    const result = await DashboardDAO.getYearlySummaryCompare({ yearA, yearB });
+    this._daoError(result, "Không lấy được dữ liệu so sánh năm", "YEARLY_COMPARE_FAILED");
+    return result;
+  }
+
   /* ─── ORDERS TABLE ─── */
   static async ordersTable({ page = 1, limit = 20, q = "", loai_don, trang_thai, includeDeleted = false } = {}) {
     const result = await DashboardDAO.getOrdersTable({ page, limit, q, loai_don, trang_thai, includeDeleted });

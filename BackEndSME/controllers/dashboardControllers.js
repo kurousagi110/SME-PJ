@@ -30,6 +30,16 @@ export default class DashboardController {
     return sendSuccess(res, data, "Lấy tổng quan thành công");
   });
 
+  /* ─── YEARLY SUMMARY COMPARE (YoY) ─── */
+  static yearlySummaryCompare = asyncHandler(async (req, res) => {
+    const { yearA, yearB = "none" } = req.query;
+    const cacheKey = `dashboard:yearly-compare:${yearA}:${yearB}`;
+    const data = await withCache(cacheKey, () => DashboardService.yearlySummaryCompare({
+      yearA, yearB,
+    }), 30);
+    return sendSuccess(res, data, "Lấy số liệu so sánh năm thành công");
+  });
+
   /* ─── ORDERS TABLE ─── */
   static ordersTable = asyncHandler(async (req, res) => {
     const { page = 1, limit = 20, q = "", loai_don, trang_thai, includeDeleted = "false" } = req.query;
