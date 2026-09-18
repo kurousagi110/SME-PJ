@@ -26,6 +26,7 @@ import SanXuatService     from "./services/sanXuatService.js";
 import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
 import SoQuyDAO           from "./models/soQuyDAO.js";
 import DoiTacDAO          from "./models/doiTacDAO.js";
+import { PlanningDAO }    from "./models/planningDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { seedIfEmpty } from "./seed.js";
@@ -93,6 +94,7 @@ async function main() {
       DieuChinhKhoDAO.injectDB(client),
       SoQuyDAO.injectDB(client),
       DoiTacDAO.injectDB(client),
+      PlanningDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");

@@ -19,6 +19,7 @@ import sanXuatRoute       from "./san-xuat.route.js";
 import soQuyRoute         from "./so-quy.route.js";
 import doiTacRoute        from "./doi-tac.route.js";
 import importRoute        from "./import.route.js";
+import planningRoute      from "./planning.route.js";
 
 const v1Router = Router();
 
@@ -37,5 +38,6 @@ v1Router.use("/audit-log",         auditLogRoute);
 v1Router.use("/so-quy",            soQuyRoute);
 v1Router.use("/doi-tac",           doiTacRoute);
 v1Router.use("/import",            importRoute);
+v1Router.use("/planning",          planningRoute);
 
 export default v1Router;
