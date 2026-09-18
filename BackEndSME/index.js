@@ -29,6 +29,7 @@ import DoiTacDAO          from "./models/doiTacDAO.js";
 import { PlanningDAO }    from "./models/planningDAO.js";
 import { EcommercePolicyDAO } from "./models/ecommercePolicyDAO.js";
 import AiCopilotDAO       from "./models/aiCopilotDAO.js";
+import AiConfigDAO        from "./models/aiConfigDAO.js";
 import VanChuyenDAO       from "./models/vanChuyenDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
@@ -100,6 +101,7 @@ async function main() {
       PlanningDAO.injectDB(client),
       EcommercePolicyDAO.injectDB(client),
       AiCopilotDAO.injectDB(client),
+      AiConfigDAO.injectDB(client),
       VanChuyenDAO.injectDB(client),
     ]);
 

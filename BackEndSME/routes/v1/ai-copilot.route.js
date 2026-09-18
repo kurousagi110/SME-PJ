@@ -10,4 +10,8 @@ router.use(verifyToken);
 router.get("/suggestions", AiCopilotController.getSuggestions);
 router.post("/query", requireBody("query"), AiCopilotController.query);
 
+router.get("/config", AiCopilotController.getConfig);
+router.post("/config", AiCopilotController.saveConfig);
+router.post("/config/test", AiCopilotController.testConnection);
+
 export default router;

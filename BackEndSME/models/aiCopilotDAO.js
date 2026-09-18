@@ -1,5 +1,6 @@
 import logger from "../utils/logger.js";
 import { EcommercePolicyDAO, DEFAULT_ECOMMERCE_POLICIES } from "./ecommercePolicyDAO.js";
+import AiConfigDAO from "./aiConfigDAO.js";
 
 let dbInstance = null;
 let donHangCol = null;
@@ -45,6 +46,20 @@ export default class AiCopilotDAO {
   }
 
   static async getSuggestions() {
+    const config = await AiConfigDAO.getActiveConfig();
+    const isLlm = Boolean(config);
+
+    if (isLlm) {
+      return [
+        { text: "📊 Doanh thu và lợi nhuận bán hàng?", category: "finance" },
+        { text: "✍️ Soạn email nhắc nợ khách hàng khéo léo?", category: "creative" },
+        { text: "🛒 Bán Shopee hay TikTok Shop lời hơn?", category: "ecommerce" },
+        { text: "🚀 Gợi ý chiến dịch marketing ngành nội thất dịp Tết?", category: "strategy" },
+        { text: "⚠️ Hàng nào tồn kho sắp hết cần nhập gấp?", category: "inventory" },
+        { text: "🚚 Tình hình vận chuyển và giao hàng?", category: "shipping" },
+      ];
+    }
+
     return [
       { text: "📊 Doanh thu và lợi nhuận bán hàng thế nào?", category: "finance" },
       { text: "⚠️ Có những mặt hàng nào tồn kho sắp hết cần nhập gấp?", category: "inventory" },
@@ -55,98 +70,260 @@ export default class AiCopilotDAO {
     ];
   }
 
+  /* ─── LLM Calling Helpers ─── */
+  static async callGemini(apiKey, model, systemPrompt, userQuery) {
+    const m = model || "gemini-1.5-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            parts: [{ text: userQuery }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Gemini API HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  }
+
+  static async callOpenAI(apiKey, model, systemPrompt, userQuery) {
+    const m = model || "gpt-4o-mini";
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: m,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userQuery },
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `OpenAI API HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content || "";
+  }
+
+  /* ─── Tóm tắt nhanh dữ liệu thời gian thực làm context cho LLM ─── */
+  static async gatherEnterpriseContext() {
+    try {
+      const [orders, products, materials, vouchers, shipments, partners] = await Promise.all([
+        donHangCol.find({ $or: [{ loai_don: "sale" }, { loai_don: "xuat" }], trang_thai: { $ne: "cancelled" } }).toArray(),
+        sanPhamCol.find({ trang_thai: { $ne: "ngung_kinh_doanh" } }).toArray(),
+        nguyenLieuCol.find({}).toArray(),
+        soQuyCol.find({ trang_thai: "active" }).toArray(),
+        vanChuyenCol.find({}).toArray(),
+        doiTacCol.find({ trang_thai: "active" }).toArray(),
+      ]);
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+
+      let totalRevenue = 0;
+      let thisMonthRevenue = 0;
+      orders.forEach((o) => {
+        const val = Number(o.tong_tien) || 0;
+        totalRevenue += val;
+        const d = o.ngay_dat || o.createAt ? new Date(o.ngay_dat || o.createAt) : null;
+        if (d && d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth) {
+          thisMonthRevenue += val;
+        }
+      });
+
+      const lowStockProducts = products.filter((p) => (p.so_luong_ton || 0) <= (p.muc_ton_an_toan || 15));
+      const lowStockMaterials = materials.filter((m) => (m.so_luong_ton || 0) <= (m.muc_ton_an_toan || 20));
+
+      let totalThu = 0;
+      let totalChi = 0;
+      vouchers.forEach((v) => {
+        const amt = Number(v.so_tien) || 0;
+        if (v.loai_phieu === "thu") totalThu += amt;
+        else totalChi += amt;
+      });
+
+      let totalCustomerDebt = 0;
+      orders.forEach((o) => {
+        const debt = (Number(o.tong_tien) || 0) - (Number(o.da_thanh_toan) || 0);
+        if (debt > 0) totalCustomerDebt += debt;
+      });
+
+      const shippingDangGiao = shipments.filter((s) => s.trang_thai === "dang_giao").length;
+      const shippingGiaoThanhCong = shipments.filter((s) => s.trang_thai === "giao_thanh_cong").length;
+
+      return `
+DỮ LIỆU THỰC TẾ HỆ THỐNG DOANH NGHIỆP HIỆN TẠI:
+- Bán hàng: Tổng ${orders.length} đơn bán, tổng doanh thu tích lũy: ${fmtVND(totalRevenue)}, doanh thu tháng ${currentMonth}/${currentYear}: ${fmtVND(thisMonthRevenue)}.
+- Tồn kho: ${products.length} sản phẩm (${lowStockProducts.length} mặt hàng sắp hết), ${materials.length} nguyên vật liệu (${lowStockMaterials.length} loại cần mua gấp). Mặt hàng sắp hết tiêu biểu: ${lowStockProducts.slice(0, 3).map((p) => p.ten_sp).join(", ") || "Không có"}.
+- Tài chính: Tổng thu ${fmtVND(totalThu)}, tổng chi ${fmtVND(totalChi)}, tồn quỹ ròng ${fmtVND(totalThu - totalChi)}.
+- Công nợ khách hàng: Tổng nợ phải thu ${fmtVND(totalCustomerDebt)}.
+- Vận chuyển: Đang giao ${shippingDangGiao} kiện, đã giao thành công ${shippingGiaoThanhCong} kiện.
+- Biểu phí sàn TMĐT tham khảo: Shopee khấu hao ~16%, TikTok Shop ~18.5% (đã gồm 10% affiliate KOC), Lazada ~14.5%, Bán trực tiếp 0% phí sàn.
+`;
+    } catch (err) {
+      return "Dữ liệu thời gian thực hiện chưa sẵn sàng.";
+    }
+  }
+
   static async processQuery(query, user = {}) {
     try {
       const q = removeVietnameseTones(query);
       const originalQuery = query.trim();
 
-      // 1. TỒN KHO / NGUYÊN LIỆU / CẢNH BÁO
-      if (
-        q.includes("ton kho") ||
-        q.includes("canh bao") ||
-        q.includes("sap het") ||
-        q.includes("nguyen lieu") ||
-        q.includes("het hang") ||
-        q.includes("mrp")
-      ) {
-        return await this.handleInventoryQuery(q, originalQuery);
+      // Kiểm tra có LLM bên ngoài được cấu hình không
+      const config = await AiConfigDAO.getActiveConfig();
+
+      if (config && config.apiKey) {
+        try {
+          const context = await this.gatherEnterpriseContext();
+          const systemPrompt = `Bạn là Trợ Lý AI Chuyên Gia Quản Trị Doanh Nghiệp SME (SME AI Copilot).
+Bạn hỗ trợ lãnh đạo và nhân viên giải quyết mọi bài toán quản trị kinh doanh, tài chính, kho vận, sàn TMĐT, nhân sự, cũng như kiến thức kinh doanh mở rộng (soạn thảo email, văn bản đàm phán, tư vấn chiến lược marketing, kiến thức pháp lý, thuế, kịch bản livestream bán hàng).
+
+YÊU CẦU TRẢ LỜI:
+1. Trả lời hoàn toàn bằng tiếng Việt chuyên nghiệp, lịch sự, mạch lạc và sâu sắc.
+2. Sử dụng định dạng Markdown đẹp mắt: Tiêu đề rõ ràng (###), in đậm số liệu quan trọng, danh sách gạch đầu dòng có emoji sinh động.
+3. Nếu người dùng hỏi về số liệu nội bộ công ty (doanh thu, tồn kho, công nợ, giao hàng), hãy căn cứ vào DỮ LIỆU THỜI GIAN THỰC dưới đây để trả lời chính xác từng con số:
+${context}
+4. Nếu người dùng hỏi các câu hỏi kiến thức mở ngoài hệ thống (soạn email, marketing, kịch bản, lời khuyên chiến lược), hãy phát huy tối đa tư duy chuyên gia kinh doanh của bạn để đưa ra câu trả lời xuất sắc, có mẫu sẵn có thể copy dùng ngay.`;
+
+          let llmText = "";
+          if (config.provider === "openai") {
+            llmText = await this.callOpenAI(config.apiKey, config.model, systemPrompt, originalQuery);
+          } else {
+            llmText = await this.callGemini(config.apiKey, config.model, systemPrompt, originalQuery);
+          }
+
+          if (llmText && llmText.trim()) {
+            return {
+              answer: llmText.trim(),
+              provider: config.provider,
+              model: config.model,
+              suggestions: await this.getSuggestions(),
+            };
+          }
+        } catch (llmErr) {
+          logger.warn("LLM API call failed, falling back to internal engine", { error: llmErr.message });
+        }
       }
 
-      // 2. DOANH THU / LỢI NHUẬN / BÁN HÀNG / TĂNG TRƯỞNG / SO SÁNH
-      if (
-        q.includes("doanh thu") ||
-        q.includes("loi nhuan") ||
-        q.includes("ban hang") ||
-        q.includes("tang truong") ||
-        q.includes("so sanh") ||
-        q.includes("yoy") ||
-        q.includes("ban chay")
-      ) {
-        return await this.handleSalesQuery(q, originalQuery);
-      }
-
-      // 3. CÔNG NỢ / SỔ QUỸ / THU CHI / DÒNG TIỀN / KHÁCH HÀNG / ĐỐI TÁC
-      if (
-        q.includes("cong no") ||
-        q.includes("so quy") ||
-        q.includes("thu chi") ||
-        q.includes("dong tien") ||
-        q.includes("tien mat") ||
-        q.includes("ngan hang") ||
-        q.includes("khach hang") ||
-        q.includes("doi tac") ||
-        q.includes("nha cung cap")
-      ) {
-        return await this.handleCashflowQuery(q, originalQuery);
-      }
-
-      // 4. TMĐT / SHOPEE / TIKTOK / LAZADA / MEGA SALE / KHẤU HAO SÀN
-      if (
-        q.includes("shopee") ||
-        q.includes("tiktok") ||
-        q.includes("lazada") ||
-        q.includes("tmdt") ||
-        q.includes("online") ||
-        q.includes("phi san") ||
-        q.includes("khau hao") ||
-        q.includes("mega sale")
-      ) {
-        return await this.handleEcommerceQuery(q, originalQuery);
-      }
-
-      // 5. VẬN CHUYỂN / GIAO HÀNG / SHIPPER / COD / ĐƠN VỊ VẬN CHUYỂN
-      if (
-        q.includes("van chuyen") ||
-        q.includes("giao hang") ||
-        q.includes("shipper") ||
-        q.includes("cod") ||
-        q.includes("ghn") ||
-        q.includes("ghtk") ||
-        q.includes("viettel post")
-      ) {
-        return await this.handleShippingQuery(q, originalQuery);
-      }
-
-      // 6. NHÂN SỰ / LƯƠNG / CHẤM CÔNG / PHÒNG BAN
-      if (
-        q.includes("nhan su") ||
-        q.includes("luong") ||
-        q.includes("cham cong") ||
-        q.includes("nhan vien") ||
-        q.includes("phong ban")
-      ) {
-        return await this.handleHRQuery(q, originalQuery);
-      }
-
-      // 7. DEFAULT / TỔNG QUAN HỆ THỐNG
-      return await this.handleGeneralOverview(q, originalQuery);
+      // FALLBACK TO INTERNAL DATABASE NLP ENGINE
+      return await this.processInternalQuery(q, originalQuery);
     } catch (err) {
       logger.error("AI Copilot processQuery error", { error: err.message });
       return {
-        answer: `Xin lỗi bạn, đã xảy ra lỗi trong quá trình phân tích dữ liệu: ${err.message}. Bạn hãy thử lại câu hỏi khác nhé!`,
+        answer: `Xin lỗi bạn, đã xảy ra lỗi trong quá trình phân tích: ${err.message}. Bạn hãy thử lại câu hỏi khác nhé!`,
         suggestions: await this.getSuggestions(),
       };
     }
+  }
+
+  static async processInternalQuery(q, originalQuery) {
+    // 1. TỒN KHO / NGUYÊN LIỆU / CẢNH BÁO
+    if (
+      q.includes("ton kho") ||
+      q.includes("canh bao") ||
+      q.includes("sap het") ||
+      q.includes("nguyen lieu") ||
+      q.includes("het hang") ||
+      q.includes("mrp")
+    ) {
+      return await this.handleInventoryQuery(q, originalQuery);
+    }
+
+    // 2. DOANH THU / LỢI NHUẬN / BÁN HÀNG / TĂNG TRƯỞNG / SO SÁNH
+    if (
+      q.includes("doanh thu") ||
+      q.includes("loi nhuan") ||
+      q.includes("ban hang") ||
+      q.includes("tang truong") ||
+      q.includes("so sanh") ||
+      q.includes("yoy") ||
+      q.includes("ban chay")
+    ) {
+      return await this.handleSalesQuery(q, originalQuery);
+    }
+
+    // 3. CÔNG NỢ / SỔ QUỸ / THU CHI / DÒNG TIỀN / KHÁCH HÀNG / ĐỐI TÁC
+    if (
+      q.includes("cong no") ||
+      q.includes("so quy") ||
+      q.includes("thu chi") ||
+      q.includes("dong tien") ||
+      q.includes("tien mat") ||
+      q.includes("ngan hang") ||
+      q.includes("khach hang") ||
+      q.includes("doi tac") ||
+      q.includes("nha cung cap")
+    ) {
+      return await this.handleCashflowQuery(q, originalQuery);
+    }
+
+    // 4. TMĐT / SHOPEE / TIKTOK / LAZADA / MEGA SALE / KHẤU HAO SÀN
+    if (
+      q.includes("shopee") ||
+      q.includes("tiktok") ||
+      q.includes("lazada") ||
+      q.includes("tmdt") ||
+      q.includes("online") ||
+      q.includes("phi san") ||
+      q.includes("khau hao") ||
+      q.includes("mega sale")
+    ) {
+      return await this.handleEcommerceQuery(q, originalQuery);
+    }
+
+    // 5. VẬN CHUYỂN / GIAO HÀNG / SHIPPER / COD / ĐƠN VỊ VẬN CHUYỂN
+    if (
+      q.includes("van chuyen") ||
+      q.includes("giao hang") ||
+      q.includes("shipper") ||
+      q.includes("cod") ||
+      q.includes("ghn") ||
+      q.includes("ghtk") ||
+      q.includes("viettel post")
+    ) {
+      return await this.handleShippingQuery(q, originalQuery);
+    }
+
+    // 6. NHÂN SỰ / LƯƠNG / CHẤM CÔNG / PHÒNG BAN
+    if (
+      q.includes("nhan su") ||
+      q.includes("luong") ||
+      q.includes("cham cong") ||
+      q.includes("nhan vien") ||
+      q.includes("phong ban")
+    ) {
+      return await this.handleHRQuery(q, originalQuery);
+    }
+
+    // 7. DEFAULT / TỔNG QUAN HỆ THỐNG
+    return await this.handleGeneralOverview(q, originalQuery);
   }
 
   /* ─── 1. Xử lý tồn kho & cảnh báo ─── */
@@ -455,7 +632,8 @@ export default class AiCopilotDAO {
     answer += `2. *"Có mặt hàng nào tồn kho sắp hết cần nhập gấp?"*\n`;
     answer += `3. *"Khách hàng nào đang nợ công nợ nhiều nhất?"*\n`;
     answer += `4. *"Bán trên Shopee hay TikTok Shop lời hơn?"*\n`;
-    answer += `5. *"Tình hình giao hàng và tiền COD hiện tại?"*\n`;
+    answer += `5. *"Tình hình giao hàng và tiền COD hiện tại?"*\n\n`;
+    answer += `💡 *Mẹo: Bạn có thể bấm vào icon bánh răng ⚙️ ở góc phải trên cùng để cấu hình API Key (Google Gemini hoặc OpenAI) giúp tôi có thể trả lời thêm mọi kiến thức mở rộng ngoài hệ thống!*`;
 
     return {
       answer,
