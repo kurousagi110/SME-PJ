@@ -27,6 +27,7 @@ import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
 import SoQuyDAO           from "./models/soQuyDAO.js";
 import DoiTacDAO          from "./models/doiTacDAO.js";
 import { PlanningDAO }    from "./models/planningDAO.js";
+import { EcommercePolicyDAO } from "./models/ecommercePolicyDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { seedIfEmpty } from "./seed.js";
@@ -95,6 +96,7 @@ async function main() {
       SoQuyDAO.injectDB(client),
       DoiTacDAO.injectDB(client),
       PlanningDAO.injectDB(client),
+      EcommercePolicyDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");
