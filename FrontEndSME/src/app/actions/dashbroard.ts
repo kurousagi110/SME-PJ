@@ -126,6 +126,7 @@ export async function fetchDashboardTable(params: {
 function daysToSubtract(timeRange: string) {
   if (timeRange === "7d") return 7;
   if (timeRange === "30d") return 30;
+  if (timeRange === "1y") return 365;
   return 90;
 }
 
@@ -168,13 +169,14 @@ function buildContinuousDays(from: Date, to: Date) {
   return out;
 }
 
-function groupCountByDay(orders: any[]) {
+function groupDataByDay(orders: any[], valueType: "count" | "amount" = "count") {
   const m = new Map<string, number>();
   for (const o of orders) {
     const d = o?.created_at ?? o?.ngay_dat ?? o?.updated_at;
     if (!d) continue;
     const key = vnYmd(new Date(d));
-    m.set(key, (m.get(key) ?? 0) + 1);
+    const val = valueType === "amount" ? Number(o?.tong_tien || 0) : 1;
+    m.set(key, (m.get(key) ?? 0) + val);
   }
   return m;
 }
@@ -183,8 +185,10 @@ export async function fetchDashboardChartCompare(params: {
   loai_don: Exclude<OrderType, "ALL">;
   yearA: number;
   yearB?: number | null;
-  timeRange: "7d" | "30d" | "90d";
+  timeRange: "7d" | "30d" | "90d" | "1y";
+  valueType?: "count" | "amount";
 }) {
+  const valType = params.valueType || "count";
   const nowVN = vnYmd(new Date()); // YYYY-MM-DD theo VN
   const [, mm, dd] = nowVN.split("-");
 
@@ -197,7 +201,7 @@ export async function fetchDashboardChartCompare(params: {
     date_from: vnIsoStartOfDay(fromA),
     date_to: vnIsoEndOfDay(refA),
   });
-  const mapA = groupCountByDay(ordersA);
+  const mapA = groupDataByDay(ordersA, valType);
 
   let mapB = new Map<string, number>();
   if (params.yearB && params.yearB !== params.yearA) {
@@ -209,7 +213,7 @@ export async function fetchDashboardChartCompare(params: {
       date_from: vnIsoStartOfDay(fromB),
       date_to: vnIsoEndOfDay(refB),
     });
-    mapB = groupCountByDay(ordersB);
+    mapB = groupDataByDay(ordersB, valType);
   }
 
   const days = buildContinuousDays(fromA, refA);
@@ -240,4 +244,68 @@ export async function fetchDashboardOrdersTable(params: {
   const res = await http.get("/don-hang/?" + qs.toString());
   return res;
 }
+
+export type YearlyCompareMonth = {
+  month: number;
+  monthLabel: string;
+  revenue: number;
+  purchaseCost: number;
+  profit: number;
+  saleCount: number;
+  prodCount: number;
+  purchaseCount: number;
+};
+
+export type YearlyYearData = {
+  months: YearlyCompareMonth[];
+  totalRevenue: number;
+  totalPurchaseCost: number;
+  grossProfit: number;
+  profitMargin: number;
+  totalSalesOrders: number;
+  totalProdOrders: number;
+  totalPurchaseOrders: number;
+};
+
+export type YearlyCompareResult = {
+  ok: boolean;
+  yearA: number;
+  yearB: number | null;
+  dataA: YearlyYearData;
+  dataB: YearlyYearData | null;
+  comparison: {
+    revenueGrowth: number;
+    costGrowth: number;
+    profitGrowth: number;
+    ordersGrowth: number;
+  } | null;
+  monthlyTrends: Array<{
+    month: number;
+    monthLabel: string;
+    revenueA: number;
+    revenueB: number;
+    profitA: number;
+    profitB: number;
+    ordersA: number;
+    ordersB: number;
+  }>;
+};
+
+export async function fetchDashboardYearlyCompare(params: {
+  yearA: number;
+  yearB?: number | string | null;
+}): Promise<YearlyCompareResult | null> {
+  const qs = new URLSearchParams({
+    yearA: String(params.yearA),
+    yearB: String(params.yearB ?? "none"),
+  });
+  try {
+    const raw: any = await http.get(`/dashboard/orders/yearly-compare?${qs.toString()}`);
+    return unwrap<YearlyCompareResult>(raw);
+  } catch (err) {
+    console.error("fetchDashboardYearlyCompare error:", err);
+    return null;
+  }
+}
+
 
