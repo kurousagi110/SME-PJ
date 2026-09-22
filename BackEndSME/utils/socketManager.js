@@ -110,10 +110,93 @@ export function getIO() {
 }
 
 /**
+ * Normalizes notification payload so frontend receives all required fields:
+ * id, type, message, createdAt, and metadata.
+ */
+export function normalizeNotificationPayload(payload = {}) {
+  const createdAt = payload.createdAt || new Date().toISOString();
+  const id = String(payload.id || payload._id || new ObjectId().toString());
+  const type = payload.type || "SYSTEM_NOTIFICATION";
+  let message = payload.message;
+
+  if (!message) {
+    const user =
+      payload.created_by?.ho_ten ||
+      payload.created_by?.tai_khoan ||
+      payload.updated_by?.ho_ten ||
+      payload.updated_by?.tai_khoan ||
+      payload.deleted_by?.ho_ten ||
+      payload.deleted_by?.tai_khoan ||
+      "Người dùng";
+    const ma = payload.ma_dh || payload.ten_hang || (payload.id ? String(payload.id).slice(-6) : "");
+
+    switch (type) {
+      case "SALE_CREATED":
+        message = `Đơn bán hàng ${ma} vừa được tạo bởi ${user}`;
+        break;
+      case "SALE_COMPLETED":
+        message = `Đơn bán hàng POS ${ma} đã hoàn tất thanh toán`;
+        break;
+      case "SALE_STATUS_UPDATED":
+        message = `Đơn bán hàng ${ma} cập nhật trạng thái sang "${payload.trang_thai || ""}" bởi ${user}`;
+        break;
+      case "SALE_DELETED":
+        message = `Đơn bán hàng ${ma} đã bị xóa bởi ${user}`;
+        break;
+      case "PURCHASE_RECEIPT_CREATED":
+        message = `Đơn nhập mua ${ma} vừa được tạo bởi ${user}`;
+        break;
+      case "PURCHASE_RECEIPT_STATUS_UPDATED":
+        message = `Đơn nhập mua ${ma} cập nhật trạng thái sang "${payload.trang_thai || ""}" bởi ${user}`;
+        break;
+      case "PURCHASE_RECEIPT_DELETED":
+        message = `Đơn nhập mua ${ma} đã bị xóa bởi ${user}`;
+        break;
+      case "PROD_RECEIPT_CREATED":
+        message = `Phiếu nhập thành phẩm ${ma} vừa được tạo bởi ${user}`;
+        break;
+      case "PROD_RECEIPT_STATUS_UPDATED":
+        message = `Phiếu nhập thành phẩm ${ma} cập nhật trạng thái sang "${payload.trang_thai || ""}" bởi ${user}`;
+        break;
+      case "PROD_RECEIPT_DELETED":
+        message = `Phiếu nhập thành phẩm ${ma} đã bị xóa bởi ${user}`;
+        break;
+      case "SX_CREATED":
+        message = `Lệnh sản xuất mới: ${payload.so_luong_sx ? payload.so_luong_sx + " sản phẩm" : "thành phẩm"}`;
+        break;
+      case "DCK_CREATED":
+        message = `Phiếu điều chỉnh kho mới: ${payload.ten_hang || ""} (${payload.loai || ""})`;
+        break;
+      case "DCK_APPROVED":
+        message = `Phiếu điều chỉnh kho ${payload.ten_hang || ""} đã được duyệt bởi ${user}`;
+        break;
+      case "DCK_REJECTED":
+        message = `Phiếu điều chỉnh kho ${payload.ten_hang || ""} đã bị từ chối bởi ${user}`;
+        break;
+      case "DON_HANG_HARD_DELETED":
+        message = `Đơn hàng ${ma} đã bị xóa vĩnh viễn bởi ${user}`;
+        break;
+      default:
+        message = `Hoạt động mới trên hệ thống (${type})`;
+        break;
+    }
+  }
+
+  return {
+    ...payload,
+    id,
+    type,
+    message,
+    createdAt,
+  };
+}
+
+/**
  * Broadcast to all admin-level sockets (Phòng giám đốc / Giám đốc).
  */
 export function notifyAdmin(payload) {
-  getIO().to("room:admin").emit("notification", payload);
+  const norm = normalizeNotificationPayload(payload);
+  getIO().to("room:admin").emit("notification", norm);
 }
 
 /**
@@ -121,7 +204,8 @@ export function notifyAdmin(payload) {
  * Uses both rooms so admins also receive warehouse notifications.
  */
 export function notifyApprover(payload) {
-  getIO().to("room:approver").emit("notification", payload);
+  const norm = normalizeNotificationPayload(payload);
+  getIO().to("room:approver").emit("notification", norm);
 }
 
 /**
@@ -129,5 +213,7 @@ export function notifyApprover(payload) {
  * @param {string} tai_khoan  — unique username (login ID)
  */
 export function notifyUser(tai_khoan, payload) {
-  getIO().to(`user:${tai_khoan}`).emit("notification", payload);
+  const norm = normalizeNotificationPayload(payload);
+  getIO().to(`user:${tai_khoan}`).emit("notification", norm);
 }
+

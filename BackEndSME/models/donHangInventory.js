@@ -169,7 +169,10 @@ export async function applyInventoryOnCompleted(doc, { session } = {}) {
       const sp = lookupSanPham(spMap, ln);
       if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập thành phẩm: ${ln.ma_sp || ln.ten_sp}`);
       const bomList = bomFromSanPhamDoc(sp);
-      if (!bomList.length) throw new Error(`Chưa khai báo BOM cho sản phẩm: ${sp.ma_sp || sp.ten_sp}`);
+      if (!bomList.length) {
+        logger.warn(`[donHangInventory] Sản phẩm chưa khai báo định mức BOM: ${sp.ma_sp || sp.ten_sp}. Bỏ qua trừ kho nguyên liệu.`);
+        continue;
+      }
       for (const b of bomList) if (b.ma_nl) maNLSet.add(String(b.ma_nl).trim());
     }
 
@@ -261,7 +264,8 @@ export async function getProductionNeeds(orderId, { session } = {}) {
 
       const bomList = bomFromSanPhamDoc(sp);
       if (!bomList.length) {
-        return { error: new Error(`Chưa khai báo BOM cho sản phẩm: ${sp.ma_sp || sp.ten_sp}`) };
+        // Sản phẩm chưa khai báo BOM -> không phát sinh nhu cầu nguyên liệu
+        continue;
       }
 
       for (const b of bomList) {

@@ -40,8 +40,13 @@ export function useCreateProductionReceipt() {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: Parameters<typeof createProductionReceipt>[0]) =>
-      createProductionReceipt(payload),
+    mutationFn: async (payload: Parameters<typeof createProductionReceipt>[0]) => {
+      const res = await createProductionReceipt(payload);
+      if (!res.success) {
+        throw new Error(res.message || "Tạo đơn nhập sản xuất thất bại");
+      }
+      return res.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["prod-receipts"] });
     },
@@ -55,7 +60,13 @@ export function useUpdateProdReceiptStatus() {
   return useMutation({
     mutationFn: async (
       payload: Parameters<typeof updateProductionReceiptStatus>[0]
-    ) => updateProductionReceiptStatus(payload),
+    ) => {
+      const res = await updateProductionReceiptStatus(payload);
+      if (!res.success) {
+        throw new Error(res.message || "Cập nhật trạng thái thất bại");
+      }
+      return res.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["prod-receipts"] });
       // Completing a prod receipt adds finished goods and subtracts raw materials

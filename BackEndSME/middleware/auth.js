@@ -19,7 +19,7 @@ export function injectAuthDB(conn) {
 }
 
 /** Single source of truth for admin-level role check. */
-function isAdminUser(user) {
+export function isAdminUser(user) {
   return (
     user?.phong_ban?.ten === "Phòng giám đốc" ||
     user?.chuc_vu?.ten  === "Giám đốc" ||

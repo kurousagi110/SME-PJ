@@ -52,6 +52,14 @@ export function NavUser({
   const handleAccount = () => {
     router.push("/account");
   };
+
+  const getInitials = (name: string) => {
+    if (!name || name === "...") return "AD";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -59,19 +67,21 @@ export function NavUser({
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              className="h-12 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground px-2"
             >
-              <Avatar className="h-8 w-8 rounded-lg grayscale">
+              <Avatar className="size-8 rounded-lg shrink-0">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                <AvatarFallback className="rounded-lg bg-primary/10 text-primary text-xs font-semibold">
+                  {getInitials(user.name)}
+                </AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="text-muted-foreground truncate text-xs">
+              <div className="grid flex-1 text-left text-sm leading-tight min-w-0 pr-1">
+                <span className="truncate font-medium text-xs sm:text-[13px]">{user.name}</span>
+                <span className="text-muted-foreground truncate text-[11px] leading-normal">
                   {user.chuc_vu} - {user.phong_ban}
                 </span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              <IconDotsVertical className="ml-auto size-4 shrink-0 text-muted-foreground" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

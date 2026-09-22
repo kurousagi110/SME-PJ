@@ -50,11 +50,14 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useSearchParams } from "next/navigation";
 
 import {
   createShipmentAction,
   fetchShipmentsAction,
   fetchShippingOverviewAction,
+  fetchApprovedSaleOrdersAction,
+  fetchSaleOrderByCodeAction,
   ShipmentItem,
   ShippingOverview,
   updateShipmentStatusAction,
@@ -64,7 +67,8 @@ import { printWaybill } from "@/lib/export";
 const fmtVND = (n: number) =>
   (Number.isFinite(n) ? Number(n) : 0).toLocaleString("vi-VN") + " đ";
 
-export default function ShippingPage() {
+
+function ShippingContent() {
   const [overview, setOverview] = React.useState<ShippingOverview | null>(null);
   const [shipments, setShipments] = React.useState<ShipmentItem[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -72,6 +76,14 @@ export default function ShippingPage() {
   const [activeTab, setActiveTab] = React.useState("all");
   const [carrierFilter, setCarrierFilter] = React.useState("all");
   const [searchTerm, setSearchTerm] = React.useState("");
+
+  // Approved sales orders for linkage
+  const [approvedOrders, setApprovedOrders] = React.useState<any[]>([]);
+  const [selectedOrderObj, setSelectedOrderObj] = React.useState<any | null>(null);
+  const [searchingOrder, setSearchingOrder] = React.useState(false);
+
+  const searchParams = useSearchParams();
+  const queryOrderCode = searchParams.get("orderCode");
 
   // Create Modal
   const [openCreate, setOpenCreate] = React.useState(false);
@@ -99,16 +111,18 @@ export default function ShippingPage() {
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [ov, list] = await Promise.all([
+      const [ov, list, ordersRes] = await Promise.all([
         fetchShippingOverviewAction(),
         fetchShipmentsAction({
           trang_thai: activeTab,
           don_vi: carrierFilter,
           search: searchTerm,
         }),
+        fetchApprovedSaleOrdersAction(),
       ]);
       setOverview(ov);
       if (list?.data) setShipments(list.data);
+      if (ordersRes?.success && ordersRes.items) setApprovedOrders(ordersRes.items);
     } catch (err) {
       toast.error("Không thể tải dữ liệu vận chuyển");
     } finally {
@@ -120,10 +134,124 @@ export default function ShippingPage() {
     loadData();
   }, [loadData]);
 
+  // Khi URL có param orderCode (chuyển từ Đơn bán hàng sang)
+  React.useEffect(() => {
+    if (queryOrderCode) {
+      setFormOrderCode(queryOrderCode);
+      setOpenCreate(true);
+      fetchSaleOrderByCodeAction(queryOrderCode).then((res) => {
+        if (res.success && res.data) {
+          const o = res.data;
+          setSelectedOrderObj(o);
+          setFormOrderCode(o.ma_dh || queryOrderCode);
+          setFormReceiverName(
+            o.khach_hang_ten || o.khach_hang?.ten || o.doi_tuong?.ten || ""
+          );
+          setFormReceiverPhone(
+            o.khach_hang?.so_dien_thoai ||
+              o.khach_hang_sdt ||
+              o.doi_tuong?.so_dien_thoai ||
+              ""
+          );
+          setFormReceiverAddress(
+            o.dia_chi_giao_hang ||
+              o.khach_hang?.dia_chi ||
+              o.dia_chi ||
+              o.doi_tuong?.dia_chi ||
+              ""
+          );
+          const isPaid =
+            o.thanh_toan?.status === "paid" || o.trang_thai === "paid";
+          setFormCod(isPaid ? "0" : String(o.tong_tien || 0));
+          toast.success(`Đã tự động lấy dữ liệu từ đơn hàng ${o.ma_dh}`);
+        }
+      });
+    }
+  }, [queryOrderCode]);
+
+  const handleSelectOrder = (orderCode: string) => {
+    if (orderCode === "none") {
+      setSelectedOrderObj(null);
+      return;
+    }
+    const order = approvedOrders.find(
+      (o) => o.ma_dh === orderCode || o._id === orderCode
+    );
+    if (order) {
+      setSelectedOrderObj(order);
+      setFormOrderCode(order.ma_dh || "");
+      setFormReceiverName(
+        order.khach_hang_ten ||
+          order.khach_hang?.ten ||
+          order.doi_tuong?.ten ||
+          ""
+      );
+      setFormReceiverPhone(
+        order.khach_hang?.so_dien_thoai ||
+          order.khach_hang_sdt ||
+          order.doi_tuong?.so_dien_thoai ||
+          ""
+      );
+      setFormReceiverAddress(
+        order.dia_chi_giao_hang ||
+          order.khach_hang?.dia_chi ||
+          order.dia_chi ||
+          order.doi_tuong?.dia_chi ||
+          ""
+      );
+      const isPaid =
+        order.thanh_toan?.status === "paid" || order.trang_thai === "paid";
+      setFormCod(isPaid ? "0" : String(order.tong_tien || 0));
+      toast.info(`Đã điền thông tin từ đơn bán hàng ${order.ma_dh}`);
+    }
+  };
+
+  const handleLookupByCode = async () => {
+    if (!formOrderCode.trim()) {
+      toast.error("Vui lòng nhập mã đơn hàng cần tìm");
+      return;
+    }
+    setSearchingOrder(true);
+    try {
+      const res = await fetchSaleOrderByCodeAction(formOrderCode.trim());
+      if (res.success && res.data) {
+        const o = res.data;
+        setSelectedOrderObj(o);
+        setFormOrderCode(o.ma_dh || formOrderCode.trim());
+        setFormReceiverName(
+          o.khach_hang_ten || o.khach_hang?.ten || o.doi_tuong?.ten || ""
+        );
+        setFormReceiverPhone(
+          o.khach_hang?.so_dien_thoai ||
+            o.khach_hang_sdt ||
+            o.doi_tuong?.so_dien_thoai ||
+            ""
+        );
+        setFormReceiverAddress(
+          o.dia_chi_giao_hang ||
+            o.khach_hang?.dia_chi ||
+            o.dia_chi ||
+            o.doi_tuong?.dia_chi ||
+            ""
+        );
+        const isPaid =
+          o.thanh_toan?.status === "paid" || o.trang_thai === "paid";
+        setFormCod(isPaid ? "0" : String(o.tong_tien || 0));
+        toast.success(`Đã tìm thấy đơn ${o.ma_dh}`);
+      } else {
+        toast.warning("Không tìm thấy đơn bán hàng với mã này");
+      }
+    } catch (e) {
+      toast.error("Lỗi khi tìm kiếm đơn hàng");
+    } finally {
+      setSearchingOrder(false);
+    }
+  };
+
   const handleCreateShipment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formOrderCode.trim()) {
-      toast.error("Vui lòng nhập mã đơn hàng");
+      toast.error("Vui lòng chọn hoặc nhập mã đơn hàng");
       return;
     }
     if (!formReceiverName.trim() || !formReceiverPhone.trim()) {
@@ -145,6 +273,7 @@ export default function ShippingPage() {
         phi_van_chuyen: Number(formShippingFee) || 0,
         nguoi_tra_phi: formFeePayer,
         trong_luong_gram: Number(formWeight) || 1000,
+        san_pham: selectedOrderObj?.san_pham || [],
         ghi_chu: formNote.trim(),
       });
 
@@ -156,6 +285,7 @@ export default function ShippingPage() {
         setFormReceiverPhone("");
         setFormReceiverAddress("");
         setFormCod("0");
+        setSelectedOrderObj(null);
         loadData();
       } else {
         toast.error(res.message || "Tạo vận đơn thất bại");
@@ -506,21 +636,95 @@ export default function ShippingPage() {
             </DialogHeader>
 
             <div className="grid gap-4 py-4 text-xs">
+              {/* CHỌN TỪ ĐƠN BÁN HÀNG ĐÃ DUYỆT */}
+              <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                    <IconPackage className="size-4" />
+                    <span>Lấy từ Đơn Bán Hàng đã duyệt</span>
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground font-medium">
+                    ({approvedOrders.length} đơn khả dụng)
+                  </span>
+                </div>
+
+                <Select
+                  value={formOrderCode || "none"}
+                  onValueChange={handleSelectOrder}
+                >
+                  <SelectTrigger className="w-full bg-background h-9 text-xs">
+                    <SelectValue placeholder="-- Chọn đơn bán hàng cần giao --" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    <SelectItem value="none">-- Nhập thủ công hoặc tìm đơn khác --</SelectItem>
+                    {approvedOrders.map((o) => (
+                      <SelectItem key={o._id} value={o.ma_dh}>
+                        <span className="font-semibold text-primary font-mono">{o.ma_dh}</span> - {o.khach_hang_ten} ({fmtVND(o.tong_tien || 0)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Card xem nhanh thông tin đơn được chọn */}
+                {selectedOrderObj && (
+                  <div className="rounded-lg bg-background border border-border/80 p-2.5 text-[11px] space-y-1.5 shadow-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground">
+                        Đơn: <span className="font-mono text-primary">{selectedOrderObj.ma_dh}</span>
+                      </span>
+                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30 bg-emerald-500/5">
+                        {selectedOrderObj.trang_thai === "confirmed" ? "Đã duyệt" : selectedOrderObj.trang_thai === "completed" ? "Hoàn thành" : selectedOrderObj.trang_thai}
+                      </Badge>
+                    </div>
+                    <div className="text-muted-foreground truncate">
+                      Khách hàng: <b>{selectedOrderObj.khach_hang_ten}</b> | SĐT: {selectedOrderObj.khach_hang?.so_dien_thoai || selectedOrderObj.khach_hang_sdt || selectedOrderObj.doi_tuong?.so_dien_thoai || "Chưa có"}
+                    </div>
+                    <div className="text-muted-foreground truncate">
+                      Địa chỉ: {selectedOrderObj.dia_chi_giao_hang || selectedOrderObj.khach_hang?.dia_chi || selectedOrderObj.dia_chi || selectedOrderObj.doi_tuong?.dia_chi || "Chưa có"}
+                    </div>
+                    {selectedOrderObj.san_pham?.length > 0 && (
+                      <div className="text-muted-foreground truncate">
+                        Sản phẩm ({selectedOrderObj.san_pham.length}): {selectedOrderObj.san_pham.map((sp: any) => `${sp.ten_sp || sp.ma_sp} (x${sp.so_luong})`).join(", ")}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="orderCode">Mã đơn hàng liên kết *</Label>
-                  <Input
-                    id="orderCode"
-                    placeholder="VD: DH-202609-001"
-                    value={formOrderCode}
-                    onChange={(e) => setFormOrderCode(e.target.value)}
-                    required
-                  />
+                  <div className="flex gap-1.5">
+                    <Input
+                      id="orderCode"
+                      placeholder="VD: DH-2026-001"
+                      value={formOrderCode}
+                      onChange={(e) => setFormOrderCode(e.target.value)}
+                      required
+                      className="h-9 text-xs font-mono"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="px-2.5 h-9 shrink-0 text-xs gap-1"
+                      onClick={handleLookupByCode}
+                      disabled={searchingOrder || !formOrderCode.trim()}
+                      title="Tìm đơn bán hàng theo mã"
+                    >
+                      {searchingOrder ? (
+                        <IconRotateClockwise className="size-3.5 animate-spin" />
+                      ) : (
+                        <IconSearch className="size-3.5" />
+                      )}
+                      <span>Tìm</span>
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="carrier">Đơn vị vận chuyển *</Label>
                   <Select value={formCarrier} onValueChange={setFormCarrier}>
-                    <SelectTrigger id="carrier">
+                    <SelectTrigger id="carrier" className="h-9 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -752,3 +956,18 @@ export default function ShippingPage() {
     </div>
   );
 }
+
+export default function ShippingPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-64 items-center justify-center text-xs text-muted-foreground">
+          Đang tải dữ liệu vận chuyển...
+        </div>
+      }
+    >
+      <ShippingContent />
+    </React.Suspense>
+  );
+}
+

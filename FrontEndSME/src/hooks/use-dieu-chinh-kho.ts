@@ -19,8 +19,11 @@ export function useDieuChinhKhoList(params?: {
     queryKey: ["dieu-chinh-kho", params],
     queryFn: async () => {
       const res = await fetchDieuChinhKhoList(params);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
       return {
-        items: res.data,
+        items: res.data || [],
         total: (res as any).pagination?.total ?? 0,
         totalPages: (res as any).pagination?.totalPages ?? 1,
       };
@@ -32,7 +35,13 @@ export function useDieuChinhKhoList(params?: {
 export function useCreateDieuChinhKho() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createDieuChinhKho,
+    mutationFn: async (data: Parameters<typeof createDieuChinhKho>[0]) => {
+      const res = await createDieuChinhKho(data);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
     },
@@ -45,7 +54,13 @@ export function useCreateDieuChinhKho() {
 export function useApproveDieuChinhKho() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => approveDieuChinhKho(id),
+    mutationFn: async (id: string) => {
+      const res = await approveDieuChinhKho(id);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
       queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
@@ -61,7 +76,13 @@ export function useApproveDieuChinhKho() {
 export function useRejectDieuChinhKho() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => rejectDieuChinhKho(id),
+    mutationFn: async (id: string) => {
+      const res = await rejectDieuChinhKho(id);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+      return res.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
     },

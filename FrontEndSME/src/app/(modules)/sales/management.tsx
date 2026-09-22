@@ -27,7 +27,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MoreHorizontal, Printer, Download } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MoreHorizontal, Printer, Download, Truck } from "lucide-react";
 import { exportToCSV, printInvoice } from "@/lib/export";
 import {
   DropdownMenu,
@@ -125,6 +126,9 @@ export default function OrdersManagement() {
     if (!canOperateSalesOrders) return false;
     return true;
   };
+
+  // navigation router
+  const router = useRouter();
 
   // filters
   const [q, setQ] = React.useState("");
@@ -352,6 +356,7 @@ export default function OrdersManagement() {
                 const st = (o.trang_thai || "").toLowerCase();
                 const isPending = st === "draft";
                 const isConfirmed = st === "confirmed";
+                const isCompleted = st === "completed";
 
                 return (
                   <TableRow key={o._id}>
@@ -410,6 +415,20 @@ export default function OrdersManagement() {
                             {isConfirmed && (
                               <>
                                 <DropdownMenuItem
+                                  onClick={() =>
+                                    router.push(
+                                      `/shipping?orderCode=${encodeURIComponent(
+                                        o.ma_dh
+                                      )}`
+                                    )
+                                  }
+                                  className="text-primary font-medium"
+                                >
+                                  <Truck className="mr-2 h-4 w-4 text-primary" />
+                                  Tạo vận đơn
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
                                   onClick={() => completeOrder(o._id)}
                                   disabled={updateStatusMutation.isPending}
                                 >
@@ -424,6 +443,22 @@ export default function OrdersManagement() {
                                   Hủy
                                 </DropdownMenuItem>
                               </>
+                            )}
+
+                            {isCompleted && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  router.push(
+                                    `/shipping?orderCode=${encodeURIComponent(
+                                      o.ma_dh
+                                    )}`
+                                  )
+                                }
+                                className="text-primary font-medium"
+                              >
+                                <Truck className="mr-2 h-4 w-4 text-primary" />
+                                Tạo / Xem vận đơn
+                              </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -617,8 +652,26 @@ export default function OrdersManagement() {
               </>
             ) : null}
 
-            {/* confirmed: hiện nút hoàn thành trong dialog luôn (nếu bạn muốn),
-                còn nếu bạn chỉ muốn trong menu "Thao tác" thì xóa block này đi. */}
+            {/* confirmed / completed: nút tạo vận đơn */}
+            {selected &&
+            (String(selected.trang_thai || "").toLowerCase() === "confirmed" ||
+              String(selected.trang_thai || "").toLowerCase() === "completed") ? (
+              <Button
+                variant="outline"
+                className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10"
+                onClick={() => {
+                  setOpenView(false);
+                  router.push(
+                    `/shipping?orderCode=${encodeURIComponent(selected.ma_dh)}`
+                  );
+                }}
+              >
+                <Truck className="h-4 w-4" />
+                Tạo vận đơn
+              </Button>
+            ) : null}
+
+            {/* confirmed: hiện nút hoàn thành trong dialog */}
             {selected &&
             canOperateSalesOrders &&
             String(selected.trang_thai || "").toLowerCase() === "confirmed" ? (

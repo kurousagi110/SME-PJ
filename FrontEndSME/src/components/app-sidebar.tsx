@@ -219,18 +219,26 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border/60 pb-2.5 pt-2 px-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+              size="lg"
+              className="h-11 hover:bg-sidebar-accent/60 transition-colors rounded-lg px-2"
             >
-              <a href="/dashboard">
-                <IconBlocks className="!size-5 text-primary" />
-                <span className="text-base font-bold tracking-tight">
-                  Quản Lý Doanh Nghiệp
-                </span>
+              <a href="/dashboard" className="flex items-center gap-2.5">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
+                  <IconBlocks className="size-5" />
+                </div>
+                <div className="flex flex-col min-w-0 text-left">
+                  <span className="text-sm font-bold tracking-tight text-foreground truncate leading-tight">
+                    Quản Lý Doanh Nghiệp
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium truncate leading-none mt-0.5">
+                    Hệ thống Quản trị SME
+                  </span>
+                </div>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

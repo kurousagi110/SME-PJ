@@ -160,9 +160,65 @@ export default class VanChuyenDAO {
       const ma_van_don = genWaybillCode(don_vi_van_chuyen);
       const now = new Date();
 
+      // Tự động tìm đơn bán hàng liên kết nếu có
+      let linkedOrder = null;
+      if (ma_don_hang && donHangCol) {
+        linkedOrder = await donHangCol.findOne({
+          $or: [
+            { ma_dh: ma_don_hang },
+            ...(ObjectId.isValid(ma_don_hang) ? [{ _id: new ObjectId(ma_don_hang) }] : []),
+          ],
+        });
+      }
+
+      const receiverName =
+        nguoi_nhan.ten && nguoi_nhan.ten !== "Khách Hàng"
+          ? nguoi_nhan.ten
+          : linkedOrder?.khach_hang?.ten ||
+            linkedOrder?.khach_hang_ten ||
+            linkedOrder?.doi_tuong?.ten ||
+            nguoi_nhan.ten ||
+            "Khách Hàng";
+
+      const receiverPhone =
+        sdt_nhan ||
+        nguoi_nhan.sdt ||
+        linkedOrder?.khach_hang?.so_dien_thoai ||
+        linkedOrder?.khach_hang_sdt ||
+        linkedOrder?.doi_tuong?.so_dien_thoai ||
+        "";
+
+      const receiverAddress =
+        dia_chi_giao ||
+        nguoi_nhan.dia_chi ||
+        linkedOrder?.khach_hang?.dia_chi ||
+        linkedOrder?.dia_chi_giao_hang ||
+        linkedOrder?.doi_tuong?.dia_chi ||
+        "";
+
+      const orderProducts =
+        Array.isArray(san_pham) && san_pham.length > 0
+          ? san_pham
+          : (linkedOrder?.san_pham || []).map((sp) => ({
+              ten_sp: sp.ten_sp || sp.ma_sp || "",
+              so_luong: Number(sp.so_luong) || 1,
+              don_vi: sp.don_vi || "cái",
+              don_gia: Number(sp.don_gia) || 0,
+            }));
+
+      let codAmount = Number(tien_thu_ho_cod) || 0;
+      if (!codAmount && linkedOrder) {
+        const isPaid =
+          linkedOrder.thanh_toan?.status === "paid" ||
+          linkedOrder.trang_thai === "paid";
+        if (!isPaid && linkedOrder.tong_tien) {
+          codAmount = Number(linkedOrder.tong_tien) || 0;
+        }
+      }
+
       const doc = {
         ma_van_don,
-        ma_don_hang,
+        ma_don_hang: linkedOrder?.ma_dh || ma_don_hang,
         don_vi_van_chuyen,
         nguoi_gui: {
           ten: "Công Ty Cổ Phần Nội Thất & Thiết Bị SME",
@@ -170,15 +226,15 @@ export default class VanChuyenDAO {
           dia_chi: "Kho Tổng A1, KCN Tân Bình, TP. Hồ Chí Minh",
         },
         nguoi_nhan: {
-          ten: nguoi_nhan.ten || "Khách Hàng",
-          sdt: sdt_nhan || nguoi_nhan.sdt || "",
-          dia_chi: dia_chi_giao || nguoi_nhan.dia_chi || "",
+          ten: receiverName,
+          sdt: receiverPhone,
+          dia_chi: receiverAddress,
         },
-        tien_thu_ho_cod: Number(tien_thu_ho_cod) || 0,
+        tien_thu_ho_cod: codAmount,
         phi_van_chuyen: Number(phi_van_chuyen) || 0,
         nguoi_tra_phi, // "shop" | "khach"
         trong_luong_gram: Number(trong_luong_gram) || 1000,
-        san_pham: Array.isArray(san_pham) ? san_pham : [],
+        san_pham: orderProducts,
         ghi_chu,
         trang_thai: TRANG_THAI_VAN_CHUYEN.CHO_DONG_GOI,
         lich_su_trang_thai: [
@@ -194,6 +250,22 @@ export default class VanChuyenDAO {
       };
 
       const result = await vanChuyenCol.insertOne(doc);
+
+      // Cập nhật ngược lại vào đơn hàng bán
+      if (linkedOrder) {
+        await donHangCol.updateOne(
+          { _id: linkedOrder._id },
+          {
+            $set: {
+              ma_van_don,
+              don_vi_van_chuyen,
+              trang_thai_van_chuyen: TRANG_THAI_VAN_CHUYEN.CHO_DONG_GOI,
+              updated_at: now,
+            },
+          }
+        );
+      }
+
       return { success: true, id: result.insertedId, ma_van_don, doc };
     } catch (err) {
       logger.error("VanChuyenDAO.taoVanDon error", { error: err.message });
@@ -232,6 +304,24 @@ export default class VanChuyenDAO {
         $set: updateData,
         $push: { lich_su_trang_thai: historyItem },
       });
+
+      // Cập nhật trạng thái vận chuyển trên đơn hàng
+      if (existing.ma_don_hang && donHangCol) {
+        await donHangCol.updateOne(
+          {
+            $or: [
+              { ma_dh: existing.ma_don_hang },
+              ...(ObjectId.isValid(existing.ma_don_hang) ? [{ _id: new ObjectId(existing.ma_don_hang) }] : []),
+            ],
+          },
+          {
+            $set: {
+              trang_thai_van_chuyen: trang_thai,
+              updated_at: now,
+            },
+          }
+        );
+      }
 
       return { success: true };
     } catch (err) {

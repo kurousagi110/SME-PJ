@@ -267,18 +267,25 @@ export async function createProductionReceipt(body: {
   nguoi_lap_id?: string;
   san_pham: ProductionReceiptLine[];
   ghi_chu?: string;
-}) {
-  // backend sẽ tự set nguoi_lap_id từ token nếu thiếu
-  const payload = {
-    nguoi_lap_id: s(body.nguoi_lap_id) || undefined,
-    san_pham: body.san_pham,
-    ghi_chu: s(body.ghi_chu) || "",
-  };
+}): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const payload = {
+      nguoi_lap_id: s(body.nguoi_lap_id) || undefined,
+      san_pham: body.san_pham,
+      ghi_chu: s(body.ghi_chu) || "",
+    };
 
-  return apiFetch<any>(`/don-hang/receipts/production`, {
-    method: "POST",
-    json: payload,
-  });
+    const data = await apiFetch<any>(`/don-hang/receipts/production`, {
+      method: "POST",
+      json: payload,
+    });
+    return { success: true, data };
+  } catch (e: any) {
+    return {
+      success: false,
+      message: e?.message || "Tạo đơn nhập sản xuất thất bại",
+    };
+  }
 }
 
 /**
@@ -289,11 +296,19 @@ export async function createProductionReceipt(body: {
 export async function updateProductionReceiptStatus(payload: {
   id: string;
   trang_thai: ProdReceiptStatus;
-}) {
-  return apiFetch<any>(`/don-hang/${payload.id}/status`, {
-    method: "PATCH",
-    json: { trang_thai: payload.trang_thai },
-  });
+}): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const data = await apiFetch<any>(`/don-hang/${payload.id}/status`, {
+      method: "PATCH",
+      json: { trang_thai: payload.trang_thai },
+    });
+    return { success: true, data };
+  } catch (e: any) {
+    return {
+      success: false,
+      message: e?.message || "Cập nhật trạng thái thất bại",
+    };
+  }
 }
 
 /**  NL cần + tồn kho */

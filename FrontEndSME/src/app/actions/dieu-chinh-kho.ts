@@ -16,7 +16,12 @@ export async function fetchDieuChinhKhoList(params?: {
     const result = await http.get(`/dieu-chinh-kho?${query.toString()}`);
     return { success: true, data: result.data, pagination: result.pagination };
   } catch (err: any) {
-    throw new Error(err.message || "Lấy danh sách phiếu điều chỉnh kho không thành công");
+    return {
+      success: false,
+      message: err.message || "Lấy danh sách phiếu điều chỉnh kho không thành công",
+      data: [],
+      pagination: { total: 0, totalPages: 1 },
+    };
   }
 }
 
@@ -33,7 +38,10 @@ export async function createDieuChinhKho(data: {
     const result = await http.post("/dieu-chinh-kho", data);
     return { success: true, data: result.data };
   } catch (err: any) {
-    throw new Error(err.message || "Tạo phiếu điều chỉnh kho không thành công");
+    return {
+      success: false,
+      message: err.message || "Tạo phiếu điều chỉnh kho không thành công",
+    };
   }
 }
 
@@ -42,7 +50,10 @@ export async function approveDieuChinhKho(id: string) {
     const result = await http.patch(`/dieu-chinh-kho/${id}/approve`);
     return { success: true, data: result.data };
   } catch (err: any) {
-    throw new Error(err.message || "Duyệt phiếu điều chỉnh kho không thành công");
+    return {
+      success: false,
+      message: err.message || "Duyệt phiếu điều chỉnh kho không thành công",
+    };
   }
 }
 
@@ -51,6 +62,9 @@ export async function rejectDieuChinhKho(id: string) {
     const result = await http.patch(`/dieu-chinh-kho/${id}/reject`);
     return { success: true, data: result.data };
   } catch (err: any) {
-    throw new Error(err.message || "Từ chối phiếu điều chỉnh kho không thành công");
+    return {
+      success: false,
+      message: err.message || "Từ chối phiếu điều chỉnh kho không thành công",
+    };
   }
 }

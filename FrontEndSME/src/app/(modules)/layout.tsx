@@ -14,8 +14,8 @@ export default function ModuleLayout({
       <SidebarProvider
         style={
           {
-            "--sidebar-width": "calc(var(--spacing) * 72)",
-            "--header-height": "calc(var(--spacing) * 12)",
+            "--sidebar-width": "18.5rem",
+            "--header-height": "3.5rem",
           } as React.CSSProperties
         }
       >

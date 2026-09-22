@@ -14,11 +14,7 @@ import { useMyProfile } from "@/hooks/use-account";
 
 export interface Notification {
   id: string;
-  type:
-    | "DCK_CREATED" | "DCK_APPROVED" | "DCK_REJECTED"
-    | "DON_NHAP_CREATED" | "DON_NHAP_STATUS_UPDATED" | "DON_NHAP_DELETED"
-    | "DON_SAN_XUAT_CREATED" | "DON_SAN_XUAT_STATUS_UPDATED" | "DON_SAN_XUAT_DELETED"
-    | "DON_BAN_CREATED" | "DON_BAN_STATUS_UPDATED" | "DON_BAN_DELETED";
+  type: string;
   message: string;
   data?: any;
   createdAt: string;
@@ -79,15 +75,51 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       console.error("[socket] connect_error:", err.message);
     });
 
-    socket.on("notification", (data: Omit<Notification, "read">) => {
-      setNotifications((prev) => [
-        { ...data, read: false },
-        ...prev.slice(0, 19),
-      ]);
-      // Invalidate the actual query keys the consuming hooks subscribe to.
-      // Previously this listed don-nhap-hang / don-san-xuat / don-ban-hang,
-      // which no hook uses — the resulting notifications updated the badge
-      // but the lists themselves never refetched.
+    socket.on("notification", (raw: any) => {
+      if (!raw) return;
+
+      const id = String(raw.id || raw._id || `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+      const type = String(raw.type || "SYSTEM_NOTIFICATION");
+      const createdAt =
+        raw.createdAt && !isNaN(new Date(raw.createdAt).getTime())
+          ? raw.createdAt
+          : new Date().toISOString();
+
+      let message = raw.message;
+      if (!message) {
+        const user =
+          raw.created_by?.ho_ten ||
+          raw.created_by?.tai_khoan ||
+          raw.updated_by?.ho_ten ||
+          raw.updated_by?.tai_khoan ||
+          "Người dùng";
+        const code = raw.ma_dh || raw.ten_hang || (raw.id ? String(raw.id).slice(-6) : "");
+
+        if (type.includes("SALE")) {
+          message = `Đơn bán hàng ${code} có cập nhật từ ${user}`;
+        } else if (type.includes("PURCHASE")) {
+          message = `Đơn nhập mua ${code} có cập nhật từ ${user}`;
+        } else if (type.includes("PROD_RECEIPT")) {
+          message = `Phiếu nhập thành phẩm ${code} có cập nhật từ ${user}`;
+        } else if (type.includes("DCK")) {
+          message = `Phiếu điều chỉnh kho ${code} có thay đổi`;
+        } else {
+          message = `Thông báo mới từ hệ thống (${type})`;
+        }
+      }
+
+      const item: Notification = {
+        id,
+        type,
+        message,
+        data: raw,
+        createdAt,
+        read: false,
+      };
+
+      setNotifications((prev) => [item, ...prev.slice(0, 19)]);
+
+      // Invalidate query keys
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
       queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["material-stock"] });

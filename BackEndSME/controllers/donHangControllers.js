@@ -103,10 +103,17 @@ export default class DonHangController {
 
     const loai = body.loai_don || "don_hang";
     const performedBy = performedByOf(req);
-    const payload = { type: `${loai.toUpperCase()}_CREATED`, id: data._id || data.insertedId, loai, created_by: performedBy };
+    const orderCode = data.ma_dh || data.insertedId?.toString();
+    const payload = {
+      type: `${loai.toUpperCase()}_CREATED`,
+      id: data._id || data.insertedId,
+      ma_dh: orderCode,
+      loai,
+      created_by: performedBy,
+    };
     notifyAdmin(payload);
     notifyApprover(payload);
-    logAction("CREATE", loai, data._id?.toString() || data.insertedId?.toString(), `Tạo đơn hàng loại: ${loai}`, performedBy, req.ip);
+    logAction("CREATE", loai, data._id?.toString() || data.insertedId?.toString(), `Tạo đơn hàng loại: ${loai} (${orderCode})`, performedBy, req.ip);
 
     return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
   });
@@ -186,7 +193,9 @@ export default class DonHangController {
   });
 
   static updateNote = asyncHandler(async (req, res) => {
-    const data = await DonHangService.updateNote(req.params.id, req.body?.ghi_chu);
+    const { id } = req.params;
+    const { ghi_chu } = req.body || {};
+    const data = await DonHangService.updateNote(id, ghi_chu);
     return sendSuccess(res, data, "Cập nhật ghi chú thành công");
   });
 
@@ -200,10 +209,18 @@ export default class DonHangController {
 
     const performedBy = performedByOf(req);
     const loai = data.loai_don || "don_hang";
+    const orderCode = data.ma_dh || id;
     const isApprove = ["da_duyet", "hoan_thanh"].includes(trang_thai);
-    const payload = { type: `${loai.toUpperCase()}_STATUS_UPDATED`, id, trang_thai, updated_by: performedBy };
+    const payload = {
+      type: `${loai.toUpperCase()}_STATUS_UPDATED`,
+      id,
+      ma_dh: orderCode,
+      loai,
+      trang_thai,
+      updated_by: performedBy,
+    };
     if (isApprove) notifyApprover(payload); else notifyAdmin(payload);
-    logAction("UPDATE_STATUS", loai, id, `Cập nhật trạng thái đơn hàng → ${trang_thai}`, performedBy, req.ip);
+    logAction("UPDATE_STATUS", loai, id, `Cập nhật trạng thái đơn hàng (${orderCode}) → ${trang_thai}`, performedBy, req.ip);
 
     return sendSuccess(res, data, "Cập nhật trạng thái đơn hàng thành công");
   });
@@ -214,8 +231,15 @@ export default class DonHangController {
 
     const performedBy = performedByOf(req);
     const loai = data.loai_don || "don_hang";
-    notifyAdmin({ type: `${loai.toUpperCase()}_DELETED`, id: req.params.id, deleted_by: performedBy });
-    logAction("SOFT_DELETE", loai, req.params.id, `Xóa mềm đơn hàng loại: ${loai}`, performedBy, req.ip);
+    const orderCode = data.ma_dh || req.params.id;
+    notifyAdmin({
+      type: `${loai.toUpperCase()}_DELETED`,
+      id: req.params.id,
+      ma_dh: orderCode,
+      loai,
+      deleted_by: performedBy,
+    });
+    logAction("SOFT_DELETE", loai, req.params.id, `Xóa mềm đơn hàng loại: ${loai} (${orderCode})`, performedBy, req.ip);
 
     return sendSuccess(res, data, "Xóa mềm chứng từ thành công");
   });

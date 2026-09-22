@@ -255,8 +255,10 @@ export default class NguyenLieuDAO {
       opts
     );
 
+    const doc = res?.value ?? res;
+
     // Debug: chỉ log trong dev
-    if (!res.value) {
+    if (!doc) {
       if (process.env.NODE_ENV !== "production") {
         logger.debug("adjustStock NOT MATCH", { id, deltaQty: d, allowNegative, filter });
       }
@@ -264,7 +266,7 @@ export default class NguyenLieuDAO {
     }
 
     // safety
-    if (!allowNegative && res.value.so_luong < 0) {
+    if (!allowNegative && doc.so_luong < 0) {
       const revertOpts = session ? { session } : {};
       await nguyen_lieu.updateOne(
         { _id: new ObjectId(id) },
@@ -274,7 +276,7 @@ export default class NguyenLieuDAO {
       return { error: new Error("Điều chỉnh kho không hợp lệ") };
     }
 
-    return { ok: true, doc: res.value };
+    return { ok: true, doc };
   } catch (e) {
     logger.error("adjustStock error", { error: e.message });
     return { error: e };

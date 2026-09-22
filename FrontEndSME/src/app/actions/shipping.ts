@@ -119,3 +119,43 @@ export async function updateShipmentStatusAction(id: string, payload: {
     return { success: false, message: err?.response?.data?.message || err.message };
   }
 }
+
+export async function fetchApprovedSaleOrdersAction(): Promise<{
+  success: boolean;
+  items: any[];
+}> {
+  try {
+    const res = await http.get<{ success: boolean; data: any[] }>(
+      "/don-hang/?loai_don=sale&limit=100&sortBy=created_at&order=desc"
+    );
+    const all = (res as any)?.data ?? [];
+    // Lọc các đơn bán hàng đã duyệt (confirmed / da_duyet) hoặc hoàn thành
+    const items = all.filter(
+      (o: any) =>
+        o.trang_thai === "confirmed" ||
+        o.trang_thai === "da_duyet" ||
+        o.trang_thai === "completed" ||
+        o.trang_thai === "hoan_thanh" ||
+        o.trang_thai === "paid"
+    );
+    return { success: true, items };
+  } catch (err: any) {
+    console.error("fetchApprovedSaleOrdersAction error", err);
+    return { success: false, items: [] };
+  }
+}
+
+export async function fetchSaleOrderByCodeAction(code: string): Promise<{
+  success: boolean;
+  data: any;
+}> {
+  try {
+    const res = await http.get<{ success: boolean; data: any }>(
+      `/don-hang/code/${encodeURIComponent(code)}`
+    );
+    return { success: true, data: (res as any)?.data ?? res };
+  } catch (err: any) {
+    return { success: false, data: null };
+  }
+}
+

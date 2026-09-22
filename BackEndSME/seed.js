@@ -1,13 +1,25 @@
 /**
- * seed.js — SME Database Seed Script
+ * seed.js — SME Master Database Seed Script (Toàn diện & Nhất quán)
  *
- * Populates: phongban_chucvu, users, nguyen_lieu, san_pham, bom_san_pham, don_hang
+ * Populates & Đồng bộ 100%:
+ *   - phongban_chucvu: Phòng ban & Chức vụ
+ *   - users: 11 tài khoản nhân sự chuẩn (mật khẩu mặc định: 123456)
+ *   - nguyen_lieu: 10 nguyên vật liệu gỗ/nội thất chuẩn
+ *   - san_pham: 10 sản phẩm thành phẩm nội thất chuẩn
+ *   - bom_san_pham: 4 công thức định mức kỹ thuật sản xuất
+ *   - doi_tac: 9 đối tác uy tín (khách hàng VIP, đại lý, nhà cung cấp)
+ *   - don_hang: Chuỗi đơn hàng lịch sử 2025–2026 (Sales, Purchases, Production)
+ *   - van_chuyen: Vận đơn logistics đa kênh (GHN, GHTK, ViettelPost, J&T, Đội xe) — đồng bộ 2 chiều với don_hang
+ *   - so_quy: Sổ quỹ thu chi (Phiếu thu & Phiếu chi cân đối dòng tiền)
+ *   - dieu_chinh_kho: Phiếu điều chỉnh kho chuẩn xác số lượng
+ *   - ecommerce_policies: Chính sách sàn TMĐT (Shopee, TikTok Shop, Lazada)
+ *   - ai_settings: Cấu hình mặc định trợ lý AI Copilot
+ *   - luong: Chấm công & bảng lương 11 nhân sự
+ *   - audit_log & san_xuat_logs: Làm sạch & khởi tạo nhật ký hệ thống
  *
  * Usage:
- *   npm run seed
- *   (or) node seed.js
- *
- * Requires .env with SME_DB_URI (or MONGO_URI) and SME_DB_NAME.
+ *   node seed.js           # Seed nếu database đang trống
+ *   node seed.js --clean   # Xóa sạch toàn bộ và nạp mới dữ liệu chuẩn chỉ (hoặc node seed.js --force)
  */
 
 import { MongoClient, ObjectId } from "mongodb";
@@ -17,23 +29,40 @@ import { fileURLToPath } from "url";
 
 dotenv.config();
 
-
 /* ─────────────────────────────────────────────
-   Helpers
+   Helpers & Generators
 ───────────────────────────────────────────── */
-function genOrderCode(prefix = "DH") {
-  const d   = new Date();
-  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `${prefix}-${ymd}-${rand}`;
-}
-
 function now() { return new Date(); }
 
+function rand(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randItem(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function genOrderCode(prefix = "DH", year = 2026, month = 3, day = 15) {
+  const ymd = `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+  const randStr = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${ymd}-${randStr}`;
+}
+
+function genWaybillCode(carrier = "GHN", year = 2026, month = 3) {
+  const prefix = carrier === "ViettelPost" ? "VTP" : (carrier === "J&T Express" ? "JT" : (carrier === "Đội xe nội bộ" ? "SME" : carrier));
+  const ym = `${year}${String(month).padStart(2, "0")}`;
+  const num = rand(1000, 9999);
+  return `${prefix}-${ym}-${num}`;
+}
+
+function genPhieuCode(prefix = "PT", year = 2026, month = 3, day = 15) {
+  const ymd = `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+  const randStr = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${ymd}-${randStr}`;
+}
+
 /* ─────────────────────────────────────────────
-   PHASE 2.3 — Departments + Roles Data
-   Schema: phongban_chucvu collection
-   Each document = 1 department with embedded chuc_vu array
+   1. Phòng ban & Chức vụ (phongban_chucvu)
 ───────────────────────────────────────────── */
 function buildPhongBanDocs() {
   const active = "active";
@@ -103,23 +132,18 @@ function buildPhongBanDocs() {
 }
 
 /* ─────────────────────────────────────────────
-   PHASE 2.5 — Users (one per every role)
-   - tai_khoan: username
-   - mat_khau: bcrypt(password, SALT_ROUNDS=12)
-   - chuc_vu embedded: { ten, mo_ta, heSoluong }
-   - phong_ban embedded: { ten, mo_ta }
+   2. Tài khoản nhân sự (users)
 ───────────────────────────────────────────── */
-async function buildUserDocs(hashedPw) {
+function buildUserDocs(hashedPw) {
   const t = now();
-  // hashedPw: bcrypt hash of "123456"
-
   return [
-    /* 1 — Giám đốc */
+    /* 1 — Giám đốc / Admin */
     {
       ho_ten: "Nguyễn Văn Admin",
       ngay_sinh: new Date("1975-03-15"),
       tai_khoan: "admin",
       mat_khau: hashedPw,
+      role: "admin",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng giám đốc",  mo_ta: "Ban lãnh đạo, toàn quyền quản lý hệ thống" },
@@ -132,6 +156,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1985-07-22"),
       tai_khoan: "truongkd",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kinh doanh",         mo_ta: "Quản lý bán hàng, chăm sóc khách hàng" },
@@ -144,6 +169,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1995-11-08"),
       tai_khoan: "sale",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kinh doanh",      mo_ta: "Quản lý bán hàng, chăm sóc khách hàng" },
@@ -152,22 +178,24 @@ async function buildUserDocs(hashedPw) {
     },
     /* 4 — Kế toán trưởng */
     {
-      ho_ten: "Phạm Thị Kế Toán",
-      ngay_sinh: new Date("1982-04-10"),
+      ho_ten: "Phạm Văn Kế Toán",
+      ngay_sinh: new Date("1978-04-12"),
       tai_khoan: "ketoantr",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
-      phong_ban: { ten: "Phòng kế toán",  mo_ta: "Quản lý tài chính, kế toán doanh nghiệp" },
-      chuc_vu:   { ten: "Kế toán trưởng", mo_ta: "Phụ trách tổng hợp kế toán", heSoluong: 3.0 },
+      phong_ban: { ten: "Phòng kế toán",   mo_ta: "Quản lý tài chính, kế toán doanh nghiệp" },
+      chuc_vu:   { ten: "Kế toán trưởng",  mo_ta: "Phụ trách tổng hợp kế toán", heSoluong: 3.0 },
       createAt: t, updateAt: t,
     },
     /* 5 — Nhân viên kế toán */
     {
-      ho_ten: "Hoàng Văn Kế Toán",
-      ngay_sinh: new Date("1997-02-14"),
+      ho_ten: "Hoàng Thị Kế Toán",
+      ngay_sinh: new Date("1992-01-15"),
       tai_khoan: "ketoan",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kế toán",      mo_ta: "Quản lý tài chính, kế toán doanh nghiệp" },
@@ -180,6 +208,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1983-09-30"),
       tai_khoan: "nhansutr",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng nhân sự",         mo_ta: "Tuyển dụng, quản lý nhân viên và tiền lương" },
@@ -192,6 +221,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1996-06-18"),
       tai_khoan: "nhansu",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng nhân sự",      mo_ta: "Tuyển dụng, quản lý nhân viên và tiền lương" },
@@ -204,6 +234,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1988-12-05"),
       tai_khoan: "thukho",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kho",  mo_ta: "Quản lý xuất nhập kho, tồn kho nguyên vật liệu" },
@@ -216,6 +247,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1998-05-25"),
       tai_khoan: "nhanvienkho",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kho",      mo_ta: "Quản lý xuất nhập kho, tồn kho nguyên vật liệu" },
@@ -228,6 +260,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1980-08-12"),
       tai_khoan: "truongxuong",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng sản xuất",  mo_ta: "Quản lý dây chuyền sản xuất, chế biến sản phẩm" },
@@ -240,6 +273,7 @@ async function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("2000-01-20"),
       tai_khoan: "sanxuat",
       mat_khau: hashedPw,
+      role: "user",
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng sản xuất",      mo_ta: "Quản lý dây chuyền sản xuất, chế biến sản phẩm" },
@@ -250,36 +284,34 @@ async function buildUserDocs(hashedPw) {
 }
 
 /* ─────────────────────────────────────────────
-   PHASE 2.6 — Materials (nguyen_lieu)
-   10 realistic Vietnamese wood/furniture factory materials
+   3. Nguyên vật liệu (nguyen_lieu)
 ───────────────────────────────────────────── */
 function buildNguyenLieuDocs() {
   const active = "active";
   const t = now();
   return [
-    { ma_nl: "NL001", ten_nl: "Gỗ MDF 18mm",             don_vi: "tấm",   gia_nhap: 350000, so_luong: 200, ton_toi_thieu: 20, mo_ta: "Tấm gỗ MDF dày 18mm, kích thước 1220x2440mm",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL002", ten_nl: "Gỗ MDF 12mm",             don_vi: "tấm",   gia_nhap: 280000, so_luong: 150, ton_toi_thieu: 15, mo_ta: "Tấm gỗ MDF dày 12mm, kích thước 1220x2440mm",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL003", ten_nl: "Ván HDF 6mm",              don_vi: "tấm",   gia_nhap: 180000, so_luong: 120, ton_toi_thieu: 15, mo_ta: "Tấm ván HDF dày 6mm dùng làm đáy/lưng tủ",     thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL004", ten_nl: "Sơn nước trắng",           don_vi: "lít",   gia_nhap:  85000, so_luong:  80, ton_toi_thieu: 10, mo_ta: "Sơn nước nội thất màu trắng, bóng mờ",          thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL005", ten_nl: "Keo dán gỗ PVA",           don_vi: "kg",    gia_nhap:  45000, so_luong: 100, ton_toi_thieu: 10, mo_ta: "Keo dán gỗ PVA D3 chịu nước trung bình",        thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL001", ten_nl: "Gỗ MDF 18mm",             don_vi: "tấm",   gia_nhap: 350000, so_luong: 200, ton_toi_thieu: 30, mo_ta: "Tấm gỗ MDF dày 18mm, kích thước 1220x2440mm",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL002", ten_nl: "Gỗ MDF 12mm",             don_vi: "tấm",   gia_nhap: 280000, so_luong: 150, ton_toi_thieu: 25, mo_ta: "Tấm gỗ MDF dày 12mm, kích thước 1220x2440mm",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL003", ten_nl: "Ván HDF 6mm",              don_vi: "tấm",   gia_nhap: 180000, so_luong: 120, ton_toi_thieu: 20, mo_ta: "Tấm ván HDF dày 6mm dùng làm đáy/lưng tủ",     thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL004", ten_nl: "Sơn nước trắng",           don_vi: "lít",   gia_nhap:  85000, so_luong:  80, ton_toi_thieu: 20, mo_ta: "Sơn nước nội thất màu trắng, bóng mờ",          thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL005", ten_nl: "Keo dán gỗ PVA",           don_vi: "kg",    gia_nhap:  45000, so_luong: 100, ton_toi_thieu: 15, mo_ta: "Keo dán gỗ PVA D3 chịu nước trung bình",        thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
     { ma_nl: "NL006", ten_nl: "Bản lề inox 4 tấc",        don_vi: "cái",   gia_nhap:  12000, so_luong: 500, ton_toi_thieu: 50, mo_ta: "Bản lề inox SUS304 kích thước 4 tấc",           thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL007", ten_nl: "Tay nắm tủ D-36",          don_vi: "cái",   gia_nhap:  25000, so_luong: 300, ton_toi_thieu: 30, mo_ta: "Tay nắm tủ hợp kim nhôm D-36, lỗ 128mm",       thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
-    { ma_nl: "NL008", ten_nl: "Đinh vít gỗ 3.5x40mm",     don_vi: "hộp",   gia_nhap:  35000, so_luong: 150, ton_toi_thieu: 20, mo_ta: "Đinh vít mũi khoan gỗ 3.5x40mm, hộp 200 cái",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL007", ten_nl: "Tay nắm tủ D-36",          don_vi: "cái",   gia_nhap:  25000, so_luong: 300, ton_toi_thieu: 40, mo_ta: "Tay nắm tủ hợp kim nhôm D-36, lỗ 128mm",       thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
+    { ma_nl: "NL008", ten_nl: "Đinh vít gỗ 3.5x40mm",     don_vi: "hộp",   gia_nhap:  35000, so_luong: 150, ton_toi_thieu: 25, mo_ta: "Đinh vít mũi khoan gỗ 3.5x40mm, hộp 200 cái",  thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
     { ma_nl: "NL009", ten_nl: "Giấy nhám hạt P180",       don_vi: "tờ",    gia_nhap:   5000, so_luong: 400, ton_toi_thieu: 50, mo_ta: "Giấy nhám hạt P180 dùng cho bề mặt gỗ mịn",    thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
     { ma_nl: "NL010", ten_nl: "Kính cường lực 5mm",        don_vi: "m²",    gia_nhap: 450000, so_luong:  30, ton_toi_thieu:  5, mo_ta: "Kính cường lực trong suốt dày 5mm",              thuoc_tinh: {}, trang_thai: active, createAt: t, updateAt: t },
   ];
 }
 
 /* ─────────────────────────────────────────────
-   PHASE 2.7 — Products (san_pham)
-   10 realistic furniture products with embedded BOM preview
+   4. Sản phẩm thành phẩm (san_pham)
 ───────────────────────────────────────────── */
 function buildSanPhamDocs() {
   const active = "active";
   const t = now();
   return [
     {
-      ma_sp: "SP001", ten_sp: "Bàn làm việc MDF",       don_gia: 2500000, so_luong: 25, mo_ta: "Bàn làm việc MDF phủ melamine trắng, kích thước 120x60x75cm",
+      ma_sp: "SP001", ten_sp: "Bàn làm việc MDF",       don_gia: 2500000, so_luong: 35, ton_toi_thieu: 10, mo_ta: "Bàn làm việc MDF phủ melamine trắng, kích thước 120x60x75cm",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 2,   don_vi: "tấm" },
         { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 1,   don_vi: "lít" },
@@ -291,7 +323,7 @@ function buildSanPhamDocs() {
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP002", ten_sp: "Tủ quần áo 3 cánh",     don_gia: 4800000, so_luong: 12, mo_ta: "Tủ quần áo 3 cánh MDF phủ melamine, kích thước 180x55x210cm",
+      ma_sp: "SP002", ten_sp: "Tủ quần áo 3 cánh",     don_gia: 4800000, so_luong: 18, ton_toi_thieu: 5, mo_ta: "Tủ quần áo 3 cánh MDF phủ melamine, kích thước 180x55x210cm",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 5,   don_vi: "tấm" },
         { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 3,   don_vi: "tấm" },
@@ -304,7 +336,7 @@ function buildSanPhamDocs() {
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP003", ten_sp: "Kệ sách 5 tầng",        don_gia: 1800000, so_luong: 30, mo_ta: "Kệ sách 5 tầng MDF trắng, kích thước 80x30x175cm",
+      ma_sp: "SP003", ten_sp: "Kệ sách 5 tầng",        don_gia: 1800000, so_luong: 40, ton_toi_thieu: 10, mo_ta: "Kệ sách 5 tầng MDF trắng, kích thước 80x30x175cm",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 3,   don_vi: "tấm" },
         { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 2,   don_vi: "tấm" },
@@ -315,7 +347,7 @@ function buildSanPhamDocs() {
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP004", ten_sp: "Ghế văn phòng",          don_gia: 1200000, so_luong: 40, mo_ta: "Ghế văn phòng khung MDF, đệm vải, có bánh xe",
+      ma_sp: "SP004", ten_sp: "Ghế văn phòng",          don_gia: 1200000, so_luong: 50, ton_toi_thieu: 15, mo_ta: "Ghế văn phòng khung MDF, đệm vải, có bánh xe",
       nguyen_lieu: [
         { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 1,   don_vi: "tấm" },
         { ma_nl: "NL008", ten: "Đinh vít gỗ 3.5x40mm",so_luong: 1,   don_vi: "hộp" },
@@ -324,63 +356,59 @@ function buildSanPhamDocs() {
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP005", ten_sp: "Tủ bếp dưới",            don_gia: 3500000, so_luong: 8, mo_ta: "Tủ bếp phần dưới MDF chống ẩm, kích thước 100x55x80cm",
+      ma_sp: "SP005", ten_sp: "Tủ bếp dưới",            don_gia: 3500000, so_luong: 15, ton_toi_thieu: 5, mo_ta: "Tủ bếp phần dưới MDF chống ẩm, kích thước 100x55x80cm",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 4,   don_vi: "tấm" },
         { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 2,   don_vi: "tấm" },
-        { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 1.5, don_vi: "lít" },
-        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",      so_luong: 0.8, don_vi: "kg"  },
+        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",      so_luong: 1,   don_vi: "kg"  },
         { ma_nl: "NL006", ten: "Bản lề inox 4 tấc",   so_luong: 4,   don_vi: "cái" },
         { ma_nl: "NL007", ten: "Tay nắm tủ D-36",     so_luong: 4,   don_vi: "cái" },
       ],
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP006", ten_sp: "Bàn ăn 6 chỗ",           don_gia: 3200000, so_luong: 10, mo_ta: "Bàn ăn 6 chỗ ngồi MDF, mặt kính cường lực 5mm, 140x80x75cm",
+      ma_sp: "SP006", ten_sp: "Bàn ăn 6 chỗ",           don_gia: 3200000, so_luong: 20, ton_toi_thieu: 5, mo_ta: "Bàn ăn 6 chỗ mặt kính 5mm, khung gỗ MDF, 160x80x75cm",
       nguyen_lieu: [
-        { ma_nl: "NL001", ten: "Gỗ MDF 18mm",          so_luong: 4,   don_vi: "tấm" },
-        { ma_nl: "NL002", ten: "Gỗ MDF 12mm",          so_luong: 2,   don_vi: "tấm" },
-        { ma_nl: "NL004", ten: "Sơn nước trắng",        so_luong: 1.5, don_vi: "lít" },
-        { ma_nl: "NL010", ten: "Kính cường lực 5mm",    so_luong: 0.5, don_vi: "m²"  },
-        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",        so_luong: 0.8, don_vi: "kg"  },
+        { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 4,   don_vi: "tấm" },
+        { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 2,   don_vi: "tấm" },
+        { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 1.5, don_vi: "lít" },
+        { ma_nl: "NL010", ten: "Kính cường lực 5mm",   so_luong: 0.5, don_vi: "m²"  },
+        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",      so_luong: 0.8, don_vi: "kg"  },
       ],
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP007", ten_sp: "Giường ngủ 1m6",          don_gia: 4200000, so_luong: 6, mo_ta: "Giường ngủ đôi 1600x2000mm MDF phủ melamine vân gỗ",
+      ma_sp: "SP007", ten_sp: "Giường ngủ 1m6",         don_gia: 4200000, so_luong: 12, ton_toi_thieu: 4, mo_ta: "Giường ngủ gỗ MDF 160x200cm, vạt giường HDF",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 6,   don_vi: "tấm" },
-        { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 2,   don_vi: "tấm" },
+        { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 4,   don_vi: "tấm" },
         { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 2,   don_vi: "lít" },
-        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",      so_luong: 1.2, don_vi: "kg"  },
         { ma_nl: "NL008", ten: "Đinh vít gỗ 3.5x40mm",so_luong: 2,   don_vi: "hộp" },
       ],
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP008", ten_sp: "Kệ TV treo tường",        don_gia: 2100000, so_luong: 18, mo_ta: "Kệ TV treo tường MDF trắng, kích thước 160x30x50cm",
+      ma_sp: "SP008", ten_sp: "Kệ tivi phòng khách",    don_gia: 2200000, so_luong: 25, ton_toi_thieu: 8, mo_ta: "Kệ tivi phòng khách 160x40x45cm, 2 ngăn kéo",
       nguyen_lieu: [
-        { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 2,   don_vi: "tấm" },
-        { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 1,   don_vi: "tấm" },
-        { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 0.8, don_vi: "lít" },
-        { ma_nl: "NL005", ten: "Keo dán gỗ PVA",      so_luong: 0.3, don_vi: "kg"  },
-        { ma_nl: "NL009", ten: "Giấy nhám hạt P180",  so_luong: 2,   don_vi: "tờ"  },
-      ],
-      trang_thai: active, createAt: t, updateAt: t,
-    },
-    {
-      ma_sp: "SP009", ten_sp: "Tủ đầu giường",           don_gia: 1500000, so_luong: 22, mo_ta: "Tủ đầu giường 1 ngăn kéo MDF, kích thước 45x38x55cm",
-      nguyen_lieu: [
-        { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 1,   don_vi: "tấm" },
-        { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 1,   don_vi: "tấm" },
-        { ma_nl: "NL004", ten: "Sơn nước trắng",      so_luong: 0.4, don_vi: "lít" },
+        { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 3,   don_vi: "tấm" },
+        { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 1.5, don_vi: "tấm" },
         { ma_nl: "NL006", ten: "Bản lề inox 4 tấc",   so_luong: 2,   don_vi: "cái" },
         { ma_nl: "NL007", ten: "Tay nắm tủ D-36",     so_luong: 2,   don_vi: "cái" },
       ],
       trang_thai: active, createAt: t, updateAt: t,
     },
     {
-      ma_sp: "SP010", ten_sp: "Bàn trang điểm",          don_gia: 2800000, so_luong: 14, mo_ta: "Bàn trang điểm MDF gương tích hợp, 90x45x145cm",
+      ma_sp: "SP009", ten_sp: "Tủ đầu giường",          don_gia: 1500000, so_luong: 30, ton_toi_thieu: 10, mo_ta: "Tủ đầu giường 2 ngăn kéo, kích thước 45x40x50cm",
+      nguyen_lieu: [
+        { ma_nl: "NL002", ten: "Gỗ MDF 12mm",        so_luong: 1.5, don_vi: "tấm" },
+        { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 0.5, don_vi: "tấm" },
+        { ma_nl: "NL007", ten: "Tay nắm tủ D-36",     so_luong: 2,   don_vi: "cái" },
+        { ma_nl: "NL008", ten: "Đinh vít gỗ 3.5x40mm",so_luong: 0.5, don_vi: "hộp" },
+      ],
+      trang_thai: active, createAt: t, updateAt: t,
+    },
+    {
+      ma_sp: "SP010", ten_sp: "Bàn trang điểm",          don_gia: 2800000, so_luong: 18, ton_toi_thieu: 6, mo_ta: "Bàn trang điểm MDF gương tích hợp, 90x45x145cm",
       nguyen_lieu: [
         { ma_nl: "NL001", ten: "Gỗ MDF 18mm",        so_luong: 3,   don_vi: "tấm" },
         { ma_nl: "NL003", ten: "Ván HDF 6mm",         so_luong: 1,   don_vi: "tấm" },
@@ -395,72 +423,148 @@ function buildSanPhamDocs() {
 }
 
 /* ─────────────────────────────────────────────
-   EXPORTED SEED FUNCTION (accepts existing client)
+   5. Đối tác & Khách hàng (doi_tac)
 ───────────────────────────────────────────── */
-export async function seedIfEmpty(client) {
-  const dbName = process.env.SME_DB_NAME;
-  if (!dbName) throw new Error("Missing env: SME_DB_NAME");
+function buildDoiTacDocs() {
+  const t = now();
+  return [
+    { ma_doi_tac: "KH-VINHOMES", ten: "Tập đoàn Vinhomes - Ban Quản Lý Dự Án", loai_doi_tac: "khach_hang", so_dien_thoai: "02439749999", email: "procurement@vinhomes.vn", dia_chi: "Tòa nhà Symphony, Chu Huy Mân, Long Biên, Hà Nội", nhom: "khach_vip", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "KH-SUNGROUP", ten: "Tập đoàn Sun Group - Khối Nghỉ Dưỡng", loai_doi_tac: "khach_hang", so_dien_thoai: "02363891234", email: "purchasing@sungroup.com.vn", dia_chi: "Tầng 9, Sun City, 13 Hai Bà Trưng, Hoàn Kiếm, Hà Nội", nhom: "khach_vip", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "KH-ANGCUONG", ten: "Nội Thất An Cường Showroom Phân Phối", loai_doi_tac: "khach_hang", so_dien_thoai: "02838625727", email: "contact@ancuong.com", dia_chi: "702/1F Sư Vạn Hạnh, Phường 12, Quận 10, TP.HCM", nhom: "dai_ly", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "KH-HOAPHAT", ten: "Nội Thất Hòa Phát Miền Nam", loai_doi_tac: "khach_hang", so_dien_thoai: "02835111222", email: "banhang@hoaphat.com.vn", dia_chi: "392 Nguyễn Thị Minh Khai, Phường 5, Quận 3, TP.HCM", nhom: "dai_ly", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "KH-XUANHOA", ten: "Công ty Cổ phần Xuân Hòa Việt Nam", loai_doi_tac: "khach_hang", so_dien_thoai: "02438866115", email: "sales@xuanhoa.vn", dia_chi: "Phường Xuân Hòa, Phúc Yên, Vĩnh Phúc", nhom: "dai_ly", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "NCC-ANCLAMINATE", ten: "Công ty Cổ phần Gỗ An Cường", loai_doi_tac: "nha_cung_cap", so_dien_thoai: "02743626262", email: "supplies@ancuong.com", dia_chi: "KCN Đất Cuốc, Bắc Tân Uyên, Bình Dương", nhom: "nha_cung_cap", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "NCC-DONGNAI", ten: "Tổng Công ty Gỗ Đồng Nai (Donagowood)", loai_doi_tac: "nha_cung_cap", so_dien_thoai: "02513836156", email: "info@donagowood.vn", dia_chi: "KCN Biên Hòa 1, Đồng Nai", nhom: "nha_cung_cap", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "NCC-HAFELE", ten: "Công ty TNHH Hafele Việt Nam", loai_doi_tac: "nha_cung_cap", so_dien_thoai: "02839113113", email: "info@hafele.com.vn", dia_chi: "Tòa nhà REE Tower, 9 Đoàn Văn Bơ, Quận 4, TP.HCM", nhom: "nha_cung_cap", trang_thai: "active", createAt: t, updateAt: t },
+    { ma_doi_tac: "NCC-NIPPON", ten: "Công ty Sơn Nippon Paint Việt Nam", loai_doi_tac: "nha_cung_cap", so_dien_thoai: "02513836579", email: "support@nipponpaint.com.vn", dia_chi: "KCN Biên Hòa 2, Đồng Nai", nhom: "nha_cung_cap", trang_thai: "active", createAt: t, updateAt: t },
+  ];
+}
 
+/* ─────────────────────────────────────────────
+   6. Chính sách sàn TMĐT (ecommerce_policies)
+───────────────────────────────────────────── */
+const DEFAULT_ECOMMERCE_POLICIES = {
+  shopee: {
+    code: "shopee",
+    name: "Shopee Việt Nam",
+    logo_color: "#ee4d2d",
+    phi_thanh_toan_pct: 4.0,
+    phi_co_dinh_pct: 5.0,
+    phi_dich_vu_pct: 7.0,
+    phi_dich_vu_cap: 40000,
+    phi_dong_goi_co_dinh: 15000,
+    ty_le_hoan_du_kien_pct: 4.0,
+    chi_phi_van_chuyen_hoan: 25000,
+    thue_vat_tncn_pct: 1.5,
+    mo_ta: "Áp dụng cho shop thông thường tham gia gói Freeship Xtra",
+  },
+  tiktok: {
+    code: "tiktok",
+    name: "TikTok Shop",
+    logo_color: "#000000",
+    phi_thanh_toan_pct: 4.0,
+    phi_co_dinh_pct: 5.0,
+    phi_dich_vu_pct: 4.5,
+    phi_dich_vu_cap: 35000,
+    phi_affiliate_koc_pct: 10.0,
+    phi_dong_goi_co_dinh: 15000,
+    ty_le_hoan_du_kien_pct: 6.0,
+    chi_phi_van_chuyen_hoan: 25000,
+    thue_vat_tncn_pct: 1.5,
+    mo_ta: "Áp dụng cho đơn hàng bán qua livestream / video Creator",
+  },
+  lazada: {
+    code: "lazada",
+    name: "Lazada Việt Nam",
+    logo_color: "#0f146d",
+    phi_thanh_toan_pct: 3.99,
+    phi_co_dinh_pct: 4.5,
+    phi_dich_vu_pct: 6.0,
+    phi_dich_vu_cap: 35000,
+    phi_dong_goi_co_dinh: 15000,
+    ty_le_hoan_du_kien_pct: 4.0,
+    chi_phi_van_chuyen_hoan: 25000,
+    thue_vat_tncn_pct: 1.5,
+    mo_ta: "Áp dụng cho nhà bán hàng tham gia gói Freeship Max",
+  },
+};
+
+/* ─────────────────────────────────────────────
+   MASTER SEED FUNCTION
+───────────────────────────────────────────── */
+export async function seedIfEmpty(client, forceClean = false) {
+  const dbName = process.env.SME_DB_NAME || "SME_db_mongo";
   const db = client.db(dbName);
 
-  /* Skip if data already exists */
   const userCount = await db.collection("users").countDocuments();
-  if (userCount > 0) {
-    console.log(`⏭️   Seed skipped — users collection already has ${userCount} documents`);
+  if (userCount > 0 && !forceClean) {
+    console.log(`⏭️   Seed skipped — database already has ${userCount} users. (Use --clean to force reseed)`);
     return;
   }
 
-  console.log(`🌱  Seeding database: ${dbName}`);
+  console.log(`\n🌱  ${forceClean ? "CLEAN & RESEED" : "SEEDING"} Database: [${dbName}]...`);
 
   try {
-    /* ── Clear collections ──────────────────────────────────── */
-    const COLLECTIONS = ["phongban_chucvu", "users", "nguyen_lieu", "san_pham", "bom_san_pham", "don_hang", "dieu_chinh_kho"];
-    for (const col of COLLECTIONS) {
-      const result = await db.collection(col).deleteMany({});
-      console.log(`🗑️   Cleared [${col}] — ${result.deletedCount} documents removed`);
+    /* ── A. Xóa sạch 15 collections ──────────────────────────────── */
+    const ALL_COLLECTIONS = [
+      "phongban_chucvu",
+      "users",
+      "nguyen_lieu",
+      "san_pham",
+      "bom_san_pham",
+      "doi_tac",
+      "don_hang",
+      "van_chuyen",
+      "so_quy",
+      "dieu_chinh_kho",
+      "ecommerce_policies",
+      "ai_settings",
+      "luong",
+      "audit_log",
+      "san_xuat_logs"
+    ];
+
+    for (const col of ALL_COLLECTIONS) {
+      await db.collection(col).deleteMany({});
     }
+    console.log(`🗑️   Đã dọn dẹp sạch sẽ ${ALL_COLLECTIONS.length} collections.`);
 
-    /* ── 2.3  Departments + Roles ────────────────────────────────── */
+    /* ── B. Seed Phòng ban & Chức vụ ────────────────────────────── */
     const phongBanDocs = buildPhongBanDocs();
-    const pbResult = await db.collection("phongban_chucvu").insertMany(phongBanDocs);
-    console.log(`✅  Inserted ${Object.keys(pbResult.insertedIds).length} departments into [phongban_chucvu]`);
+    await db.collection("phongban_chucvu").insertMany(phongBanDocs);
+    console.log(`✅  1. Inserted ${phongBanDocs.length} phòng ban vào [phongban_chucvu]`);
 
-    /* ── 2.5  Users ──────────────────────────────────────────────── */
-    console.log("🔐  Hashing password '123456' with bcrypt (saltRounds=10) …");
-    const hashedPassword = await bcrypt.hash('123456', 10);
-    const hashedPw = hashedPassword;
-
-    const userDocs = await buildUserDocs(hashedPw);
+    /* ── C. Seed Tài khoản nhân sự ──────────────────────────────── */
+    const hashedPw = await bcrypt.hash("123456", 10);
+    const userDocs = buildUserDocs(hashedPw);
     const usersResult = await db.collection("users").insertMany(userDocs);
-    const insertedUserIds = usersResult.insertedIds; // { 0: ObjectId, 1: ObjectId, … }
-    console.log(`✅  Inserted ${Object.keys(insertedUserIds).length} users into [users]`);
-    console.log("    Users created:");
-    userDocs.forEach((u) => console.log(`      • ${u.tai_khoan.padEnd(14)} → ${u.phong_ban.ten} / ${u.chuc_vu.ten}`));
+    const userIds = usersResult.insertedIds;
+    console.log(`✅  2. Inserted ${userDocs.length} tài khoản người dùng vào [users] (mật khẩu: 123456)`);
 
-    /* ── 2.6  Materials ──────────────────────────────────────────── */
+    const adminUser = userDocs[0];
+    const saleUser  = userDocs[2];
+    const thuKhoUser = userDocs[7];
+    const nvKhoUser  = userDocs[8];
+
+    /* ── D. Seed Nguyên vật liệu ────────────────────────────────── */
     const nlDocs = buildNguyenLieuDocs();
     const nlResult = await db.collection("nguyen_lieu").insertMany(nlDocs);
-    const nlIds = nlResult.insertedIds; // index → ObjectId
-    // Build lookup: ma_nl → ObjectId
+    const nlIds = nlResult.insertedIds;
     const nlById = {};
     nlDocs.forEach((nl, i) => { nlById[nl.ma_nl] = nlIds[i]; });
-    console.log(`✅  Inserted ${nlDocs.length} materials into [nguyen_lieu]`);
+    console.log(`✅  3. Inserted ${nlDocs.length} nguyên vật liệu gỗ vào [nguyen_lieu]`);
 
-    /* ── 2.7  Products ───────────────────────────────────────────── */
+    /* ── E. Seed Sản phẩm thành phẩm ────────────────────────────── */
     const spDocs = buildSanPhamDocs();
     const spResult = await db.collection("san_pham").insertMany(spDocs);
     const spIds = spResult.insertedIds;
-    // Build lookup: ma_sp → ObjectId
     const spById = {};
     spDocs.forEach((sp, i) => { spById[sp.ma_sp] = spIds[i]; });
-    console.log(`✅  Inserted ${spDocs.length} products into [san_pham]`);
+    console.log(`✅  4. Inserted ${spDocs.length} sản phẩm thành phẩm vào [san_pham]`);
 
-    /* ── 2.8  BOM (bom_san_pham) ─────────────────────────────────── */
-    // Link 4 products → their materials using real ObjectIds
-    // Schema: { san_pham_id: ObjectId, items: [{ nguyen_lieu_id, qty, unit, waste_rate }], ghi_chu, createAt, updateAt }
+    /* ── F. Seed BOM Công thức sản xuất ─────────────────────────── */
     const t = now();
     const bomDocs = [
-      /* BOM 1: Bàn làm việc MDF */
       {
         san_pham_id: spById["SP001"],
         ghi_chu: "Công thức sản xuất bàn làm việc MDF tiêu chuẩn",
@@ -474,7 +578,6 @@ export async function seedIfEmpty(client) {
         ],
         createAt: t, updateAt: t,
       },
-      /* BOM 2: Tủ quần áo 3 cánh */
       {
         san_pham_id: spById["SP002"],
         ghi_chu: "Công thức sản xuất tủ quần áo 3 cánh",
@@ -489,7 +592,6 @@ export async function seedIfEmpty(client) {
         ],
         createAt: t, updateAt: t,
       },
-      /* BOM 3: Kệ sách 5 tầng */
       {
         san_pham_id: spById["SP003"],
         ghi_chu: "Công thức sản xuất kệ sách 5 tầng",
@@ -502,7 +604,6 @@ export async function seedIfEmpty(client) {
         ],
         createAt: t, updateAt: t,
       },
-      /* BOM 4: Bàn ăn 6 chỗ */
       {
         san_pham_id: spById["SP006"],
         ghi_chu: "Công thức sản xuất bàn ăn 6 chỗ có mặt kính",
@@ -516,175 +617,419 @@ export async function seedIfEmpty(client) {
         createAt: t, updateAt: t,
       },
     ];
-
     await db.collection("bom_san_pham").insertMany(bomDocs);
-    console.log(`✅  Inserted ${bomDocs.length} BOMs into [bom_san_pham]`);
-    bomDocs.forEach((b, i) => {
-      const spCode = ["SP001","SP002","SP003","SP006"][i];
-      console.log(`      • BOM for ${spCode} — ${b.items.length} ingredients`);
-    });
+    console.log(`✅  5. Inserted ${bomDocs.length} công thức định mức BOM vào [bom_san_pham]`);
 
-    /* ── 2.9  Orders (don_hang) ──────────────────────────────────── */
-    // nguoi_lap_id: use admin user (index 0) and sale user (index 2)
-    const adminId = insertedUserIds[0];
-    const saleId  = insertedUserIds[2]; // "sale" user
+    /* ── G. Seed Đối tác & Khách hàng ──────────────────────────── */
+    const dtDocs = buildDoiTacDocs();
+    await db.collection("doi_tac").insertMany(dtDocs);
+    console.log(`✅  6. Inserted ${dtDocs.length} khách hàng & nhà cung cấp vào [doi_tac]`);
 
-    const orders = [
-      /* Order 1: SALE — draft */
-      {
-        ma_dh: genOrderCode("DH"),
-        loai_don: "sale",
-        trang_thai: "draft",
-        khach_hang_ten: "Công ty TNHH Nội Thất Bình An",
-        nguoi_lap_id: saleId,
-        ngay_dat: new Date("2026-03-10"),
-        san_pham: [
-          { loai_hang: "san_pham", san_pham_id: spById["SP001"], ma_sp: "SP001", ten_sp: "Bàn làm việc MDF",   don_vi: "cái", don_gia: 2500000, so_luong: 5,  thuoc_tinh: {}, thanh_tien: 12500000 },
-          { loai_hang: "san_pham", san_pham_id: spById["SP003"], ma_sp: "SP003", ten_sp: "Kệ sách 5 tầng",     don_vi: "cái", don_gia: 1800000, so_luong: 3,  thuoc_tinh: {}, thanh_tien:  5400000 },
-        ],
-        tam_tinh: 17900000, giam_gia: 0, thue_rate: 0, thue_tien: 0, phi_vc: 200000, tong_tien: 18100000,
-        ghi_chu: "Khách hàng doanh nghiệp, giao hàng thứ Sáu",
-        createAt: new Date("2026-03-10"), updateAt: new Date("2026-03-10"),
-      },
-      /* Order 2: SALE — confirmed */
-      {
-        ma_dh: genOrderCode("DH"),
-        loai_don: "sale",
-        trang_thai: "confirmed",
-        khach_hang_ten: "Anh Trần Minh Tú",
-        nguoi_lap_id: saleId,
-        ngay_dat: new Date("2026-03-15"),
-        san_pham: [
-          { loai_hang: "san_pham", san_pham_id: spById["SP007"], ma_sp: "SP007", ten_sp: "Giường ngủ 1m6",     don_vi: "cái", don_gia: 4200000, so_luong: 1,  thuoc_tinh: {}, thanh_tien:  4200000 },
-          { loai_hang: "san_pham", san_pham_id: spById["SP009"], ma_sp: "SP009", ten_sp: "Tủ đầu giường",      don_vi: "cái", don_gia: 1500000, so_luong: 2,  thuoc_tinh: {}, thanh_tien:  3000000 },
-        ],
-        tam_tinh: 7200000, giam_gia: 200000, thue_rate: 0, thue_tien: 0, phi_vc: 150000, tong_tien: 7150000,
-        ghi_chu: "Đặt phòng ngủ hoàn chỉnh, giảm 200k phí ship",
-        createAt: new Date("2026-03-15"), updateAt: new Date("2026-03-16"),
-      },
-      /* Order 3: SALE — completed */
-      {
-        ma_dh: genOrderCode("DH"),
-        loai_don: "sale",
-        trang_thai: "completed",
-        khach_hang_ten: "Chị Lê Ngọc Hân",
-        nguoi_lap_id: saleId,
-        ngay_dat: new Date("2026-03-01"),
-        san_pham: [
-          { loai_hang: "san_pham", san_pham_id: spById["SP010"], ma_sp: "SP010", ten_sp: "Bàn trang điểm",     don_vi: "cái", don_gia: 2800000, so_luong: 1,  thuoc_tinh: {}, thanh_tien:  2800000 },
-          { loai_hang: "san_pham", san_pham_id: spById["SP004"], ma_sp: "SP004", ten_sp: "Ghế văn phòng",      don_vi: "cái", don_gia: 1200000, so_luong: 2,  thuoc_tinh: {}, thanh_tien:  2400000 },
-        ],
-        tam_tinh: 5200000, giam_gia: 0, thue_rate: 0.08, thue_tien: 416000, phi_vc: 0, tong_tien: 5616000,
-        ghi_chu: "Đã giao hàng và thanh toán đủ",
-        createAt: new Date("2026-03-01"), updateAt: new Date("2026-03-05"),
-      },
-      /* Order 4: PURCHASE_RECEIPT — confirmed */
-      {
-        ma_dh: genOrderCode("PN"),
-        loai_don: "purchase_receipt",
-        trang_thai: "confirmed",
-        nha_cung_cap_ten: "Công ty Gỗ Miền Nam",
-        nguoi_lap_id: adminId,
-        ngay_dat: new Date("2026-03-18"),
-        san_pham: [
-          { loai_hang: "nguyen_lieu", nguyen_lieu_id: nlById["NL001"], ma_nl: "NL001", ten_nl: "Gỗ MDF 18mm",   don_vi: "tấm",  don_gia: 350000, so_luong: 50, thuoc_tinh: {}, thanh_tien: 17500000 },
-          { loai_hang: "nguyen_lieu", nguyen_lieu_id: nlById["NL002"], ma_nl: "NL002", ten_nl: "Gỗ MDF 12mm",   don_vi: "tấm",  don_gia: 280000, so_luong: 30, thuoc_tinh: {}, thanh_tien:  8400000 },
-          { loai_hang: "nguyen_lieu", nguyen_lieu_id: nlById["NL005"], ma_nl: "NL005", ten_nl: "Keo dán gỗ PVA",don_vi: "kg",   don_gia:  45000, so_luong: 20, thuoc_tinh: {}, thanh_tien:   900000 },
-        ],
-        tam_tinh: 26800000, giam_gia: 0, thue_rate: 0, thue_tien: 0, phi_vc: 500000, tong_tien: 27300000,
-        ghi_chu: "Nhập kho tháng 3/2026 - lô đầu tiên",
-        createAt: new Date("2026-03-18"), updateAt: new Date("2026-03-18"),
-      },
-      /* Order 5: SALE — cancelled */
-      {
-        ma_dh: genOrderCode("DH"),
-        loai_don: "sale",
-        trang_thai: "cancelled",
-        khach_hang_ten: "Anh Phạm Quốc Bảo",
-        nguoi_lap_id: saleId,
-        ngay_dat: new Date("2026-03-20"),
-        san_pham: [
-          { loai_hang: "san_pham", san_pham_id: spById["SP002"], ma_sp: "SP002", ten_sp: "Tủ quần áo 3 cánh",  don_vi: "cái", don_gia: 4800000, so_luong: 2,  thuoc_tinh: {}, thanh_tien:  9600000 },
-        ],
-        tam_tinh: 9600000, giam_gia: 0, thue_rate: 0, thue_tien: 0, phi_vc: 300000, tong_tien: 9900000,
-        ghi_chu: "Khách huỷ đơn do thay đổi thiết kế",
-        createAt: new Date("2026-03-20"), updateAt: new Date("2026-03-21"),
-      },
-    ];
+    /* ── H. Seed Đơn hàng 2025–2026, Vận đơn & Sổ quỹ ───────────── */
+    console.log("📈  7. Đang tạo chuỗi đơn hàng lịch sử 2025 - 2026 kèm Vận đơn và Sổ quỹ...");
+    const khachHangs = dtDocs.filter(d => d.loai_doi_tac === "khach_hang");
+    const nhaCungCaps = dtDocs.filter(d => d.loai_doi_tac === "nha_cung_cap");
 
-    await db.collection("don_hang").insertMany(orders);
-    console.log(`✅  Inserted ${orders.length} orders into [don_hang]`);
-    orders.forEach((o) => console.log(`      • ${o.ma_dh.padEnd(22)} [${o.loai_don.padEnd(16)}] → ${o.trang_thai}`));
+    const orderBatch = [];
+    const waybillBatch = [];
+    const cashbookBatch = [];
 
-    /* ── Điều chỉnh kho (dieu_chinh_kho) ──────────────────────────── */
-    // Use actual ObjectIds from the inserted materials and products
-    const thuKhoUser = userDocs.find((u) => u.chuc_vu.ten === "Thủ kho");
-    const nvKhoUser  = userDocs.find((u) => u.chuc_vu.ten === "Nhân viên kho");
-    const adminUser  = userDocs.find((u) => u.chuc_vu.ten === "Giám đốc");
+    const carriers = ["GHN", "GHTK", "ViettelPost", "J&T Express", "Đội xe nội bộ"];
 
+    // 21 tháng: 12 tháng 2025 và 9 tháng 2026
+    const monthsList = [];
+    for (let m = 1; m <= 12; m++) monthsList.push({ year: 2025, month: m });
+    for (let m = 1; m <= 9; m++)  monthsList.push({ year: 2026, month: m });
+
+    for (const ym of monthsList) {
+      const { year, month } = ym;
+      const numSales     = rand(4, 7);
+      const numPurchases = rand(2, 3);
+      const numProds     = rand(2, 4);
+
+      // H.1 Đơn bán hàng (Sale Orders)
+      for (let i = 0; i < numSales; i++) {
+        const day = rand(2, 27);
+        const orderDate = new Date(Date.UTC(year, month - 1, day, rand(8, 17), rand(0, 59)));
+        const kh = randItem(khachHangs);
+
+        // Chọn 1-3 sản phẩm
+        const picked = [randItem(spDocs), randItem(spDocs)].filter((v, idx, a) => a.indexOf(v) === idx);
+        const items = picked.map(sp => {
+          const qty = rand(2, 6);
+          return {
+            loai_hang: "san_pham",
+            san_pham_id: spById[sp.ma_sp],
+            ma_sp: sp.ma_sp,
+            ten_sp: sp.ten_sp,
+            don_vi: "cái",
+            don_gia: sp.don_gia,
+            so_luong: qty,
+            thanh_tien: sp.don_gia * qty,
+          };
+        });
+
+        const tongTien = items.reduce((s, it) => s + it.thanh_tien, 0);
+        const maDh = genOrderCode("DH", year, month, day);
+
+        // Đơn tháng gần nhất (9/2026) có cả confirmed và draft; các tháng cũ completed
+        let trangThai = "completed";
+        if (year === 2026 && month === 9) {
+          if (i === 0) trangThai = "draft";
+          else if (i === 1) trangThai = "confirmed";
+          else if (i === 2) trangThai = "confirmed";
+          else trangThai = "completed";
+        }
+
+        const carrier = randItem(carriers);
+        const maVd = genWaybillCode(carrier, year, month);
+        let ttVanChuyen = null;
+        if (trangThai === "completed") ttVanChuyen = "giao_thanh_cong";
+        else if (trangThai === "confirmed") ttVanChuyen = randItem(["cho_dong_goi", "da_ban_giao", "dang_giao"]);
+
+        const orderDoc = {
+          ma_dh: maDh,
+          loai_don: "sale",
+          trang_thai: trangThai,
+          khach_hang_ten: kh.ten,
+          khach_hang_sdt: kh.so_dien_thoai,
+          khach_hang_dia_chi: kh.dia_chi,
+          nguoi_lap_id: userIds[2], // sale
+          ngay_dat: orderDate,
+          created_at: orderDate,
+          updated_at: orderDate,
+          san_pham: items,
+          tong_tien: tongTien,
+          phi_vc: randItem([0, 30000, 50000]),
+          giam_gia: 0,
+          thue_tien: 0,
+          tam_tinh: tongTien,
+          ghi_chu: `Hợp đồng cung cấp nội thất ${maDh}`,
+          // Linkage 2 chiều:
+          ma_van_don: ttVanChuyen ? maVd : null,
+          don_vi_van_chuyen: ttVanChuyen ? carrier : null,
+          trang_thai_van_chuyen: ttVanChuyen,
+        };
+        orderBatch.push(orderDoc);
+
+        // Tạo vận đơn logistics nếu đơn đã xác nhận / hoàn thành
+        if (ttVanChuyen) {
+          waybillBatch.push({
+            ma_van_don: maVd,
+            ma_don_hang: maDh,
+            don_vi_van_chuyen: carrier,
+            nguoi_gui: {
+              ten: "Công Ty Cổ Phần Nội Thất & Thiết Bị SME",
+              sdt: "1900 6868",
+              dia_chi: "Kho Tổng A1, KCN Tân Bình, TP. Hồ Chí Minh"
+            },
+            nguoi_nhan: {
+              ten: kh.ten,
+              sdt: kh.so_dien_thoai,
+              dia_chi: kh.dia_chi
+            },
+            tien_thu_ho_cod: trangThai === "completed" ? 0 : tongTien,
+            phi_van_chuyen: randItem([35000, 45000, 60000]),
+            nguoi_tra_phi: "shop",
+            trong_luong_gram: rand(1500, 8000),
+            san_pham: items,
+            ghi_chu: "Hàng nội thất dễ trầy xước, cẩn thận khi bốc dỡ",
+            trang_thai: ttVanChuyen,
+            lich_su_trang_thai: [
+              { trang_thai: "cho_dong_goi", thoi_gian: orderDate, ghi_chu: "Đã tạo vận đơn, đóng gói hàng hóa", nguoi_thuc_hien: "sale" },
+              ...(ttVanChuyen !== "cho_dong_goi" ? [{ trang_thai: ttVanChuyen, thoi_gian: orderDate, ghi_chu: "Cập nhật hành trình vận chuyển", nguoi_thuc_hien: "thukho" }] : [])
+            ],
+            ngay_tao: orderDate,
+            ngay_cap_nhat: orderDate
+          });
+        }
+
+        // Tạo phiếu thu sổ quỹ khi đơn hoàn thành
+        if (trangThai === "completed") {
+          const maPt = genPhieuCode("PT", year, month, day);
+          cashbookBatch.push({
+            ma_phieu: maPt,
+            loai_phieu: "thu",
+            hang_muc: "Thu tiền bán hàng",
+            so_tien: tongTien,
+            phuong_thuc: randItem(["chuyen_khoan", "chuyen_khoan", "tien_mat"]),
+            doi_tuong: { ten: kh.ten, loai: "khach_hang" },
+            ma_chung_tu: maDh,
+            ngay_ghi_nhan: orderDate,
+            created_at: orderDate,
+            updated_at: orderDate,
+            trang_thai: "active",
+            ghi_chu: `Thanh toán hợp đồng ${maDh}`
+          });
+        }
+      }
+
+      // H.2 Đơn nhập mua vật tư (Purchase Receipts)
+      for (let i = 0; i < numPurchases; i++) {
+        const day = rand(1, 22);
+        const orderDate = new Date(Date.UTC(year, month - 1, day, rand(8, 16), rand(0, 59)));
+        const ncc = randItem(nhaCungCaps);
+
+        const pickedMats = [randItem(nlDocs), randItem(nlDocs)].filter((v, idx, a) => a.indexOf(v) === idx);
+        const items = pickedMats.map(nl => {
+          const qty = rand(20, 60);
+          return {
+            loai_hang: "nguyen_lieu",
+            nguyen_lieu_id: nlById[nl.ma_nl],
+            ma_nl: nl.ma_nl,
+            ten_nl: nl.ten_nl,
+            don_vi: nl.don_vi,
+            don_gia: nl.gia_nhap,
+            so_luong: qty,
+            thanh_tien: nl.gia_nhap * qty
+          };
+        });
+
+        const tongTien = items.reduce((s, it) => s + it.thanh_tien, 0);
+        const maPn = genOrderCode("PN", year, month, day);
+
+        orderBatch.push({
+          ma_dh: maPn,
+          loai_don: "purchase_receipt",
+          trang_thai: "completed",
+          nha_cung_cap_ten: ncc.ten,
+          nguoi_lap_id: userIds[0], // admin
+          ngay_dat: orderDate,
+          created_at: orderDate,
+          updated_at: orderDate,
+          san_pham: items,
+          tong_tien: tongTien,
+          phi_vc: 200000,
+          giam_gia: 0,
+          thue_tien: 0,
+          tam_tinh: tongTien,
+          ghi_chu: `Nhập kho nguyên vật liệu xưởng ${maPn}`
+        });
+
+        // Tạo phiếu chi mua nguyên vật liệu
+        const maPc = genPhieuCode("PC", year, month, day);
+        cashbookBatch.push({
+          ma_phieu: maPc,
+          loai_phieu: "chi",
+          hang_muc: "Chi mua nguyên vật liệu",
+          so_tien: tongTien,
+          phuong_thuc: "chuyen_khoan",
+          doi_tuong: { ten: ncc.ten, loai: "nha_cung_cap" },
+          ma_chung_tu: maPn,
+          ngay_ghi_nhan: orderDate,
+          created_at: orderDate,
+          updated_at: orderDate,
+          trang_thai: "active",
+          ghi_chu: `Thanh toán hóa đơn nhập vật tư ${maPn}`
+        });
+      }
+
+      // H.3 Đơn nhập sản xuất xưởng (Prod Receipts)
+      for (let i = 0; i < numProds; i++) {
+        const day = rand(5, 28);
+        const orderDate = new Date(Date.UTC(year, month - 1, day, rand(9, 17), rand(0, 59)));
+        const sp = randItem(spDocs);
+        const qty = rand(5, 15);
+        const maSx = genOrderCode("LSX", year, month, day);
+
+        orderBatch.push({
+          ma_dh: maSx,
+          loai_don: "prod_receipt",
+          trang_thai: "completed",
+          nguoi_lap_id: userIds[0], // admin
+          ngay_dat: orderDate,
+          created_at: orderDate,
+          updated_at: orderDate,
+          san_pham: [{
+            loai_hang: "san_pham",
+            san_pham_id: spById[sp.ma_sp],
+            ma_sp: sp.ma_sp,
+            ten_sp: sp.ten_sp,
+            don_vi: "cái",
+            don_gia: sp.don_gia,
+            so_luong: qty,
+            thanh_tien: sp.don_gia * qty
+          }],
+          tong_tien: sp.don_gia * qty,
+          tam_tinh: sp.don_gia * qty,
+          ghi_chu: `Nhập kho thành phẩm theo lệnh sản xuất ${maSx}`
+        });
+      }
+
+      // H.4 Chi phí vận hành cố định mỗi tháng (Điện nước, thuê xưởng)
+      const opDate = new Date(Date.UTC(year, month - 1, 28, 10, 0));
+      cashbookBatch.push({
+        ma_phieu: genPhieuCode("PC", year, month, 28),
+        loai_phieu: "chi",
+        hang_muc: "Chi phí vận hành & mặt bằng xưởng",
+        so_tien: rand(15000000, 25000000),
+        phuong_thuc: "chuyen_khoan",
+        doi_tuong: { ten: "Ban Quản Lý KCN Tân Bình", loai: "nha_cung_cap" },
+        ma_chung_tu: `VH-${year}${String(month).padStart(2, "0")}`,
+        ngay_ghi_nhan: opDate,
+        created_at: opDate,
+        updated_at: opDate,
+        trang_thai: "active",
+        ghi_chu: `Chi phí điện nước và thuê xưởng sản xuất tháng ${month}/${year}`
+      });
+    }
+
+    await db.collection("don_hang").insertMany(orderBatch);
+    console.log(`✅  Inserted ${orderBatch.length} đơn hàng (Sale, Purchase, Prod) vào [don_hang]`);
+
+    await db.collection("van_chuyen").insertMany(waybillBatch);
+    console.log(`✅  Inserted ${waybillBatch.length} vận đơn logistics vào [van_chuyen] (Đã đồng bộ 2 chiều với đơn hàng)`);
+
+    await db.collection("so_quy").insertMany(cashbookBatch);
+    console.log(`✅  Inserted ${cashbookBatch.length} phiếu thu chi sổ quỹ vào [so_quy]`);
+
+    /* ── I. Seed Điều chỉnh kho (dieu_chinh_kho) ─────────────────── */
     const dckDocs = [
-      /* 1 — Chờ duyệt: nhập thêm nguyên liệu NL001 */
+      /* 1 — Chờ duyệt: kiểm kê thừa 15 tấm gỗ MDF 18mm */
       {
         loai:                 "nguyen_lieu",
-        item_id:              nlIds[0],          // NL001 — Gỗ MDF 18mm
+        item_id:              nlById["NL001"],
         ma_hang:              "NL001",
         ten_hang:             "Gỗ MDF 18mm",
         so_luong_dieu_chinh:  15,
-        ton_kho_truoc:        100,
-        ly_do:                "Kiểm kê thực tế phát hiện thừa 15 tấm so với sổ sách",
+        ton_kho_truoc:        200,
+        ly_do:                "Kiểm kê thực tế phát hiện dôi dư 15 tấm so với sổ sách",
         trang_thai:           "cho_duyet",
-        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
+        created_by:           { tai_khoan: nvKhoUser.tai_khoan, ho_ten: nvKhoUser.ho_ten },
         approved_by:          null,
-        created_at:           new Date("2026-04-01T08:30:00Z"),
-        updated_at:           new Date("2026-04-01T08:30:00Z"),
+        created_at:           new Date("2026-09-18T08:30:00Z"),
+        updated_at:           new Date("2026-09-18T08:30:00Z"),
       },
-      /* 2 — Đã duyệt: xuất bớt sản phẩm SP002 */
+      /* 2 — Đã duyệt: xuất bớt 2 tủ quần áo làm mẫu showroom */
       {
         loai:                 "san_pham",
-        item_id:              spIds[1],          // SP002 — Tủ quần áo 3 cánh
+        item_id:              spById["SP002"],
         ma_hang:              "SP002",
         ten_hang:             "Tủ quần áo 3 cánh",
         so_luong_dieu_chinh:  -2,
-        ton_kho_truoc:        20,
+        ton_kho_truoc:        18,
         ly_do:                "Hàng mẫu xuất cho showroom không qua đơn hàng",
         trang_thai:           "da_duyet",
-        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
-        approved_by:          { tai_khoan: thuKhoUser?.tai_khoan || "thukho", ho_ten: thuKhoUser?.ho_ten || "Bùi Văn Kho" },
-        created_at:           new Date("2026-03-28T09:00:00Z"),
-        updated_at:           new Date("2026-03-28T10:15:00Z"),
+        created_by:           { tai_khoan: nvKhoUser.tai_khoan, ho_ten: nvKhoUser.ho_ten },
+        approved_by:          { tai_khoan: thuKhoUser.tai_khoan, ho_ten: thuKhoUser.ho_ten },
+        created_at:           new Date("2026-09-15T09:00:00Z"),
+        updated_at:           new Date("2026-09-15T10:15:00Z"),
       },
-      /* 3 — Từ chối: nhập thêm nguyên liệu NL005 */
+      /* 3 — Từ chối: yêu cầu tăng tồn dự phòng không hợp lệ */
       {
         loai:                 "nguyen_lieu",
-        item_id:              nlIds[4],          // NL005 — Keo dán gỗ PVA
+        item_id:              nlById["NL005"],
         ma_hang:              "NL005",
         ten_hang:             "Keo dán gỗ PVA",
         so_luong_dieu_chinh:  50,
-        ton_kho_truoc:        80,
+        ton_kho_truoc:        100,
         ly_do:                "Muốn tăng tồn kho dự phòng cho mùa cao điểm",
         trang_thai:           "tu_choi",
-        created_by:           { tai_khoan: nvKhoUser?.tai_khoan || "nhanvienkho", ho_ten: nvKhoUser?.ho_ten || "Ngô Thị Kho" },
-        approved_by:          { tai_khoan: adminUser?.tai_khoan || "admin", ho_ten: adminUser?.ho_ten || "Nguyễn Văn Admin" },
-        created_at:           new Date("2026-03-25T14:00:00Z"),
-        updated_at:           new Date("2026-03-25T16:30:00Z"),
+        created_by:           { tai_khoan: nvKhoUser.tai_khoan, ho_ten: nvKhoUser.ho_ten },
+        approved_by:          { tai_khoan: adminUser.tai_khoan, ho_ten: adminUser.ho_ten },
+        created_at:           new Date("2026-09-10T14:00:00Z"),
+        updated_at:           new Date("2026-09-10T16:30:00Z"),
+      },
+      /* 4 — Chờ duyệt (Admin tự tạo): test quyền tự duyệt của Admin */
+      {
+        loai:                 "nguyen_lieu",
+        item_id:              nlById["NL006"],
+        ma_hang:              "NL006",
+        ten_hang:             "Bản lề inox 4 tấc",
+        so_luong_dieu_chinh:  50,
+        ton_kho_truoc:        500,
+        ly_do:                "Điều chỉnh số liệu sau đợt kiểm toán quý 3",
+        trang_thai:           "cho_duyet",
+        created_by:           { tai_khoan: adminUser.tai_khoan, ho_ten: adminUser.ho_ten },
+        approved_by:          null,
+        created_at:           new Date("2026-09-21T08:00:00Z"),
+        updated_at:           new Date("2026-09-21T08:00:00Z"),
       },
     ];
-
     await db.collection("dieu_chinh_kho").insertMany(dckDocs);
-    console.log(`✅  Inserted ${dckDocs.length} adjustment requests into [dieu_chinh_kho]`);
+    console.log(`✅  8. Inserted ${dckDocs.length} phiếu điều chỉnh kho vào [dieu_chinh_kho]`);
 
-    /* ── Summary ─────────────────────────────────────────────────── */
-    console.log("\n╔══════════════════════════════════════════════╗");
-    console.log("║           SEED COMPLETED SUCCESSFULLY         ║");
-    console.log("╠══════════════════════════════════════════════╣");
-    console.log(`║  phongban_chucvu : ${String(phongBanDocs.length).padEnd(3)} departments           ║`);
-    console.log(`║  users           : ${String(userDocs.length).padEnd(3)} accounts (pw: 123456) ║`);
-    console.log(`║  nguyen_lieu     : ${String(nlDocs.length).padEnd(3)} materials              ║`);
-    console.log(`║  san_pham        : ${String(spDocs.length).padEnd(3)} products               ║`);
-    console.log(`║  bom_san_pham    : ${String(bomDocs.length).padEnd(3)} BOMs                   ║`);
-    console.log(`║  don_hang        : ${String(orders.length).padEnd(3)} orders                 ║`);
-    console.log(`║  dieu_chinh_kho  : ${String(dckDocs.length).padEnd(3)} adjustment requests    ║`);
-    console.log("╚══════════════════════════════════════════════╝\n");
+    /* ── J. Seed Chính sách sàn TMĐT (ecommerce_policies) ───────── */
+    await db.collection("ecommerce_policies").insertOne({
+      _id: "default_policies",
+      policies: DEFAULT_ECOMMERCE_POLICIES,
+      updated_at: t,
+    });
+    console.log(`✅  9. Inserted chính sách đa sàn TMĐT vào [ecommerce_policies]`);
+
+    /* ── K. Seed Cài đặt AI Copilot (ai_settings) ───────────────── */
+    await db.collection("ai_settings").insertOne({
+      _id: "global_ai_config",
+      api_key: "",
+      is_active: false,
+      model: "gemini-1.5-flash",
+      provider: "gemini",
+      updated_at: t,
+    });
+    console.log(`✅  10. Inserted cài đặt AI Copilot vào [ai_settings]`);
+
+    /* ── L. Seed Chấm công & Bảng lương (luong) ─────────────────── */
+    console.log("⏱️  11. Đang tạo dữ liệu chấm công & tính lương cho 11 nhân viên...");
+    const luongDocs = [];
+    const workDays = 22; // 22 ngày làm việc trong tháng 9/2026
+    for (let d = 1; d <= workDays; d++) {
+      const dateStr = `2026-09-${String(d).padStart(2, "0")}`;
+      const ngayDate = new Date(`${dateStr}T00:00:00Z`);
+
+      for (let uIdx = 0; uIdx < userDocs.length; uIdx++) {
+        const u = userDocs[uIdx];
+        const diTre = Math.random() < 0.1; // 10% đi trễ
+        const checkIn = diTre ? `08:${String(rand(5, 25)).padStart(2, "0")}` : `07:${rand(45, 59)}`;
+        const checkOut = `17:${rand(30, 50)}`;
+
+        luongDocs.push({
+          ma_nv: u.tai_khoan,
+          user_id: userIds[uIdx],
+          ngay_thang: ngayDate,
+          gio_check_in: checkIn,
+          gio_check_out: checkOut,
+          di_tre: diTre,
+          so_gio_lam: 8,
+          ghi_chu: diTre ? "Đi trễ do tắc đường" : "Đi làm đầy đủ",
+          trang_thai: "active",
+          created_at: ngayDate,
+          updated_at: ngayDate
+        });
+      }
+    }
+    await db.collection("luong").insertMany(luongDocs);
+    console.log(`✅  Inserted ${luongDocs.length} bản ghi chấm công vào [luong]`);
+
+    /* ── M. Seed Nhật ký kiểm toán ban đầu (audit_log) ───────────── */
+    await db.collection("audit_log").insertOne({
+      action: "SYSTEM_INIT",
+      module: "SYSTEM",
+      target_id: "INIT",
+      description: "Khởi tạo và chuẩn hóa toàn bộ dữ liệu mẫu hệ thống SME thành công",
+      user: { tai_khoan: "system", ho_ten: "Hệ Thống SME" },
+      ip_address: "127.0.0.1",
+      created_at: t,
+    });
+    console.log(`✅  12. Inserted log khởi tạo vào [audit_log]`);
+
+    /* ── N. Tổng kết thành công ─────────────────────────────────── */
+    console.log("\n╔════════════════════════════════════════════════════════════════════╗");
+    console.log("║         HỆ THỐNG ĐÃ ĐƯỢC LÀM SẠCH & SEED DỮ LIỆU THÀNH CÔNG        ║");
+    console.log("╠════════════════════════════════════════════════════════════════════╣");
+    console.log(`║  phongban_chucvu    : ${String(phongBanDocs.length).padEnd(4)} phòng ban, 11 chức vụ                  ║`);
+    console.log(`║  users              : ${String(userDocs.length).padEnd(4)} tài khoản nhân viên (pass: 123456)   ║`);
+    console.log(`║  nguyen_lieu        : ${String(nlDocs.length).padEnd(4)} nguyên vật liệu nội thất              ║`);
+    console.log(`║  san_pham           : ${String(spDocs.length).padEnd(4)} sản phẩm thành phẩm                 ║`);
+    console.log(`║  bom_san_pham       : ${String(bomDocs.length).padEnd(4)} công thức định mức BOM               ║`);
+    console.log(`║  doi_tac            : ${String(dtDocs.length).padEnd(4)} khách hàng VIP & nhà cung cấp        ║`);
+    console.log(`║  don_hang           : ${String(orderBatch.length).padEnd(4)} đơn hàng (2025–2026)               ║`);
+    console.log(`║  van_chuyen         : ${String(waybillBatch.length).padEnd(4)} vận đơn logistics đồng bộ 2 chiều  ║`);
+    console.log(`║  so_quy             : ${String(cashbookBatch.length).padEnd(4)} phiếu thu/chi sổ quỹ                 ║`);
+    console.log(`║  dieu_chinh_kho     : ${String(dckDocs.length).padEnd(4)} phiếu điều chỉnh kho chuẩn          ║`);
+    console.log(`║  ecommerce_policies : 1    chính sách đa sàn (Shopee, TikTok, Laz)  ║`);
+    console.log(`║  ai_settings        : 1    cấu hình AI Copilot                      ║`);
+    console.log(`║  luong              : ${String(luongDocs.length).padEnd(4)} bản ghi chấm công nhân sự           ║`);
+    console.log("╚════════════════════════════════════════════════════════════════════╝\n");
 
   } catch (err) {
     console.error("❌  Seed failed:", err);
@@ -696,14 +1041,13 @@ export async function seedIfEmpty(client) {
    STANDALONE EXECUTION (node seed.js)
 ───────────────────────────────────────────── */
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const uri    = process.env.SME_DB_URI   || process.env.MONGO_URI;
-  const dbName = process.env.SME_DB_NAME;
-  if (!uri) { console.error("❌  Missing DB URI (SME_DB_URI or MONGO_URI)"); process.exit(1); }
+  const uri    = process.env.SME_DB_URI || process.env.MONGO_URI || "mongodb://admin:password123@127.0.0.1:27017/?authSource=admin";
+  const forceClean = process.argv.includes("--clean") || process.argv.includes("--force");
 
   const standaloneClient = new MongoClient(uri);
   try {
     await standaloneClient.connect();
-    await seedIfEmpty(standaloneClient);
+    await seedIfEmpty(standaloneClient, forceClean);
   } catch (err) {
     console.error("❌  Seed failed:", err);
     process.exit(1);

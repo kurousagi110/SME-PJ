@@ -7,6 +7,7 @@ import SanPhamDAO           from "../models/sanPhamDAO.js";
 import { notifyAdmin, notifyApprover, notifyUser } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
+import { isAdminUser } from "../middleware/auth.js";
 import logger from "../utils/logger.js";
 
 export default class DieuChinhKhoController {
@@ -92,8 +93,9 @@ export default class DieuChinhKhoController {
     if (phieu.trang_thai !== "cho_duyet") {
       throw ApiError.badRequest("Phiếu đã được xử lý trước đó", "ALREADY_PROCESSED");
     }
-    if (phieu.created_by?.tai_khoan === req.user.tai_khoan) {
-      throw ApiError.forbidden("Không thể tự duyệt phiếu của mình", "SELF_APPROVE_FORBIDDEN");
+    const isUserAdmin = isAdminUser(req.user);
+    if (!isUserAdmin && phieu.created_by?.tai_khoan === req.user?.tai_khoan) {
+      throw ApiError.forbidden("Không thể tự duyệt phiếu của mình (trừ quản trị viên)", "SELF_APPROVE_FORBIDDEN");
     }
 
     const approvedBy = performedByOf(req);
@@ -114,8 +116,11 @@ export default class DieuChinhKhoController {
     let session = null;
     let usedTransaction = false;
 
+    const topologyType = mongoClient?.topology?.description?.type;
+    const supportsTransactions = ["ReplicaSetWithPrimary", "Sharded"].includes(topologyType);
+
     try {
-      if (mongoClient?.startSession) {
+      if (supportsTransactions && mongoClient?.startSession) {
         try {
           session = mongoClient.startSession();
           usedTransaction = true;

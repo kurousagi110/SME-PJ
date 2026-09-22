@@ -94,101 +94,135 @@ export function DashboardKpiCards() {
   const toVND = (n: number) => n.toLocaleString("vi-VN") + " đ";
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
       {/* 1. Tổng doanh thu bán hàng */}
-      <Card className="shadow-xs border-border/80">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <Card className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/60 p-1 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-500/40 hover:shadow-md">
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4 space-y-0">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Tổng Doanh Thu
           </CardTitle>
-          <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
-            <DollarSign className="h-4 w-4" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20 shadow-xs">
+            <DollarSign className="h-4.5 w-4.5" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-foreground">
+        <CardContent className="px-4 pb-4">
+          <div className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground tabular-nums">
             {toVND(totalRevenue)}
           </div>
-          <div className="flex items-center text-xs text-emerald-600 font-medium mt-1">
-            <ArrowUpRight className="h-3.5 w-3.5 mr-0.5" />
-            <span>Đơn bán hàng đã xác nhận</span>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-400">
+              <ArrowUpRight className="h-3 w-3" />
+              Doanh thu ròng
+            </span>
+            <span className="text-muted-foreground text-[11px] truncate">
+              Từ đơn bán đã duyệt
+            </span>
           </div>
         </CardContent>
       </Card>
 
       {/* 2. Chi phí nhập vật tư (COGS) */}
-      <Card className="shadow-xs border-border/80">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Chi Phí Nhập Vật Tư
+      <Card className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/60 p-1 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-500/40 hover:shadow-md">
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-sky-400" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4 space-y-0">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Chi Phí Nhập Kho
           </CardTitle>
-          <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950/40">
-            <ShoppingCart className="h-4 w-4" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500/20 shadow-xs">
+            <ShoppingCart className="h-4.5 w-4.5" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-foreground">
+        <CardContent className="px-4 pb-4">
+          <div className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground tabular-nums">
             {toVND(totalPurchases)}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Tổng vốn nguyên liệu đã nhập kho
-          </p>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 font-medium text-blue-600 dark:text-blue-400">
+              Nguyên vật liệu
+            </span>
+            <span className="text-muted-foreground text-[11px] truncate">
+              Vốn hàng đã nhập
+            </span>
+          </div>
         </CardContent>
       </Card>
 
       {/* 3. Lợi nhuận gộp ước tính */}
-      <Card className="shadow-xs border-border/80">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Lợi Nhuận Gộp (Gross)
+      <Card className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/60 p-1 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-500/40 hover:shadow-md">
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-400" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4 space-y-0">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Lợi Nhuận Gộp
           </CardTitle>
-          <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/40">
-            <TrendingUp className="h-4 w-4" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 ring-1 ring-violet-500/20 shadow-xs">
+            <TrendingUp className="h-4.5 w-4.5" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-foreground">
+        <CardContent className="px-4 pb-4">
+          <div className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground tabular-nums">
             {toVND(grossProfit)}
           </div>
-          <div className="flex items-center text-xs text-purple-600 font-medium mt-1">
-            <span>Tỷ suất biên: <strong>{profitMargin}%</strong></span>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 font-semibold text-violet-600 dark:text-violet-400">
+              Biên LN: {profitMargin}%
+            </span>
+            <span className="text-muted-foreground text-[11px] truncate">
+              Ước tính theo đơn hàng
+            </span>
           </div>
         </CardContent>
       </Card>
 
       {/* 4. Cảnh báo tồn kho */}
-      <Card className="shadow-xs border-border/80">
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Cảnh Báo Kho An Toàn
+      <Card className="relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-card/60 p-1 shadow-xs transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-500/40 hover:shadow-md">
+        <div
+          className={`absolute top-0 inset-x-0 h-1 bg-gradient-to-r ${
+            lowStockCount > 0
+              ? "from-amber-500 via-orange-500 to-amber-400"
+              : "from-emerald-500 via-teal-500 to-emerald-400"
+          }`}
+        />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 pt-4 px-4 space-y-0">
+          <CardTitle className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Cảnh Báo Tồn Kho
           </CardTitle>
           <div
-            className={`p-2 rounded-lg ${
+            className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-xs ring-1 ${
               lowStockCount > 0
-                ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40"
-                : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40"
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20"
+                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 ring-emerald-500/20"
             }`}
           >
             {lowStockCount > 0 ? (
-              <AlertTriangle className="h-4 w-4" />
+              <AlertTriangle className="h-4.5 w-4.5" />
             ) : (
-              <ShieldCheck className="h-4 w-4" />
+              <ShieldCheck className="h-4.5 w-4.5" />
             )}
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 pb-4">
           <div
-            className={`text-2xl font-bold ${
-              lowStockCount > 0 ? "text-amber-600" : "text-emerald-600"
+            className={`text-2xl lg:text-3xl font-bold tracking-tight tabular-nums ${
+              lowStockCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
             }`}
           >
-            {lowStockCount > 0 ? `${lowStockCount} mặt hàng` : "An toàn"}
+            {lowStockCount > 0 ? `${lowStockCount} mặt hàng` : "Đạt định mức"}
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {lowStockCount > 0
-              ? "Cần tạo đơn nhập hoặc sản xuất bù"
-              : "Tất cả mặt hàng đều đạt định mức"}
-          </p>
+          <div className="mt-2.5 flex items-center gap-1.5 text-xs">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
+                lowStockCount > 0
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              }`}
+            >
+              {lowStockCount > 0 ? "Dưới mức tối thiểu" : "Kho an toàn"}
+            </span>
+            <span className="text-muted-foreground text-[11px] truncate">
+              {lowStockCount > 0 ? "Cần bổ sung" : "100% khả dụng"}
+            </span>
+          </div>
         </CardContent>
       </Card>
     </div>
