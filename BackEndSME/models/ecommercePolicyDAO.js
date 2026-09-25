@@ -111,7 +111,8 @@ export class EcommercePolicyDAO {
     custom_policy = null,   // Cho phép người dùng tùy biến % phí
   }) {
     const policies = DEFAULT_ECOMMERCE_POLICIES;
-    const policy = custom_policy || policies[kenh_ban] || policies.shopee;
+    const basePolicy = policies[kenh_ban] || policies.shopee;
+    const policy = custom_policy ? { ...basePolicy, ...custom_policy } : basePolicy;
 
     const listPrice = Math.max(0, Number(gia_niem_yet) || 0);
     const cogs = Math.max(0, Number(gia_von) || 0);

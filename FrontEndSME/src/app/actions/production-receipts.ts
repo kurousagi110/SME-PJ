@@ -320,7 +320,13 @@ export async function fetchProductionNeeds(id: string) {
     }
   );
 
-  const items = Array.isArray(data?.items) ? data.items : [];
+  const items = Array.isArray(data?.data?.items)
+    ? data.data.items
+    : Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data?.data)
+    ? data.data
+    : [];
   const normalized: ProductionNeedItem[] = items.map((x: any) => ({
     nguyen_lieu_id: oid(x?.nguyen_lieu_id),
     ma_nl: x?.ma_nl ?? null,

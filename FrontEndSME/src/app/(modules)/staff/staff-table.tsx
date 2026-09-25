@@ -492,7 +492,9 @@ export function StaffTablePage() {
                 return (
                   <TableRow key={s._id}>
                     <TableCell>{s.ho_ten}</TableCell>
-                    <TableCell>{s.ngay_sinh}</TableCell>
+                    <TableCell>
+                      {s.ngay_sinh ? new Date(s.ngay_sinh).toLocaleDateString("vi-VN") : "-"}
+                    </TableCell>
                     <TableCell>{s.phong_ban?.ten}</TableCell>
                     <TableCell>{s.chuc_vu?.ten}</TableCell>
                     <TableCell className="text-right">
@@ -701,7 +703,11 @@ export function StaffTablePage() {
               </div>
               <div>
                 <label className="font-bold">Ngày sinh: </label>
-                <span>{selectedStaff.ngay_sinh}</span>
+                <span>
+                  {selectedStaff.ngay_sinh
+                    ? new Date(selectedStaff.ngay_sinh).toLocaleDateString("vi-VN")
+                    : "-"}
+                </span>
               </div>
             </div>
           )}

@@ -26,7 +26,9 @@ router.get("/cham-cong",        verifyToken, verifySelfOrAdminByMaNV, LuongContr
 /* ─── DELETE (chỉ admin) ─── */
 router.delete("/cham-cong/:id", verifyToken, verifyAdmin, LuongController.softDeleteChamCong);
 
-/* ─── TÍNH LƯƠNG (chỉ Admin — payroll integrity) ─── */
-router.post("/tinh-luong", verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.tinhLuongThang);
+/* ─── TÍNH LƯƠNG & CHI TRẢ LƯƠNG (chỉ Admin — payroll integrity) ─── */
+router.post("/tinh-luong",              verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.tinhLuongThang);
+router.post("/chi-tra-luong",          verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.chiTraLuongThang);
+router.get("/trang-thai-chi-luong",    verifyToken, verifyAdmin, LuongController.getTrangThaiChiLuong);
 
 export default router;

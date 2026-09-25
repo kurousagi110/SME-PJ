@@ -141,7 +141,10 @@ function normalizeReceipt(doc: any): PurchaseReceipt | null {
   const nguoiLapIdRaw = doc?.nguoi_lap_id;
   const nguoi_lap_id = oid(nguoiLapIdRaw) || undefined;
   const nguoi_lap_ten =
-    pickName(nguoiLapIdRaw) || pickName(doc?.nguoi_lap) || undefined;
+    s(doc?.nguoi_lap_ten) ||
+    pickName(doc?.nguoi_lap) ||
+    (typeof nguoiLapIdRaw === "object" ? pickName(nguoiLapIdRaw) : undefined) ||
+    undefined;
 
   const linesRaw = Array.isArray(doc?.san_pham) ? doc.san_pham : [];
   const san_pham: PurchaseReceiptLine[] = linesRaw
@@ -257,3 +260,19 @@ export async function updatePurchaseReceiptStatus(payload: {
     json: { trang_thai: payload.trang_thai },
   });
 }
+
+/** THANH TOÁN ĐƠN MUA HÀNG (Tạo Phiếu Chi sổ quỹ & gạch nợ NCC) */
+export async function thanhToanDonMuaAction(
+  id: string,
+  payload?: {
+    phuong_thuc?: "chuyen_khoan" | "tien_mat";
+    so_tien?: number;
+    ghi_chu?: string;
+  }
+) {
+  return apiFetch<any>(`/don-hang/${id}/thanh-toan-mua`, {
+    method: "POST",
+    json: payload || {},
+  });
+}
+

@@ -54,8 +54,9 @@ router.post("/:id/discount",     verifyToken, verifyAdmin, DonHangController.app
 router.post("/:id/tax",          verifyToken, verifyAdmin, DonHangController.applyTax);
 router.post("/:id/shipping-fee", verifyToken, verifyAdmin, DonHangController.setShippingFee);
 
-router.post("/:id/payment",  verifyToken, verifyAdmin, DonHangController.updatePayment);
-router.patch("/:id/note",    verifyToken, verifyAdmin, DonHangController.updateNote);
+router.post("/:id/payment",          verifyToken, verifyAdmin, DonHangController.updatePayment);
+router.post("/:id/thanh-toan-mua",   verifyToken, verifyApprover, DonHangController.thanhToanDonMua);
+router.patch("/:id/note",            verifyToken, verifyAdmin, DonHangController.updateNote);
 
 /* ─── TRẠNG THÁI (Approver + Admin — duyệt phiếu) ─── */
 router.patch("/:id/status", verifyToken, verifyApprover, DonHangController.updateStatus);

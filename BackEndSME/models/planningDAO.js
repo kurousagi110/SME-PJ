@@ -582,4 +582,98 @@ export class PlanningDAO {
       },
     };
   }
+
+  /**
+   * 5. CLOSED-LOOP: Tạo Đơn Mua Hàng trực tiếp từ đề xuất MRP
+   */
+  static async taoDonMuaTuMRP({ items = [], nha_cung_cap_ten = "Nhà cung cấp tổng hợp", ghi_chu = "", user = {} }) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Danh sách vật tư đặt hàng không được rỗng");
+    }
+
+    const ids = items.map((i) => {
+      try {
+        return new ObjectId(i.nguyen_lieu_id);
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
+
+    const nlDocs = await nguyen_lieu_col.find({ _id: { $in: ids } }).toArray();
+    const nlMap = new Map(nlDocs.map((n) => [String(n._id), n]));
+
+    const orderLines = [];
+    let tongTien = 0;
+
+    for (const item of items) {
+      const nl = nlMap.get(String(item.nguyen_lieu_id));
+      if (!nl) continue;
+
+      const qty = Math.max(1, Number(item.so_luong) || 1);
+      const unitPrice = Number(item.don_gia) || Number(nl.gia_nhap) || 0;
+      const thanhTien = qty * unitPrice;
+      tongTien += thanhTien;
+
+      orderLines.push({
+        loai_hang: "nguyen_lieu",
+        nguyen_lieu_id: nl._id,
+        ma_nl: nl.ma_nl,
+        ten_nl: nl.ten_nl,
+        don_vi: nl.don_vi || "kg",
+        so_luong: qty,
+        don_gia: unitPrice,
+        thanh_tien: thanhTien,
+      });
+    }
+
+    if (orderLines.length === 0) {
+      throw new Error("Không tìm thấy nguyên liệu hợp lệ để tạo đơn mua");
+    }
+
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ma_dh = `PO-${ymd}-${randCode}`;
+
+    const poDoc = {
+      ma_dh,
+      loai_don: ORDER_TYPE.PURCHASE_RECEIPT,
+      trang_thai: STATUS.DRAFT,
+      nha_cung_cap_ten: nha_cung_cap_ten || "Nhà cung cấp tổng hợp",
+      san_pham: orderLines,
+      tong_tien: tongTien,
+      phi_van_chuyen: 0,
+      thue_rate: 0,
+      giam_gia: 0,
+      thanh_toan: {
+        status: "unpaid",
+        phuong_thuc: "chuyen_khoan",
+        so_tien_da_tra: 0,
+      },
+      ghi_chu: ghi_chu || `Đơn đặt hàng tạo tự động từ tính toán MRP ngày ${ymd}`,
+      nguoi_lap_id: user._id ? new ObjectId(user._id) : null,
+      nguoi_lap_ten: user.ho_ten || user.tai_khoan || "Demand Planner",
+      created_at: now,
+      updated_at: now,
+      lich_su: [
+        {
+          hanh_dong: "create",
+          to: STATUS.DRAFT,
+          at: now,
+          by: user._id ? new ObjectId(user._id) : null,
+          note: "Tạo đơn mua hàng tự động từ kế hoạch MRP",
+        },
+      ],
+    };
+
+    const res = await don_hang_col.insertOne(poDoc);
+    return {
+      success: true,
+      insertedId: res.insertedId,
+      ma_dh,
+      tong_tien: tongTien,
+      so_mat_hang: orderLines.length,
+      doc: poDoc,
+    };
+  }
 }

@@ -10,6 +10,7 @@ import { performedByOf } from "../utils/auditIdentity.js";
 import ApiError from "../utils/ApiError.js";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "../models/soQuyDAO.js";
+import DoiTacDAO from "../models/doiTacDAO.js";
 
 export default class DonHangController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
@@ -80,6 +81,27 @@ export default class DonHangController {
       });
     } catch (e) {
       logger.warn("Auto create POS receipt in so_quy warning", { error: e.message });
+    }
+
+    // 4.1 Auto-link or create customer in Mini CRM if phone provided
+    if (so_dien_thoai && so_dien_thoai.trim()) {
+      try {
+        const cleanPhone = so_dien_thoai.trim();
+        const existingPartner = await DoiTacDAO.timTheoSDT(cleanPhone);
+        if (!existingPartner) {
+          await DoiTacDAO.taoDoiTac({
+            ten: khach_hang_ten || "Khách lẻ tại quầy",
+            so_dien_thoai: cleanPhone,
+            loai_doi_tac: "khach_hang",
+            nhom: "khach_le",
+            dia_chi: "",
+            ghi_chu: `Khách hàng tự động tạo từ quầy POS (${ma_dh})`,
+            user: req.user,
+          });
+        }
+      } catch (crmErr) {
+        logger.warn("Auto create CRM partner in POS warning", { error: crmErr.message });
+      }
     }
 
     const payload = { type: "SALE_COMPLETED", id: orderId, loai: "sale", created_by: performedBy };
@@ -190,6 +212,65 @@ export default class DonHangController {
   static updatePayment = asyncHandler(async (req, res) => {
     const data = await DonHangService.updatePayment(req.params.id, req.body || {});
     return sendSuccess(res, data, "Cập nhật thanh toán thành công");
+  });
+
+  /* ─── THANH TOÁN ĐƠN MUA HÀNG & TỰ ĐỘNG TẠO PHIẾU CHI (Closed-loop) ─── */
+  static thanhToanDonMua = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { phuong_thuc = "chuyen_khoan", ghi_chu = "", so_tien } = req.body || {};
+
+    const order = await DonHangService.getById(id);
+    if (!order) throw ApiError.notFound("Không tìm thấy đơn mua hàng");
+
+    const payAmount = Number(so_tien) || order.tong_tien || 0;
+    if (payAmount <= 0) {
+      throw ApiError.badRequest("Số tiền thanh toán phải > 0");
+    }
+
+    const nccTen = order.nha_cung_cap_ten || order.nha_cung_cap?.ten || "Nhà cung cấp";
+    const ma_dh = order.ma_dh || id;
+
+    // 1. Tạo Phiếu Chi trong sổ quỹ
+    let phieuChi = null;
+    try {
+      phieuChi = await SoQuyDAO.taoPhieu({
+        loai_phieu: "chi",
+        hang_muc: "chi_tien_mua_hang",
+        so_tien: payAmount,
+        phuong_thuc: phuong_thuc === "tien_mat" ? "tien_mat" : "chuyen_khoan",
+        doi_tuong: {
+          loai: "nha_cung_cap",
+          ten: nccTen,
+          so_dien_thoai: order.nha_cung_cap?.so_dien_thoai || "",
+          dia_chi: order.nha_cung_cap?.dia_chi || "",
+        },
+        ma_chung_tu: ma_dh,
+        ghi_chu: ghi_chu || `Thanh toán tiền mua hàng đơn ${ma_dh}`,
+        user: req.user,
+      });
+    } catch (e) {
+      logger.error("Tao phieu chi so_quy loi", { error: e.message });
+      throw ApiError.internal("Không thể tạo phiếu chi sổ quỹ: " + e.message);
+    }
+
+    // 2. Cập nhật trạng thái thanh toán trên đơn mua hàng
+    await DonHangService.updatePayment(id, {
+      status: "paid",
+      phuong_thuc,
+      so_tien_da_tra: payAmount,
+      ngay_thanh_toan: new Date(),
+      ma_phieu_chi: phieuChi?.doc?.ma_phieu || "",
+    });
+
+    const performedBy = performedByOf(req);
+    logAction("PAYMENT", "purchase_receipt", id, `Thanh toán đơn mua ${ma_dh}: ${payAmount} đ`, performedBy, req.ip);
+
+    return sendSuccess(res, {
+      order_id: id,
+      ma_dh,
+      so_tien_da_tra: payAmount,
+      phieu_chi: phieuChi?.doc,
+    }, "Thanh toán đơn mua hàng và tạo phiếu chi thành công");
   });
 
   static updateNote = asyncHandler(async (req, res) => {

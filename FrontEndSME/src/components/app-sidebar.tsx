@@ -212,7 +212,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       name: profile?.ho_ten || "...",
       chuc_vu: profile?.chuc_vu?.ten || "...",
       phong_ban: profile?.phong_ban?.ten || "...",
-      avatar: "/avatars/shadcn.jpg",
+      avatar: (profile as any)?.avatar || "",
     },
     navGroups,
   };

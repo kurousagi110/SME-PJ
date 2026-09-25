@@ -1,0 +1,40 @@
+name: SME ERP - Continuous Deployment (CD)
+
+on:
+  workflow_run:
+    workflows: [ "SME ERP - Continuous Integration (CI)" ]
+    types: [ completed ]
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    # Only run deploy if the preceding CI workflow succeeded
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          timeout: 600s
+          script: |
+            set -e
+            DEPLOY_DIR="${{ secrets.DEPLOY_PATH || '/app/SME' }}"
+            echo "Navigating to deployment directory: $DEPLOY_DIR"
+            cd "$DEPLOY_DIR"
+
+            echo "Ensuring deploy script is executable..."
+            chmod +x deploy.sh
+
+            echo "Executing deploy script..."
+            ./deploy.sh

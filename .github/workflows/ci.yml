@@ -1,0 +1,103 @@
+name: SME ERP - Continuous Integration (CI)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── 1. Backend Lint & Syntax Verification ───
+  backend-ci:
+    name: Backend CI (Express & DAOs)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BackEndSME
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: BackEndSME/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify JavaScript syntax
+        run: |
+          echo "Checking syntax across key backend entry points..."
+          node --check index.js
+          node --check server.js
+          node --check seed.js
+
+      - name: Run Backend Tests (if present)
+        run: npm test --if-present
+
+  # ─── 2. Frontend Build Verification (Next.js) ───
+  frontend-ci:
+    name: Frontend CI (Next.js 16)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FrontEndSME
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: FrontEndSME/package-lock.json
+
+      - name: Cache Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: FrontEndSME/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('FrontEndSME/package-lock.json') }}-${{ hashFiles('FrontEndSME/src/**/*.[jt]s*', 'FrontEndSME/src/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('FrontEndSME/package-lock.json') }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js app (Typecheck & Compilation)
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          NODE_ENV: production
+          NEXT_PUBLIC_API_URL: /api/v1
+
+  # ─── 3. Docker Compose & Nginx Configuration Validation ───
+  infra-validation:
+    name: Infra & Docker Config Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml syntax
+        run: |
+          docker compose config --quiet
+          echo "docker-compose.yml syntax is valid."
+
+      - name: Validate Nginx configuration
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro" \
+            nginx:alpine nginx -t
+          echo "Nginx configuration syntax is valid."

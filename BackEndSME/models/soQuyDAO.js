@@ -37,6 +37,7 @@ export default class SoQuyDAO {
     try {
       await soQuyCol.createIndex({ ma_phieu: 1 }, { unique: true });
       await soQuyCol.createIndex({ loai_phieu: 1, ngay_ghi_nhan: -1 });
+      await soQuyCol.createIndex({ trang_thai: 1, ngay_ghi_nhan: -1 });
       await soQuyCol.createIndex({ ma_chung_tu: 1 });
       await soQuyCol.createIndex({ trang_thai: 1 });
     } catch (err) {

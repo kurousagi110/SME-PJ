@@ -43,6 +43,8 @@ export async function injectIndexes(db) {
   await don_hang.createIndex({ loai_don: 1 });
   await don_hang.createIndex({ trang_thai: 1 });
   await don_hang.createIndex({ created_at: -1 });
+  await don_hang.createIndex({ loai_don: 1, trang_thai: 1, created_at: -1 });
+  await don_hang.createIndex({ trang_thai: 1, created_at: -1 });
   await don_hang.createIndex({ khach_hang_ten: 1 });
   await don_hang.createIndex({ nha_cung_cap_ten: 1 });
   await don_hang.createIndex({ nguoi_lap_id: 1 });

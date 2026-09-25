@@ -34,6 +34,7 @@ export default class DoiTacDAO {
     try {
       await doiTacCol.createIndex({ ma_doi_tac: 1 }, { unique: true });
       await doiTacCol.createIndex({ loai_doi_tac: 1, ten: 1 });
+      await doiTacCol.createIndex({ loai_doi_tac: 1, trang_thai: 1 });
       await doiTacCol.createIndex({ so_dien_thoai: 1 });
       await doiTacCol.createIndex({ trang_thai: 1 });
     } catch (err) {
@@ -84,6 +85,14 @@ export default class DoiTacDAO {
     }
   }
 
+  static async timTheoSDT(sdt) {
+    if (!sdt || !doiTacCol) return null;
+    return await doiTacCol.findOne({
+      so_dien_thoai: String(sdt).trim(),
+      trang_thai: { $ne: STATUS.INACTIVE },
+    });
+  }
+
   static async layDanhSachDoiTac({
     loai_doi_tac,
     nhom,
@@ -124,54 +133,79 @@ export default class DoiTacDAO {
         doiTacCol.countDocuments(filter),
       ]);
 
-      // Aggregate orders and payments for each partner
-      const items = await Promise.all(
-        partners.map(async (p) => {
-          const isCustomer = p.loai_doi_tac === LOAI_DOI_TAC.KHACH_HANG || p.loai_doi_tac === LOAI_DOI_TAC.CA_HAI;
-          const orderFilter = isCustomer
-            ? {
-                loai_don: "sale",
-                $or: [{ khach_hang_ten: p.ten }, { "khach_hang.ten": p.ten }],
-                trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
-              }
-            : {
-                loai_don: "purchase_receipt",
-                $or: [{ nha_cung_cap_ten: p.ten }, { "nha_cung_cap.ten": p.ten }],
-                trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
-              };
+      // Batch aggregate orders and payments for all partners on this page (avoids N+1 query)
+      const partnerNames = partners.map((p) => p.ten).filter(Boolean);
+      const allOrders = partnerNames.length > 0
+        ? await donHangCol
+            .find({
+              $or: [
+                { khach_hang_ten: { $in: partnerNames } },
+                { "khach_hang.ten": { $in: partnerNames } },
+                { nha_cung_cap_ten: { $in: partnerNames } },
+                { "nha_cung_cap.ten": { $in: partnerNames } },
+              ],
+              trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+            })
+            .toArray()
+        : [];
 
-          const orders = await donHangCol.find(orderFilter).toArray();
-          const tong_don = orders.length;
-          const tong_gia_tri = orders.reduce((sum, o) => sum + (Number(o.tong_tien) || 0), 0);
+      const allOrderCodes = allOrders.map((o) => o.ma_dh).filter(Boolean);
+      const allReceipts = allOrderCodes.length > 0
+        ? await soQuyCol
+            .find({ ma_chung_tu: { $in: allOrderCodes }, trang_thai: "active" })
+            .toArray()
+        : [];
 
-          // Get payments for those orders
-          const orderCodes = orders.map((o) => o.ma_dh).filter(Boolean);
-          let da_thanh_toan = 0;
-          if (orderCodes.length > 0) {
-            const receipts = await soQuyCol
-              .find({ ma_chung_tu: { $in: orderCodes }, trang_thai: "active" })
-              .toArray();
-            da_thanh_toan = receipts.reduce((sum, r) => sum + (Number(r.so_tien) || 0), 0);
+      const receiptSumByOrder = new Map();
+      for (const r of allReceipts) {
+        if (!r.ma_chung_tu) continue;
+        const current = receiptSumByOrder.get(r.ma_chung_tu) || 0;
+        receiptSumByOrder.set(r.ma_chung_tu, current + (Number(r.so_tien) || 0));
+      }
+
+      const ordersByCustomer = new Map();
+      const ordersBySupplier = new Map();
+      for (const o of allOrders) {
+        const custName = o.khach_hang_ten || o.khach_hang?.ten;
+        const suppName = o.nha_cung_cap_ten || o.nha_cung_cap?.ten;
+        if (o.loai_don === "sale" && custName) {
+          if (!ordersByCustomer.has(custName)) ordersByCustomer.set(custName, []);
+          ordersByCustomer.get(custName).push(o);
+        } else if (o.loai_don === "purchase_receipt" && suppName) {
+          if (!ordersBySupplier.has(suppName)) ordersBySupplier.set(suppName, []);
+          ordersBySupplier.get(suppName).push(o);
+        }
+      }
+
+      const items = partners.map((p) => {
+        const isCustomer = p.loai_doi_tac === LOAI_DOI_TAC.KHACH_HANG || p.loai_doi_tac === LOAI_DOI_TAC.CA_HAI;
+        const orders = isCustomer
+          ? (ordersByCustomer.get(p.ten) || [])
+          : (ordersBySupplier.get(p.ten) || []);
+
+        const tong_don = orders.length;
+        const tong_gia_tri = orders.reduce((sum, o) => sum + (Number(o.tong_tien) || 0), 0);
+
+        let da_thanh_toan = 0;
+        for (const o of orders) {
+          const recAmount = o.ma_dh ? (receiptSumByOrder.get(o.ma_dh) || 0) : 0;
+          if (recAmount > 0) {
+            da_thanh_toan += recAmount;
+          } else if (o.trang_thai === "paid") {
+            da_thanh_toan += Number(o.tong_tien) || 0;
           }
+        }
 
-          // If orders had 'paid' status directly, treat as paid
-          for (const o of orders) {
-            if (o.trang_thai === "paid" && da_thanh_toan === 0) {
-              da_thanh_toan += Number(o.tong_tien) || 0;
-            }
-          }
+        const cong_no = Math.max(0, tong_gia_tri - da_thanh_toan);
 
-          const cong_no = Math.max(0, tong_gia_tri - da_thanh_toan);
-
-          return {
-            ...p,
-            tong_don,
-            tong_gia_tri,
-            da_thanh_toan,
-            cong_no,
-          };
-        })
-      );
+        return {
+          ...p,
+          tong_don,
+          tong_gia_tri,
+          da_thanh_toan,
+          cong_no,
+        };
+      });
 
       return {
         ok: true,

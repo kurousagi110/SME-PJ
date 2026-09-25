@@ -13,6 +13,8 @@ import {
   AlertCircle,
   FileSpreadsheet,
   Calendar,
+  CheckCircle2,
+  CreditCard,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,7 +37,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { calculatePayrollAction } from "@/app/actions/payroll";
+import {
+  calculatePayrollAction,
+  chiTraLuongAction,
+  fetchTrangThaiChiLuongAction,
+} from "@/app/actions/payroll";
 import { exportToCSV } from "@/lib/export";
 import { useStaffList } from "@/hooks/use-staff";
 
@@ -70,10 +76,50 @@ export default function PayrollPage() {
   const [penalty, setPenalty] = React.useState<string>("0");
 
   const [payrollResult, setPayrollResult] = React.useState<PayrollItem[]>([]);
+  const [payStatus, setPayStatus] = React.useState<{ da_chi: boolean; phieu_chi?: any } | null>(null);
 
   // Fetch staff for dropdown
   const { data: staffData } = useStaffList({ page: 1, limit: 100 });
   const staffList = (staffData?.data || []) as any[];
+
+  // Check payment status whenever month/year change
+  const checkStatus = React.useCallback(async (m: number, y: number) => {
+    try {
+      const res = await fetchTrangThaiChiLuongAction(m, y);
+      if (res.success && res.data) {
+        setPayStatus(res.data);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  React.useEffect(() => {
+    checkStatus(month, year);
+  }, [month, year, checkStatus]);
+
+  // Mutation to pay salary
+  const payMutation = useMutation({
+    mutationFn: async () => {
+      const res = await chiTraLuongAction({
+        thang: Number(month),
+        nam: Number(year),
+        phuong_thuc: "tien_mat",
+        ghi_chu: `Chi trả lương kỳ Tháng ${month}/${year} cho toàn bộ nhân sự`,
+      });
+      if (!res.success) {
+        throw new Error(res.error || "Chi trả lương thất bại");
+      }
+      return res.data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(`Đã chi trả lương thành công! Mã phiếu chi: ${data?.phieu_chi?.ma_phieu || ""}`);
+      setPayStatus({ da_chi: true, phieu_chi: data?.phieu_chi });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Chi trả lương thất bại");
+    },
+  });
 
   // Mutation to calculate payroll
   const calculateMutation = useMutation({
@@ -271,6 +317,34 @@ export default function PayrollPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {payStatus?.da_chi ? (
+            <Badge
+              variant="outline"
+              className="bg-emerald-50 text-emerald-700 border-emerald-300 py-1.5 px-3 flex items-center gap-1.5 font-medium"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              Đã chi lương ({toVND(payStatus.phieu_chi?.so_tien || totalPayroll)})
+            </Badge>
+          ) : (
+            <Button
+              variant="default"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              disabled={payrollResult.length === 0 || payMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Xác nhận duyệt và xuất phiếu chi trả lương ${toVND(totalPayroll)} cho Tháng ${month}/${year}? Hệ thống sẽ tự động ghi sổ quỹ chi tiền.`
+                  )
+                ) {
+                  payMutation.mutate();
+                }
+              }}
+            >
+              <CreditCard className="mr-2 h-4 w-4" />
+              {payMutation.isPending ? "Đang xử lý..." : "Duyệt & Chi Trả Lương"}
+            </Button>
+          )}
+
           <Button
             variant="outline"
             disabled={payrollResult.length === 0}

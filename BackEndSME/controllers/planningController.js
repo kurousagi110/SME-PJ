@@ -76,4 +76,16 @@ export default class PlanningController {
     const data = await EcommercePolicyDAO.getProductPricingMatrix();
     return sendSuccess(res, data, "Lấy ma trận giá bán TMĐT thành công");
   });
+
+  /* ── 1-Click PO Creation from MRP (Closed-loop) ───────────────────────── */
+  static taoDonMuaTuMRP = asyncHandler(async (req, res) => {
+    const { items, nha_cung_cap_ten, ghi_chu } = req.body || {};
+    const result = await PlanningDAO.taoDonMuaTuMRP({
+      items,
+      nha_cung_cap_ten,
+      ghi_chu,
+      user: req.user,
+    });
+    return sendSuccess(res, result, "Tạo đơn mua hàng từ MRP thành công", 201);
+  });
 }

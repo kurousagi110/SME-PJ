@@ -38,6 +38,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconBrandShopee,
+  IconShoppingCart,
 } from "@tabler/icons-react";
 import {
   BarChart,
@@ -53,6 +54,7 @@ import {
   fetchMRPAction,
   fetchABCAction,
   fetchAlertsAction,
+  taoDonMuaTuMRPAction,
   type ForecastItem,
   type MRPItem,
   type ABCItem,
@@ -335,6 +337,8 @@ function MRPTab() {
   const [items, setItems] = useState<MRPItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingPO, setCreatingPO] = useState(false);
+  const [poResult, setPoResult] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -350,6 +354,30 @@ function MRPTab() {
   const totalChi = items.reduce((s, i) => s + i.du_kien_chi, 0);
   const canNhapItems = items.filter((i) => !i.da_du);
   const duItems = items.filter((i) => i.da_du);
+
+  const handleCreatePO = async () => {
+    if (!canNhapItems.length) return;
+    setCreatingPO(true);
+    setPoResult(null);
+    setError(null);
+    const payloadItems = canNhapItems.map((item) => ({
+      nguyen_lieu_id: item.nguyen_lieu_id,
+      so_luong: item.can_nhap,
+      don_gia: item.gia_nhap,
+    }));
+    const res = await taoDonMuaTuMRPAction({
+      items: payloadItems,
+      nha_cung_cap_ten: "Nhà cung cấp tổng hợp",
+      ghi_chu: `Đơn mua vật tư tự động từ kế hoạch MRP (${canNhapItems.length} mặt hàng)`,
+    });
+    setCreatingPO(false);
+    if (res.success) {
+      setPoResult(`Đã tạo thành công đơn mua hàng mã ${res.data?.ma_dh || "PO"}`);
+      load();
+    } else {
+      setError(res.error || "Không thể tạo đơn mua hàng");
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -378,13 +406,34 @@ function MRPTab() {
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-base">Kế Hoạch Nguyên Vật Liệu (MRP)</CardTitle>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <IconRefresh size={14} className={loading ? "animate-spin" : ""} />
-            Làm mới
-          </Button>
+          <div className="flex items-center gap-2">
+            {canNhapItems.length > 0 && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1"
+                onClick={handleCreatePO}
+                disabled={creatingPO || loading}
+              >
+                <IconShoppingCart size={14} />
+                {creatingPO ? "Đang tạo..." : `Tạo Đơn Mua Hàng (${canNhapItems.length} mục thiếu)`}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+              <IconRefresh size={14} className={loading ? "animate-spin" : ""} />
+              Làm mới
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {error && <div className="text-red-600 p-4 text-sm">{error}</div>}
+          {poResult && (
+            <div className="mx-4 my-2 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-md text-sm flex items-center justify-between">
+              <span>✅ {poResult}</span>
+              <a href="/material/orders" className="underline font-medium text-emerald-900">
+                Xem danh sách đơn mua &rarr;
+              </a>
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>

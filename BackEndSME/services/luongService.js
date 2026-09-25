@@ -74,4 +74,21 @@ export default class LuongService {
     this._daoError(result, "Tính lương tháng thất bại", "TINH_LUONG_FAILED");
     return result;
   }
+
+  /* ─── CHI TRẢ LƯƠNG THÁNG (Closed-loop) ─── */
+  static async chiTraLuongThang({ thang, nam, phuong_thuc, ghi_chu, user }) {
+    if (!thang || !nam) {
+      throw ApiError.badRequest("Thiếu thang / nam", "VALIDATION_ERROR");
+    }
+    const result = await LuongDAO.chiTraLuongThang({ thang, nam, phuong_thuc, ghi_chu, user });
+    this._daoError(result, "Chi trả lương tháng thất bại", "PAY_SALARY_FAILED");
+    return result;
+  }
+
+  static async trangThaiChiLuong(thang, nam) {
+    if (!thang || !nam) {
+      throw ApiError.badRequest("Thiếu thang / nam", "VALIDATION_ERROR");
+    }
+    return await LuongDAO.kiemTraTrangThaiChiLuong(thang, nam);
+  }
 }

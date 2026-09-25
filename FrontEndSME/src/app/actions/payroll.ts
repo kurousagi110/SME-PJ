@@ -43,3 +43,26 @@ export async function fetchAttendanceListAction(params?: {
     throw new Error(err?.message || "Lấy danh sách chấm công thất bại");
   }
 }
+
+export async function chiTraLuongAction(payload: {
+  thang: number;
+  nam: number;
+  phuong_thuc?: "chuyen_khoan" | "tien_mat";
+  ghi_chu?: string;
+}) {
+  try {
+    const res: any = await http.post("/luong/chi-tra-luong", payload);
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.response?.data?.message || err?.message || "Chi trả lương thất bại" };
+  }
+}
+
+export async function fetchTrangThaiChiLuongAction(thang: number, nam: number) {
+  try {
+    const res: any = await http.get(`/luong/trang-thai-chi-luong?thang=${thang}&nam=${nam}`);
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message };
+  }
+}

@@ -32,12 +32,12 @@ export function DataTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[220px]">Header</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Target</TableHead>
-            <TableHead className="text-right">Limit</TableHead>
-            <TableHead>Reviewer</TableHead>
+            <TableHead className="w-[200px]">Mã chứng từ</TableHead>
+            <TableHead>Loại đơn</TableHead>
+            <TableHead>Trạng thái</TableHead>
+            <TableHead className="text-right">Tổng tiền</TableHead>
+            <TableHead className="text-right">Số món</TableHead>
+            <TableHead>Đối tác / Người lập</TableHead>
           </TableRow>
         </TableHeader>
 

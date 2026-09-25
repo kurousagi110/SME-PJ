@@ -4,6 +4,8 @@ import { sanitizeNumber } from "../utils/number.js";
 
 let luongCol;
 let usersCol;
+let soQuyCol;
+let bangLuongChotCol;
 
 const STATUS = {
   ACTIVE: "active",
@@ -13,18 +15,21 @@ const STATUS = {
 
 export default class LuongDAO {
   static async injectDB(conn) {
-    if (luongCol && usersCol) return;
+    if (luongCol && usersCol && soQuyCol) return;
     const dbName = process.env.SME_DB_NAME || process.env.DB_NAME;
     if (!dbName) throw new Error("LuongDAO.injectDB: missing SME_DB_NAME env var");
     try {
       const db = conn.db(dbName);
       luongCol = db.collection("luong");
       usersCol = db.collection("users");
+      soQuyCol = db.collection("so_quy");
+      bangLuongChotCol = db.collection("bang_luong_chot");
 
       await luongCol.createIndex({ ma_nv: 1, ngay_thang: 1 }, { unique: true });
       await luongCol.createIndex({ user_id: 1, ngay_thang: 1 });
       await luongCol.createIndex({ trang_thai: 1 });
       await luongCol.createIndex({ ngay_thang: 1 }); // ✅ hỗ trợ query theo ngày
+      await bangLuongChotCol.createIndex({ ma_chung_tu: 1 }, { unique: true });
     } catch (e) {
       logger.error("Unable to establish collection handles in LuongDAO", { error: e.message });
     }
@@ -330,21 +335,23 @@ export default class LuongDAO {
 
       if (!chamCongsRaw.length) return { ok: true, thang: thangNum, nam: namNum, items: [] };
 
-      // Batch fetch employees (try ObjectId first, fallback ma_nv string)
+      // Batch fetch employees (try ObjectId first, fallback ma_nv / tai_khoan string)
       const maNVs = chamCongsRaw.map(r => r._id);
       const oids  = maNVs.map(id => { try { return new ObjectId(String(id)); } catch { return null; } }).filter(Boolean);
       const nhanVienDocs = await usersCol.find(
         { $or: [
           ...(oids.length ? [{ _id: { $in: oids } }] : []),
           { ma_nv: { $in: maNVs } },
+          { tai_khoan: { $in: maNVs } },
         ] },
-        { projection: { ho_ten: 1, chuc_vu: 1, phong_ban: 1, ma_nv: 1 } }
+        { projection: { ho_ten: 1, chuc_vu: 1, phong_ban: 1, ma_nv: 1, tai_khoan: 1 } }
       ).toArray();
 
       const nvMap = new Map();
       for (const nv of nhanVienDocs) {
         nvMap.set(nv._id.toString(), nv);
         if (nv.ma_nv) nvMap.set(String(nv.ma_nv), nv);
+        if (nv.tai_khoan) nvMap.set(String(nv.tai_khoan), nv);
       }
 
       const GIO_TIEU_CHUAN = 160; // 8h × 20 ngày công chuẩn/tháng
@@ -393,5 +400,127 @@ export default class LuongDAO {
       logger.error("tinhLuongThang error", { error: e.message });
       return { error: e };
     }
+  }
+
+  /**
+   * CLOSED-LOOP: Duyệt & chi trả lương tháng tự động tạo Phiếu Chi trong Sổ Quỹ
+   */
+  static async chiTraLuongThang({ thang, nam, phuong_thuc = "chuyen_khoan", ghi_chu = "", user = {} }) {
+    try {
+      const thangNum = Number(thang);
+      const namNum = Number(nam);
+      if (!thangNum || !namNum) throw new Error("Thiếu thang hoặc nam");
+
+      // 1. Tính toán bảng lương tháng
+      const payroll = await this.tinhLuongThang({ thang: thangNum, nam: namNum });
+      if (payroll.error) throw payroll.error;
+
+      const items = payroll.items || [];
+      if (items.length === 0) {
+        throw new Error(`Không có dữ liệu chấm công / lương để chi trả cho tháng ${thangNum}/${namNum}`);
+      }
+
+      const tongThucLinh = items.reduce((s, it) => s + (Number(it.luong_thuc_nhan) || 0), 0);
+      if (tongThucLinh <= 0) {
+        throw new Error("Tổng quỹ lương chi trả phải > 0");
+      }
+
+      const ma_chung_tu = `BL-${namNum}-${String(thangNum).padStart(2, "0")}`;
+
+      // 2. Kiểm tra xem đã có phiếu chi lương cho tháng này chưa
+      const existedVoucher = await soQuyCol.findOne({
+        ma_chung_tu,
+        hang_muc: "chi_luong_nhan_vien",
+        trang_thai: "active",
+      });
+      if (existedVoucher) {
+        throw new Error(`Lương tháng ${thangNum}/${namNum} đã được chi trả trước đó (Mã phiếu: ${existedVoucher.ma_phieu})`);
+      }
+
+      // 3. Tạo Phiếu Chi trong sổ quỹ
+      const d = new Date();
+      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const ma_phieu = `PC-${ymd}-${randCode}`;
+
+      const voucherDoc = {
+        ma_phieu,
+        loai_phieu: "chi",
+        hang_muc: "chi_luong_nhan_vien",
+        so_tien: tongThucLinh,
+        phuong_thuc: phuong_thuc === "tien_mat" ? "tien_mat" : "chuyen_khoan",
+        doi_tuong: {
+          loai: "nhan_vien",
+          ten: "Toàn thể nhân sự công ty",
+          so_dien_thoai: "",
+          dia_chi: "",
+        },
+        ma_chung_tu,
+        ngay_ghi_nhan: d,
+        ghi_chu: ghi_chu || `Chi trả lương tháng ${thangNum}/${namNum} (${items.length} nhân sự)`,
+        nguoi_lap: {
+          tai_khoan: user.tai_khoan || "admin",
+          ten: user.ho_ten || "Ban Giám Đốc",
+        },
+        trang_thai: "active",
+        created_at: d,
+        updated_at: d,
+      };
+
+      await soQuyCol.insertOne(voucherDoc);
+
+      // 4. Lưu log chốt lương
+      await bangLuongChotCol.updateOne(
+        { ma_chung_tu },
+        {
+          $set: {
+            ma_chung_tu,
+            thang: thangNum,
+            nam: namNum,
+            tong_nhan_su: items.length,
+            tong_thuc_linh: tongThucLinh,
+            ma_phieu_chi: ma_phieu,
+            phuong_thuc,
+            da_chi_tra: true,
+            ngay_chi_tra: d,
+            nguoi_duyet: user.ho_ten || user.tai_khoan || "Admin",
+            updated_at: d,
+          },
+        },
+        { upsert: true }
+      );
+
+      logger.info(`[LuongDAO] Đã chi trả lương tháng ${thangNum}/${namNum}: ${tongThucLinh} đ (Phiếu: ${ma_phieu})`);
+
+      return {
+        ok: true,
+        message: `Đã duyệt và chi trả lương tháng ${thangNum}/${namNum} thành công`,
+        ma_chung_tu,
+        ma_phieu,
+        tong_thuc_linh: tongThucLinh,
+        tong_nhan_su: items.length,
+        phieu_chi: voucherDoc,
+      };
+    } catch (e) {
+      logger.error("chiTraLuongThang error", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  static async kiemTraTrangThaiChiLuong(thang, nam) {
+    if (!soQuyCol) return { da_chi: false, da_chi_tra: false };
+    const ma_chung_tu = `BL-${Number(nam)}-${String(Number(thang)).padStart(2, "0")}`;
+    const voucher = await soQuyCol.findOne({
+      ma_chung_tu,
+      hang_muc: "chi_luong_nhan_vien",
+      trang_thai: "active",
+    });
+    return {
+      da_chi: !!voucher,
+      da_chi_tra: !!voucher,
+      ma_phieu: voucher?.ma_phieu || null,
+      ngay_chi_tra: voucher?.ngay_ghi_nhan || null,
+      so_tien: voucher?.so_tien || null,
+    };
   }
 }

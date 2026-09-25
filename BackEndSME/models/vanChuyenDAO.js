@@ -19,6 +19,7 @@ export const DON_VI_VAN_CHUYEN = {
 
 let vanChuyenCol = null;
 let donHangCol = null;
+let soQuyCol = null;
 
 function genWaybillCode(dv = "GHN") {
   const d = new Date();
@@ -35,6 +36,7 @@ export default class VanChuyenDAO {
     const db = conn.db(dbName);
     vanChuyenCol = db.collection("van_chuyen");
     donHangCol = db.collection("don_hang");
+    soQuyCol = db.collection("so_quy");
 
     try {
       await vanChuyenCol.createIndex({ ma_van_don: 1 }, { unique: true });
@@ -305,8 +307,21 @@ export default class VanChuyenDAO {
         $push: { lich_su_trang_thai: historyItem },
       });
 
-      // Cập nhật trạng thái vận chuyển trên đơn hàng
+      // Cập nhật trạng thái vận chuyển trên đơn hàng + tự động chốt đơn bán & thu COD
       if (existing.ma_don_hang && donHangCol) {
+        const isDelivered = trang_thai === TRANG_THAI_VAN_CHUYEN.GIAO_THANH_CONG;
+        const orderUpdate = {
+          trang_thai_van_chuyen: trang_thai,
+          updated_at: now,
+        };
+
+        if (isDelivered) {
+          orderUpdate.trang_thai = "completed";
+          orderUpdate["thanh_toan.status"] = "paid";
+          orderUpdate["thanh_toan.phuong_thuc"] = "cod";
+          orderUpdate["thanh_toan.ngay_thanh_toan"] = now;
+        }
+
         await donHangCol.updateOne(
           {
             $or: [
@@ -314,13 +329,53 @@ export default class VanChuyenDAO {
               ...(ObjectId.isValid(existing.ma_don_hang) ? [{ _id: new ObjectId(existing.ma_don_hang) }] : []),
             ],
           },
-          {
-            $set: {
-              trang_thai_van_chuyen: trang_thai,
-              updated_at: now,
-            },
-          }
+          { $set: orderUpdate }
         );
+
+        // Tự động sinh Phiếu Thu tiền COD vào Sổ Quỹ (nếu có thu hộ COD và chưa có phiếu)
+        if (isDelivered && Number(existing.tien_thu_ho_cod) > 0 && soQuyCol) {
+          try {
+            const existingReceipt = await soQuyCol.findOne({
+              ma_chung_tu: existing.ma_don_hang,
+              hang_muc: { $in: ["thu_ho_cod", "thu_tien_ban_hang"] },
+              trang_thai: "active",
+            });
+
+            if (!existingReceipt) {
+              const prefix = "PT";
+              const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+              const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+              const ma_phieu = `${prefix}-${ymd}-${randCode}`;
+
+              await soQuyCol.insertOne({
+                ma_phieu,
+                loai_phieu: "thu",
+                hang_muc: "thu_ho_cod",
+                so_tien: Number(existing.tien_thu_ho_cod),
+                phuong_thuc: "chuyen_khoan",
+                doi_tuong: {
+                  loai: "doi_tac_van_chuyen",
+                  ten: existing.don_vi_van_chuyen || "Đơn vị vận chuyển",
+                  so_dien_thoai: existing.nguoi_nhan?.sdt || "",
+                  dia_chi: existing.nguoi_nhan?.dia_chi || "",
+                },
+                ma_chung_tu: existing.ma_don_hang,
+                ngay_ghi_nhan: now,
+                ghi_chu: `Đối soát COD vận đơn ${existing.ma_van_don} - đơn hàng ${existing.ma_don_hang}`,
+                nguoi_lap: {
+                  tai_khoan: user.tai_khoan || "system",
+                  ten: user.ho_ten || "Hệ thống tự động",
+                },
+                trang_thai: "active",
+                created_at: now,
+                updated_at: now,
+              });
+              logger.info(`[VanChuyenDAO] Tự động tạo Phiếu Thu COD ${ma_phieu} cho đơn ${existing.ma_don_hang}`);
+            }
+          } catch (sqErr) {
+            logger.warn("Auto create COD receipt in so_quy warning", { error: sqErr.message });
+          }
+        }
       }
 
       return { success: true };

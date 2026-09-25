@@ -49,4 +49,23 @@ export default class LuongController {
     const data = await LuongService.tinhLuongThang({ ma_nv, thang, nam, don_gia_gio, thuong, phat, ghi_chu });
     return sendSuccess(res, data, "Tính lương tháng thành công");
   });
+
+  /* ─── CHI TRẢ LƯƠNG THÁNG (Closed-loop) ─── */
+  static chiTraLuongThang = asyncHandler(async (req, res) => {
+    const { thang, nam, phuong_thuc = "chuyen_khoan", ghi_chu = "" } = req.body || {};
+    const data = await LuongService.chiTraLuongThang({
+      thang,
+      nam,
+      phuong_thuc,
+      ghi_chu,
+      user: req.user,
+    });
+    return sendSuccess(res, data, "Chi trả lương và tạo phiếu chi sổ quỹ thành công", 201);
+  });
+
+  static getTrangThaiChiLuong = asyncHandler(async (req, res) => {
+    const { thang, nam } = req.query;
+    const data = await LuongService.trangThaiChiLuong(thang, nam);
+    return sendSuccess(res, data, "Lấy trạng thái chi lương thành công");
+  });
 }

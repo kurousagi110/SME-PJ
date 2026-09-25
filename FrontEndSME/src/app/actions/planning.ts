@@ -146,3 +146,16 @@ export async function fetchAlertsAction(
     return { success: false, data: null, error: e?.message ?? "Lỗi tải cảnh báo" };
   }
 }
+
+export async function taoDonMuaTuMRPAction(payload: {
+  items: Array<{ nguyen_lieu_id: string; so_luong: number; nha_cung_cap_ten?: string; don_gia?: number }>;
+  nha_cung_cap_ten?: string;
+  ghi_chu?: string;
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res: any = await http.post("/planning/mrp/tao-don-mua", payload);
+    return { success: true, data: res?.data };
+  } catch (e: any) {
+    return { success: false, error: e?.response?.data?.message || e?.message || "Lỗi tạo đơn mua từ MRP" };
+  }
+}

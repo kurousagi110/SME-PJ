@@ -112,13 +112,18 @@ export async function fetchDashboardTable(params: {
   const raw = await http.get("/don-hang/?" + qs.toString());
   const data = unwrap<any>(raw);
 
-  const items = Array.isArray(data?.items) ? data.items : [];
+  const items = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+    ? data.items
+    : [];
+  const pagination = (raw as any)?.pagination || data?.pagination;
   return {
     items: items.map(mapOrderToRow),
-    page: Number(data?.page ?? page),
-    limit: Number(data?.limit ?? limit),
-    total: Number(data?.total ?? items.length),
-    totalPages: Number(data?.totalPages ?? 1),
+    page: Number(pagination?.page ?? page),
+    limit: Number(pagination?.limit ?? limit),
+    total: Number(pagination?.total ?? items.length),
+    totalPages: Number(pagination?.totalPages ?? 1),
   };
 }
 
@@ -156,7 +161,11 @@ async function fetchOrdersForRange(params: {
 
   const raw = await http.get("/don-hang/?" + qs.toString());
   const data = unwrap<any>(raw);
-  return Array.isArray(data?.items) ? data.items : [];
+  return Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+    ? data.items
+    : [];
 }
 
 function buildContinuousDays(from: Date, to: Date) {

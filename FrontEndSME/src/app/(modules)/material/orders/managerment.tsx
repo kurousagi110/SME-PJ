@@ -13,9 +13,10 @@ import {
   useUpdatePurchaseReceiptStatus,
 } from "@/hooks/use-purchase-receipt";
 
-import type {
-  PurchaseReceipt,
-  PurchaseReceiptStatus,
+import {
+  type PurchaseReceipt,
+  type PurchaseReceiptStatus,
+  thanhToanDonMuaAction,
 } from "@/app/actions/receipt-purchase";
 
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,7 @@ function normText(v: any) {
 }
 
 /* ===================== UI helpers ===================== */
-const toVND = (x: number) => Number(x || 0).toLocaleString("vi-VN") + " đ";
+const toVND = (x?: number) => Number(x || 0).toLocaleString("vi-VN") + " đ";
 
 function fmtVNDate(iso?: string) {
   if (!iso) return "-";
@@ -231,6 +232,36 @@ export default function OrdersManagerment() {
       toast.success("Cập nhật trạng thái thành công");
     } catch (e: any) {
       toast.error(e?.message || "Cập nhật trạng thái thất bại");
+    }
+  };
+
+  const [payingId, setPayingId] = React.useState<string | null>(null);
+
+  const handleThanhToan = async (o: PurchaseReceipt) => {
+    if (
+      !window.confirm(
+        `Xác nhận thanh toán ${toVND(
+          o.tong_tien
+        )} cho nhà cung cấp "${o.nha_cung_cap_ten || "NCC"}"?\n\nHệ thống sẽ tự động tạo Phiếu Chi trong Sổ Quỹ và khấu trừ công nợ NCC.`
+      )
+    ) {
+      return;
+    }
+    setPayingId(o._id);
+    try {
+      const res = await thanhToanDonMuaAction(o._id, {
+        phuong_thuc: "tien_mat",
+        ghi_chu: `Thanh toán đơn mua hàng ${o.ma_dh} cho NCC ${o.nha_cung_cap_ten || ""}`,
+      });
+      toast.success(res?.message || "Đã thanh toán và xuất Phiếu Chi thành công!");
+      listQuery.refetch();
+      if (selected && selected._id === o._id) {
+        setSelected({ ...selected, trang_thai: "paid" });
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Thanh toán đơn mua thất bại");
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -374,10 +405,18 @@ export default function OrdersManagerment() {
                         {o.trang_thai === "confirmed" && (
                           <>
                             <DropdownMenuItem
+                              className="text-emerald-600 font-medium"
+                              onClick={() => handleThanhToan(o)}
+                              disabled={!canPaid || payingId === o._id}
+                            >
+                              {payingId === o._id ? "Đang chi tiền..." : "Chi tiền & Gạch nợ NCC"}
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
                               onClick={() => setTrangThai(o, "paid")}
                               disabled={!canPaid || mutStatus.isPending}
                             >
-                              Đánh dấu đã thanh toán
+                              Đánh dấu đã thanh toán (không ghi sổ)
                             </DropdownMenuItem>
 
                             <DropdownMenuItem
@@ -524,7 +563,21 @@ export default function OrdersManagerment() {
             </div>
           )}
 
-          <DialogFooter className="mt-2">
+          <DialogFooter className="mt-2 flex items-center justify-between sm:justify-between">
+            <div>
+              {selected?.trang_thai === "confirmed" && canPaid && (
+                <Button
+                  variant="default"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={payingId === selected._id}
+                  onClick={() => handleThanhToan(selected)}
+                >
+                  {payingId === selected._id
+                    ? "Đang chi tiền..."
+                    : `Chi tiền (${toVND(selected.tong_tien)}) & Gạch nợ NCC`}
+                </Button>
+              )}
+            </div>
             <Button variant="ghost" onClick={() => setOpenView(false)}>
               Đóng
             </Button>
