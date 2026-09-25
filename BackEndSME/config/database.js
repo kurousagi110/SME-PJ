@@ -44,6 +44,14 @@ export async function connectDB() {
 }
 
 /**
+ * Set the connected Db instance manually from external client.
+ */
+export function setDB(db, cl = null) {
+  _db = db;
+  if (cl) client = cl;
+}
+
+/**
  * Get the already-connected Db instance.
  * Throws if connectDB() has not been called yet.
  */

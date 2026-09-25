@@ -31,8 +31,10 @@ import { EcommercePolicyDAO } from "./models/ecommercePolicyDAO.js";
 import AiCopilotDAO       from "./models/aiCopilotDAO.js";
 import AiConfigDAO        from "./models/aiConfigDAO.js";
 import VanChuyenDAO       from "./models/vanChuyenDAO.js";
+import ThongBaoDAO        from "./models/thongBaoDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
+import { setDB } from "./config/database.js";
 import { seedIfEmpty } from "./seed.js";
 
 async function main() {
@@ -78,6 +80,7 @@ async function main() {
     await client.db(dbName).command({ ping: 1 });
     logger.info(`MongoDB connected & ping ok`, { db: dbName });
 
+    setDB(client.db(dbName), client);
     app.locals.mongoClient = client;
 
     // W5 fix: injectAuthDB imported from middleware/auth.js (standardized)
@@ -103,6 +106,7 @@ async function main() {
       AiCopilotDAO.injectDB(client),
       AiConfigDAO.injectDB(client),
       VanChuyenDAO.injectDB(client),
+      ThongBaoDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");

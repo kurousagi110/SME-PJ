@@ -4,13 +4,16 @@
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import DonHangService from "../services/donHangService.js";
-import { notifyAdmin, notifyApprover } from "../utils/socketManager.js";
+import { notifyAdmin, notifyApprover, notifyDepartment, notifyUser } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 import ApiError from "../utils/ApiError.js";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "../models/soQuyDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
+import VanChuyenDAO from "../models/vanChuyenDAO.js";
+import { getDB } from "../config/database.js";
+import { ObjectId } from "mongodb";
 
 export default class DonHangController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
@@ -350,5 +353,228 @@ export default class DonHangController {
     const { date_from, date_to } = req.query;
     const data = await DonHangService.revenueStats({ date_from, date_to });
     return sendSuccess(res, data, "Thống kê doanh thu thành công");
+  });
+
+  /* ─── HANDOVER: SALES -> PRODUCTION ORDER ─── */
+  static chuyenSangSanXuat = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+    const order = await DonHangService.getById(id);
+    if (!order) throw ApiError.notFound("Không tìm thấy đơn bán hàng");
+
+    const db = getDB();
+    const itemsToProduce = (order.san_pham || []).map((sp) => ({
+      san_pham_id: sp.san_pham_id || sp._id,
+      ma_sp: sp.ma_sp,
+      ten_sp: sp.ten_sp,
+      so_luong: Number(sp.so_luong) || 1,
+      don_gia: Number(sp.don_gia) || 0,
+    }));
+
+    if (itemsToProduce.length === 0) {
+      throw ApiError.badRequest("Đơn hàng không có sản phẩm để sản xuất");
+    }
+
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ma_sx = `LSX-${ymd}-${randCode}`;
+
+    const workOrder = {
+      ma_dh: ma_sx,
+      ma_dh_goc: order.ma_dh,
+      don_hang_goc_id: order._id,
+      loai_don: "production_order",
+      trang_thai: "confirmed",
+      san_pham: itemsToProduce,
+      so_luong_tong: itemsToProduce.reduce((s, it) => s + it.so_luong, 0),
+      ghi_chu: `Lệnh sản xuất chuyển giao từ Đơn bán hàng ${order.ma_dh}`,
+      nguoi_lap_id: user._id,
+      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
+      created_at: now,
+      updated_at: now,
+      lich_su: [
+        {
+          hanh_dong: "handover_from_sales",
+          at: now,
+          by: user._id,
+          note: `Khởi tạo lệnh sản xuất tự động từ đơn bán ${order.ma_dh}`,
+        },
+      ],
+    };
+
+    const insertRes = await db.collection("don_hang").insertOne(workOrder);
+
+    // Update sales order history
+    await db.collection("don_hang").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          co_lenh_san_xuat: true,
+          ma_lenh_sx: ma_sx,
+          updated_at: now,
+        },
+        $push: {
+          lich_su: {
+            hanh_dong: "chuyen_san_xuat",
+            at: now,
+            by: user._id,
+            note: `Đã chuyển giao sang Phòng Sản Xuất (Lệnh: ${ma_sx})`,
+          },
+        },
+      }
+    );
+
+    notifyDepartment("san_xuat", {
+      type: "DON_SAN_XUAT_CREATED",
+      title: "Lệnh sản xuất mới từ phòng Kinh Doanh",
+      message: `Đơn bán ${order.ma_dh} vừa chuyển sang Lệnh SX ${ma_sx} (${workOrder.so_luong_tong} sản phẩm)`,
+      lien_ket: `/product/orders`,
+      created_by: user,
+    });
+
+    return sendSuccess(res, { ma_sx, id: insertRes.insertedId }, "Đã chuyển giao sang Phòng Sản Xuất thành công");
+  });
+
+  /* ─── HANDOVER: PRODUCTION -> FINISHED GOODS RECEIPT ─── */
+  static banGiaoNhapKho = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+    const prodOrder = await DonHangService.getById(id);
+    if (!prodOrder) throw ApiError.notFound("Không tìm thấy lệnh sản xuất");
+
+    const db = getDB();
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ma_tp = `TP-${ymd}-${randCode}`;
+
+    const receiptDoc = {
+      ma_dh: ma_tp,
+      ma_lenh_sx: prodOrder.ma_dh,
+      lenh_sx_id: prodOrder._id,
+      loai_don: "production_receipt",
+      trang_thai: "draft",
+      san_pham: prodOrder.san_pham || [],
+      tong_tien: 0,
+      ghi_chu: `Phiếu nhập thành phẩm bàn giao từ ${prodOrder.ma_dh}`,
+      nguoi_lap_id: user._id,
+      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
+      created_at: now,
+      updated_at: now,
+    };
+
+    const insertRes = await db.collection("don_hang").insertOne(receiptDoc);
+
+    // Update prodOrder status
+    await db.collection("don_hang").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          da_ban_giao_kho: true,
+          ma_phieu_nhap_tp: ma_tp,
+          trang_thai: "completed",
+          updated_at: now,
+        },
+      }
+    );
+
+    notifyDepartment("kho", {
+      type: "PROD_RECEIPT_CREATED",
+      title: "Thành phẩm hoàn tất chờ nhập kho",
+      message: `Lệnh SX ${prodOrder.ma_dh} đã bàn giao lô hàng ${ma_tp} chờ thủ kho kiểm đếm`,
+      lien_ket: `/product/orders`,
+      created_by: user,
+    });
+
+    return sendSuccess(res, { ma_tp, id: insertRes.insertedId }, "Đã bàn giao nhập kho thành phẩm");
+  });
+
+  /* ─── HANDOVER: WAREHOUSE -> LOGISTICS WAYBILL ─── */
+  static chuyenSangVanChuyen = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+    const order = await DonHangService.getById(id);
+    if (!order) throw ApiError.notFound("Không tìm thấy đơn hàng");
+
+    const donViVC = req.body.don_vi_van_chuyen || "GHTK";
+    const waybillRes = await VanChuyenDAO.taoVanDon({
+      ma_don_hang: order.ma_dh,
+      don_vi_van_chuyen: donViVC,
+      phi_van_chuyen: Number(req.body.phi_van_chuyen) || Number(order.phi_vc) || 30000,
+      tien_thu_ho_cod: order.thanh_toan?.status === "paid" ? 0 : Number(order.tong_tien) || 0,
+      nguoi_nhan: {
+        ten: order.khach_hang_ten || order.khach_hang?.ten || "Khách Hàng",
+        sdt: order.so_dien_thoai || order.khach_hang?.so_dien_thoai || "",
+        dia_chi: order.dia_chi_giao || order.dia_chi_giao_hang || order.khach_hang?.dia_chi || "",
+      },
+      san_pham: order.san_pham || [],
+      ghi_chu: req.body.ghi_chu || `Đóng gói từ đơn bán ${order.ma_dh}`,
+      user,
+    });
+
+    if (waybillRes.error) {
+      throw ApiError.badRequest(waybillRes.error.message || "Tạo vận đơn thất bại");
+    }
+
+    notifyDepartment("kho", {
+      type: "SYSTEM_NOTIFICATION",
+      title: "Đã tạo vận đơn giao hàng",
+      message: `Đơn hàng ${order.ma_dh} đã được tạo vận đơn ${waybillRes.ma_van_don} (${donViVC})`,
+      lien_ket: `/shipping`,
+      created_by: user,
+    });
+
+    return sendSuccess(res, waybillRes, "Đã chuyển giao vận chuyển thành công");
+  });
+
+  /* ─── INTERNAL COMMENTS & MENTIONS ─── */
+  static themBinhLuan = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const user = req.user;
+    const { noi_dung } = req.body;
+
+    if (!noi_dung || !noi_dung.trim()) {
+      throw ApiError.badRequest("Nội dung trao đổi không được để trống");
+    }
+
+    const db = getDB();
+    const now = new Date();
+    const commentId = new ObjectId().toString();
+
+    // Scan for @username mentions
+    const mentions = (noi_dung.match(/@(\w+)/g) || []).map((m) => m.slice(1));
+
+    const commentDoc = {
+      id: commentId,
+      user_id: user._id,
+      tai_khoan: user.tai_khoan,
+      ho_ten: user.ho_ten || user.tai_khoan,
+      phong_ban: user.phong_ban?.ten || user.ten_phong_ban || "",
+      noi_dung: noi_dung.trim(),
+      mentions,
+      created_at: now,
+    };
+
+    await db.collection("don_hang").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $push: { trao_doi: commentDoc },
+        $set: { updated_at: now },
+      }
+    );
+
+    // Notify mentioned users
+    for (const username of mentions) {
+      notifyUser(username, {
+        type: "SYSTEM_NOTIFICATION",
+        title: "Bạn được nhắc đến trong một đơn hàng",
+        message: `${user.ho_ten || user.tai_khoan} đã tag bạn trong thảo luận: "${noi_dung.trim().slice(0, 80)}..."`,
+        lien_ket: `/sales`,
+        created_by: user,
+      });
+    }
+
+    return sendSuccess(res, commentDoc, "Đã gửi bình luận");
   });
 }

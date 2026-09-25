@@ -23,6 +23,7 @@ import {
   IconBrandShopee,
   IconScale,
   IconTruck,
+  IconFileCheck,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -66,6 +67,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Bảng Điều Khiển",
             url: "/dashboard",
             icon: IconDashboard,
+          },
+          {
+            title: "Trình Ký & Duyệt Việc",
+            url: "/approvals",
+            icon: IconFileCheck,
+            badge: "Hub",
           },
           {
             title: "Demand Planning",

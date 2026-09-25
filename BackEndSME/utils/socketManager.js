@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import logger from "./logger.js";
 import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
+import ThongBaoDAO from "../models/thongBaoDAO.js";
 
 let io = null;
 let usersCol = null;
@@ -95,6 +96,23 @@ export function initSocket(httpServer) {
     if (posName.includes("thủ kho")) {
       socket.join("room:approver");
       logger.info(`[Socket] ${tai_khoan} joined room:approver`);
+    }
+
+    // Inter-department rooms
+    if (deptName.includes("kinh doanh") || deptName.includes("bán hàng")) {
+      socket.join("room:dept:kinh_doanh");
+    }
+    if (deptName.includes("kho")) {
+      socket.join("room:dept:kho");
+    }
+    if (deptName.includes("sản xuất")) {
+      socket.join("room:dept:san_xuat");
+    }
+    if (deptName.includes("kế toán") || deptName.includes("tài chính")) {
+      socket.join("room:dept:ke_toan");
+    }
+    if (deptName.includes("nhân sự")) {
+      socket.join("room:dept:nhan_su");
     }
 
     socket.on("disconnect", () => {});
@@ -196,7 +214,23 @@ export function normalizeNotificationPayload(payload = {}) {
  */
 export function notifyAdmin(payload) {
   const norm = normalizeNotificationPayload(payload);
-  getIO().to("room:admin").emit("notification", norm);
+  try {
+    ThongBaoDAO.taoThongBao({
+      phong_ban: "phòng giám đốc",
+      tieu_de: payload.title || norm.message,
+      noi_dung: norm.message,
+      loai: norm.type,
+      lien_ket: payload.lien_ket || "",
+      du_lieu: norm,
+      nguoi_gui: payload.created_by,
+    }).catch(() => {});
+  } catch (_) {}
+
+  try {
+    getIO().to("room:admin").emit("notification", norm);
+  } catch (err) {
+    logger.warn(`Failed to emit notifyAdmin: ${err.message}`);
+  }
 }
 
 /**
@@ -205,15 +239,78 @@ export function notifyAdmin(payload) {
  */
 export function notifyApprover(payload) {
   const norm = normalizeNotificationPayload(payload);
-  getIO().to("room:approver").emit("notification", norm);
+  try {
+    ThongBaoDAO.taoThongBao({
+      phong_ban: "phòng kho",
+      tieu_de: payload.title || norm.message,
+      noi_dung: norm.message,
+      loai: norm.type,
+      lien_ket: payload.lien_ket || "",
+      du_lieu: norm,
+      nguoi_gui: payload.created_by,
+    }).catch(() => {});
+  } catch (_) {}
+
+  try {
+    getIO().to("room:approver").emit("notification", norm);
+  } catch (err) {
+    logger.warn(`Failed to emit notifyApprover: ${err.message}`);
+  }
+}
+
+/**
+ * Broadcast to a specific department room (and also notify admin).
+ * @param {string} deptSlug - "kinh_doanh" | "kho" | "san_xuat" | "ke_toan" | "nhan_su"
+ */
+export function notifyDepartment(deptSlug, payload) {
+  const norm = normalizeNotificationPayload(payload);
+  const cleanSlug = String(deptSlug).toLowerCase().trim();
+
+  try {
+    ThongBaoDAO.taoThongBao({
+      phong_ban: cleanSlug,
+      tieu_de: payload.title || norm.message,
+      noi_dung: norm.message,
+      loai: norm.type,
+      lien_ket: payload.lien_ket || "",
+      du_lieu: norm,
+      nguoi_gui: payload.created_by,
+    }).catch(() => {});
+  } catch (_) {}
+
+  try {
+    getIO().to(`room:dept:${cleanSlug}`).to("room:admin").emit("notification", norm);
+  } catch (err) {
+    logger.warn(`Failed to emit notifyDepartment (${cleanSlug}): ${err.message}`);
+  }
 }
 
 /**
  * Send a notification to a single user's personal room.
  * @param {string} tai_khoan  — unique username (login ID)
+ * @param {object} payload
+ * @param {string} [userId]   — optional ObjectId string for DB persistence
  */
-export function notifyUser(tai_khoan, payload) {
+export function notifyUser(tai_khoan, payload, userId = null) {
   const norm = normalizeNotificationPayload(payload);
-  getIO().to(`user:${tai_khoan}`).emit("notification", norm);
+
+  try {
+    ThongBaoDAO.taoThongBao({
+      user_id: userId,
+      tieu_de: payload.title || norm.message,
+      noi_dung: norm.message,
+      loai: norm.type,
+      lien_ket: payload.lien_ket || "",
+      du_lieu: norm,
+      nguoi_gui: payload.created_by,
+    }).catch(() => {});
+  } catch (_) {}
+
+  try {
+    getIO().to(`user:${tai_khoan}`).emit("notification", norm);
+  } catch (err) {
+    logger.warn(`Failed to emit notifyUser (${tai_khoan}): ${err.message}`);
+  }
 }
+
 

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal, Printer, Download, Truck } from "lucide-react";
+import { MoreHorizontal, Printer, Download, Truck, Factory } from "lucide-react";
 import { exportToCSV, printInvoice } from "@/lib/export";
 import {
   DropdownMenu,
@@ -46,6 +47,9 @@ import {
 } from "@/hooks/use-order-sale";
 
 import { useMyProfile } from "@/hooks/use-account";
+import { DocumentLifecycleStepper } from "@/components/document-lifecycle-stepper";
+import { DocumentCommentThread } from "@/components/document-comment-thread";
+import { chuyenDonSangSanXuatAction } from "@/app/actions/handover";
 
 /* ================= Types (backend) ================= */
 type ApiTrangThai = "draft" | "confirmed" | "cancelled" | "completed" | string;
@@ -203,6 +207,8 @@ export default function OrdersManagement() {
       setOpenView(false);
     } catch {}
   };
+
+  const [isHandingOver, setIsHandingOver] = React.useState(false);
 
   const opencancelledDialog = (id: string) => {
     if (!guardOperate()) return;
@@ -524,6 +530,9 @@ export default function OrdersManagement() {
             <div className="p-6 text-muted-foreground">Không có dữ liệu</div>
           ) : (
             <div className="space-y-4">
+              {/* Pipeline Stepper & SLA Tracker */}
+              <DocumentLifecycleStepper order={selected as any} />
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-muted-foreground">Mã đơn</div>
@@ -612,6 +621,12 @@ export default function OrdersManagement() {
                   {toVND(Number(selected.tong_tien ?? 0))}
                 </span>
               </div>
+
+              {/* Internal Discussion & @Mentions */}
+              <DocumentCommentThread
+                orderId={selected._id}
+                comments={(selected as any).trao_doi || []}
+              />
             </div>
           )}
 
@@ -626,7 +641,41 @@ export default function OrdersManagement() {
               </Button>
             ) : <div />}
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+            {/* 1-Click Handover: Chuyển sang Lệnh Sản Xuất */}
+            {selected &&
+            canOperateSalesOrders &&
+            String(selected.trang_thai || "").toLowerCase() === "confirmed" &&
+            !(selected as any).co_lenh_san_xuat ? (
+              <Button
+                variant="outline"
+                className="gap-1.5 text-purple-600 border-purple-300 hover:bg-purple-50"
+                disabled={isHandingOver}
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      `Xác nhận chuyển đơn hàng ${selected.ma_dh} sang Lệnh Sản Xuất? Hệ thống sẽ tạo Work Order và gửi thông báo sang Phòng Sản Xuất.`
+                    )
+                  ) {
+                    setIsHandingOver(true);
+                    const res = await chuyenDonSangSanXuatAction(selected._id);
+                    setIsHandingOver(false);
+                    if (res.success) {
+                      toast.success(res.message || "Đã chuyển sang Lệnh Sản Xuất!");
+                      (selected as any).co_lenh_san_xuat = true;
+                      listQuery.refetch();
+                      detailQuery.refetch();
+                    } else {
+                      toast.error(res.error || "Chuyển sản xuất thất bại");
+                    }
+                  }
+                }}
+              >
+                <Factory className="h-4 w-4" />
+                {isHandingOver ? "Đang chuyển..." : "Yêu cầu Sản Xuất"}
+              </Button>
+            ) : null}
+
             {/* draft: duyệt / từ chối */}
             {selected &&
             canOperateSalesOrders &&

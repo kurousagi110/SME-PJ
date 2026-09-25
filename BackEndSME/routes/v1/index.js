@@ -22,6 +22,8 @@ import importRoute        from "./import.route.js";
 import planningRoute      from "./planning.route.js";
 import aiCopilotRoute     from "./ai-copilot.route.js";
 import vanChuyenRoute     from "./van-chuyen.route.js";
+import thongBaoRoute       from "./thong-bao.route.js";
+import approvalRoute       from "./approval.route.js";
 
 const v1Router = Router();
 
@@ -43,5 +45,7 @@ v1Router.use("/import",            importRoute);
 v1Router.use("/planning",          planningRoute);
 v1Router.use("/ai-copilot",         aiCopilotRoute);
 v1Router.use("/van-chuyen",        vanChuyenRoute);
+v1Router.use("/thong-bao",         thongBaoRoute);
+v1Router.use("/approvals",         approvalRoute);
 
 export default v1Router;

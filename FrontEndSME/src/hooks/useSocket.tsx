@@ -11,6 +11,10 @@ import {
 import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMyProfile } from "@/hooks/use-account";
+import {
+  fetchNotificationsAction,
+  markAllNotificationsReadAction,
+} from "@/app/actions/notification";
 
 export interface Notification {
   id: string;
@@ -25,12 +29,14 @@ interface SocketContextValue {
   notifications: Notification[];
   unreadCount: number;
   markAllRead: () => void;
+  refreshNotifications: () => void;
 }
 
 const SocketContext = createContext<SocketContextValue>({
   notifications: [],
   unreadCount: 0,
   markAllRead: () => {},
+  refreshNotifications: () => {},
 });
 
 export function SocketProvider({ children }: { children: ReactNode }) {
@@ -40,6 +46,33 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const isLoggedIn = !!profile;
+
+  // Load initial notifications from DB
+  const loadNotifications = async () => {
+    try {
+      const res = await fetchNotificationsAction({ limit: 30 });
+      if (res.success && res.data) {
+        setNotifications(
+          res.data.map((item: any) => ({
+            id: String(item._id || item.ma_tb),
+            type: item.loai || "SYSTEM_NOTIFICATION",
+            message: item.noi_dung || item.tieu_de,
+            data: item.du_lieu || item,
+            createdAt: item.created_at || new Date().toISOString(),
+            read: !!item.da_doc,
+          }))
+        );
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadNotifications();
+    }
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -141,13 +174,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
   }, [isLoggedIn]);
 
-  const markAllRead = () =>
+  const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    markAllNotificationsReadAction().catch(() => {});
+  };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <SocketContext.Provider value={{ notifications, unreadCount, markAllRead }}>
+    <SocketContext.Provider
+      value={{
+        notifications,
+        unreadCount,
+        markAllRead,
+        refreshNotifications: loadNotifications,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );

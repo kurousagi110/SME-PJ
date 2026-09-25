@@ -3,9 +3,10 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, PackageCheck } from "lucide-react";
 import { useMyProfile } from "@/hooks/use-account";
 import { myProfile } from "@/app/actions/auth";
+import { banGiaoNhapKhoAction } from "@/app/actions/handover";
 
 import {
   useProductionReceipts,
@@ -189,6 +190,26 @@ export default function ProductionOrdersManagement() {
     }
   };
 
+  const [isHandingOver, setIsHandingOver] = React.useState(false);
+
+  const handleBanGiaoKho = async (o: ProductionReceipt) => {
+    setIsHandingOver(true);
+    try {
+      const res = await banGiaoNhapKhoAction(o._id);
+      if (!res.success) {
+        toast.error(res.error || "Bàn giao nhập kho thất bại");
+      } else {
+        toast.success(res.message || "Đã bàn giao nhập kho thành phẩm thành công!");
+        listQuery.refetch();
+        setOpenView(false);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Bàn giao nhập kho thất bại");
+    } finally {
+      setIsHandingOver(false);
+    }
+  };
+
   const sumQtyTP = (o: ProductionReceipt) =>
     (o.san_pham || []).reduce((s, x) => s + (Number(x?.so_luong) || 0), 0);
 
@@ -355,6 +376,19 @@ export default function ProductionOrdersManagement() {
                               disabled={!canCancel || mutStatus.isPending}
                             >
                               Hủy
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
+
+                        {o.trang_thai === "confirmed" || o.trang_thai === "completed" ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-emerald-600 font-medium"
+                              onClick={() => handleBanGiaoKho(o)}
+                              disabled={isHandingOver}
+                            >
+                              <PackageCheck className="mr-2 h-4 w-4" /> Bàn giao nhập kho
                             </DropdownMenuItem>
                           </>
                         ) : null}
@@ -540,7 +574,19 @@ export default function ProductionOrdersManagement() {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-between sm:justify-between w-full">
+            <div>
+              {selected && (selected.trang_thai === "confirmed" || selected.trang_thai === "completed") && (
+                <Button
+                  variant="default"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={isHandingOver}
+                  onClick={() => handleBanGiaoKho(selected)}
+                >
+                  <PackageCheck className="mr-2 h-4 w-4" /> Bàn giao nhập kho thành phẩm
+                </Button>
+              )}
+            </div>
             <Button variant="ghost" onClick={() => setOpenView(false)}>
               Đóng
             </Button>

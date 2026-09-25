@@ -66,4 +66,10 @@ router.delete("/:id",        verifyToken, verifyAdmin, DonHangController.softDel
 router.patch("/:id/restore", verifyToken, verifyAdmin, DonHangController.restore);
 router.delete("/:id/hard",   verifyToken, verifyAdmin, DonHangController.hardDelete);
 
+/* ─── WORKFLOW HANDOVERS & COMMENTS ─── */
+router.post("/:id/chuyen-san-xuat",   verifyToken, DonHangController.chuyenSangSanXuat);
+router.post("/:id/ban-giao-kho",      verifyToken, verifyApprover, DonHangController.banGiaoNhapKho);
+router.post("/:id/chuyen-van-chuyen", verifyToken, DonHangController.chuyenSangVanChuyen);
+router.post("/:id/comments",          verifyToken, DonHangController.themBinhLuan);
+
 export default router;
