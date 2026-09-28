@@ -22,4 +22,9 @@ router.post(
 
 router.put("/:id/huy", verifyAdmin, SoQuyController.cancel);
 
+/* ─── 3. Quản lý kỳ kế toán & Chốt sổ ─── */
+router.get("/ky-ke-toan", SoQuyController.listPeriods);
+router.post("/ky-ke-toan/chot-so", verifyAdmin, requireBody("ky", "tu_ngay", "den_ngay"), SoQuyController.closePeriod);
+router.post("/ky-ke-toan/:ky/mo-khoa", verifyAdmin, SoQuyController.reopenPeriod);
+
 export default router;

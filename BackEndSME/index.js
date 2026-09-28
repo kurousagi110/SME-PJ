@@ -32,6 +32,8 @@ import AiCopilotDAO       from "./models/aiCopilotDAO.js";
 import AiConfigDAO        from "./models/aiConfigDAO.js";
 import VanChuyenDAO       from "./models/vanChuyenDAO.js";
 import ThongBaoDAO        from "./models/thongBaoDAO.js";
+import PeriodClosingDAO   from "./models/periodClosingDAO.js";
+import ReturnOrderDAO     from "./models/returnOrderDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -107,6 +109,8 @@ async function main() {
       AiConfigDAO.injectDB(client),
       VanChuyenDAO.injectDB(client),
       ThongBaoDAO.injectDB(client),
+      PeriodClosingDAO.injectDB(client),
+      ReturnOrderDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");

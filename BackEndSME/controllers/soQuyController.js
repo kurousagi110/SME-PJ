@@ -2,6 +2,7 @@ import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess } from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
 import SoQuyDAO, { LOAI_PHIEU, PHUONG_THUC } from "../models/soQuyDAO.js";
+import PeriodClosingDAO from "../models/periodClosingDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
@@ -80,6 +81,13 @@ export default class SoQuyController {
 
     const user = req.user || performedByOf(req) || {};
 
+    // CLOSED-LOOP: Kiểm tra kỳ kế toán đã khóa sổ chưa
+    const recordDate = ngay_ghi_nhan || new Date();
+    const isLocked = await PeriodClosingDAO.isDateLocked(recordDate);
+    if (isLocked) {
+      throw ApiError.forbidden(`Kỳ kế toán chứa ngày ${new Date(recordDate).toLocaleDateString("vi-VN")} đã được chốt sổ. Không thể tạo phiếu mới!`);
+    }
+
     const result = await SoQuyDAO.taoPhieu({
       loai_phieu,
       hang_muc,
@@ -123,6 +131,12 @@ export default class SoQuyController {
       throw ApiError.badRequest("Phiếu đã bị hủy trước đó");
     }
 
+    // CLOSED-LOOP: Kiểm tra kỳ kế toán đã chốt sổ chưa
+    const isLocked = await PeriodClosingDAO.isDateLocked(existing.ngay_ghi_nhan || existing.created_at);
+    if (isLocked) {
+      throw ApiError.forbidden("Phiếu thuộc kỳ kế toán đã chốt sổ. Không thể hủy hoặc sửa đổi!");
+    }
+
     const result = await SoQuyDAO.huyPhieu(id, { ly_do, user });
     if (result.error) {
       throw ApiError.internal("Không thể hủy phiếu: " + result.error.message);
@@ -148,5 +162,35 @@ export default class SoQuyController {
       throw ApiError.notFound("Không tìm thấy phiếu thu/chi");
     }
     return sendSuccess(res, doc, "Lấy thông tin phiếu thành công");
+  });
+
+  /* ─── 7. Quản lý kỳ kế toán & Chốt sổ ─── */
+  static listPeriods = asyncHandler(async (req, res) => {
+    const periods = await PeriodClosingDAO.listPeriods();
+    return sendSuccess(res, { items: periods }, "Lấy danh sách kỳ kế toán thành công");
+  });
+
+  static closePeriod = asyncHandler(async (req, res) => {
+    const { ky, tu_ngay, den_ngay, ghi_chu } = req.body || {};
+    if (!ky || !tu_ngay || !den_ngay) {
+      throw ApiError.badRequest("Cần cung cấp tên kỳ (ky), từ ngày (tu_ngay) và đến ngày (den_ngay)");
+    }
+    const user = req.user || performedByOf(req) || {};
+    const result = await PeriodClosingDAO.closePeriod({ ky, tu_ngay, den_ngay, ghi_chu, user });
+    if (result.error) throw ApiError.internal(result.error.message);
+
+    logAction("CLOSE_PERIOD", "so_quy", ky, `Chốt sổ kỳ kế toán: ${ky}`, user, req.ip);
+    return sendSuccess(res, result, `Chốt sổ kỳ kế toán ${ky} thành công`);
+  });
+
+  static reopenPeriod = asyncHandler(async (req, res) => {
+    const { ky } = req.params;
+    const { ly_do } = req.body || {};
+    const user = req.user || performedByOf(req) || {};
+    const result = await PeriodClosingDAO.reopenPeriod(ky, { ly_do, user });
+    if (result.error) throw ApiError.internal(result.error.message);
+
+    logAction("REOPEN_PERIOD", "so_quy", ky, `Mở khóa kỳ kế toán: ${ky} (${ly_do || ""})`, user, req.ip);
+    return sendSuccess(res, result, `Mở khóa kỳ kế toán ${ky} thành công`);
   });
 }

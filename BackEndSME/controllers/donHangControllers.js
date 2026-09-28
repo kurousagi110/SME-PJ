@@ -294,7 +294,63 @@ export default class DonHangController {
     const performedBy = performedByOf(req);
     const loai = data.loai_don || "don_hang";
     const orderCode = data.ma_dh || id;
-    const isApprove = ["da_duyet", "hoan_thanh"].includes(trang_thai);
+
+    // ─── CLOSED-LOOP: Auto-Posting Sổ quỹ & Công nợ ───
+    // Khi đơn bán hàng (sale) sang trạng thái 'paid' hoặc 'completed', hoặc đơn mua hàng (purchase_receipt) sang 'paid'
+    try {
+      const orderDoc = await DonHangService.getById(id);
+      if (orderDoc && !orderDoc.error) {
+        const orderTotal = Number(orderDoc.tong_tien) || 0;
+        const code = orderDoc.ma_dh || orderCode;
+
+        if (orderDoc.loai_don === "sale" && (trang_thai === "paid" || trang_thai === "completed")) {
+          // Kiểm tra xem đã có phiếu thu cho chứng từ này chưa (tránh trùng lặp)
+          const existingVoucher = await SoQuyDAO.getByMaChungTu(code, { loai_phieu: "thu" });
+          if (!existingVoucher && orderTotal > 0) {
+            await SoQuyDAO.taoPhieu({
+              loai_phieu: "thu",
+              hang_muc: "thu_tien_ban_hang",
+              so_tien: orderTotal,
+              phuong_thuc: orderDoc.thanh_toan?.phuong_thuc === "chuyen_khoan" ? "chuyen_khoan" : "tien_mat",
+              doi_tuong: {
+                loai: "khach_hang",
+                ten: orderDoc.khach_hang?.ten || orderDoc.khach_hang_ten || "Khách hàng",
+                so_dien_thoai: orderDoc.khach_hang?.so_dien_thoai || "",
+                dia_chi: orderDoc.khach_hang?.dia_chi || "",
+              },
+              ma_chung_tu: code,
+              ghi_chu: `Tự động tạo phiếu thu khi đơn hàng ${code} chuyển trạng thái ${trang_thai}`,
+              user: req.user,
+            });
+            logger.info("Auto-posted receipt voucher for order", { orderCode: code, amount: orderTotal });
+          }
+        } else if (orderDoc.loai_don === "purchase_receipt" && trang_thai === "paid") {
+          const existingVoucher = await SoQuyDAO.getByMaChungTu(code, { loai_phieu: "chi" });
+          if (!existingVoucher && orderTotal > 0) {
+            await SoQuyDAO.taoPhieu({
+              loai_phieu: "chi",
+              hang_muc: "chi_tien_mua_hang",
+              so_tien: orderTotal,
+              phuong_thuc: orderDoc.thanh_toan?.phuong_thuc === "tien_mat" ? "tien_mat" : "chuyen_khoan",
+              doi_tuong: {
+                loai: "nha_cung_cap",
+                ten: orderDoc.nha_cung_cap?.ten || orderDoc.nha_cung_cap_ten || "Nhà cung cấp",
+                so_dien_thoai: orderDoc.nha_cung_cap?.so_dien_thoai || "",
+                dia_chi: orderDoc.nha_cung_cap?.dia_chi || "",
+              },
+              ma_chung_tu: code,
+              ghi_chu: `Tự động tạo phiếu chi khi đơn mua ${code} thanh toán`,
+              user: req.user,
+            });
+            logger.info("Auto-posted payment voucher for purchase order", { orderCode: code, amount: orderTotal });
+          }
+        }
+      }
+    } catch (ledgerErr) {
+      logger.warn("Auto-posting ledger failed in updateStatus", { error: ledgerErr.message, id });
+    }
+
+    const isApprove = ["da_duyet", "hoan_thanh", "completed"].includes(trang_thai);
     const payload = {
       type: `${loai.toUpperCase()}_STATUS_UPDATED`,
       id,

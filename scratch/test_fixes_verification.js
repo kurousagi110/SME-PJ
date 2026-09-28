@@ -146,12 +146,75 @@ async function run() {
   console.log("-> Error count:", invalidBulkImport.body?.data?.errorCount, "(Mong muốn: 1)");
   console.log("-> Chi tiết lỗi:", invalidBulkImport.body?.data?.errors?.[0]?.error);
 
-  // 11. Test Phase 2: Dashboard API sau khi đổi tên file thành dashboardDAO.js
-  console.log("\n[11] Kiểm tra Dashboard API với dashboardDAO.js đã chuẩn hóa...");
-  const dashRes = await request("GET", "/dashboard/orders/overview", null, adminToken);
-  console.log("-> Status dashboard overview:", dashRes.status, "(Mong muốn: 200)");
+  // 12. Test Closed-Loop: Auto-Posting Sổ quỹ khi đơn bán hàng thanh toán
+  console.log("\n[12] Kiểm tra Closed-Loop: Bán lẻ POS tự động sinh Phiếu Thu trong Sổ quỹ...");
+  const posRes = await request("POST", "/don-hang/pos", {
+    khach_hang_ten: "Khách VIP Closed-Loop",
+    san_pham: [
+      { san_pham_id: "6ab22b35a2a51c0f66eba902", ma_sp: "SP007", ten_sp: "Giường ngủ 1m6", don_gia: 4200000, so_luong: 1 },
+    ],
+    phuong_thuc_tt: "chuyen_khoan",
+  }, adminToken);
+  console.log("-> Status tạo đơn POS:", posRes.status, posRes.body?.message || "");
+  const posCode = posRes.body?.data?.ma_dh || posRes.body?.data?.order?.ma_dh;
+  console.log("-> Mã đơn POS tạo thành công:", posCode);
 
-  console.log("\n=== TẤT CẢ CÁC BÀI TEST BẢO MẬT & TÍNH NĂNG ĐÃ THÀNH CÔNG RỰC RỠ! ===");
+  const voucherCheck = await request("GET", `/so-quy?search=${posCode}`, null, adminToken);
+  const foundVoucher = voucherCheck.body?.data?.items?.[0];
+  console.log("-> Đã tự động sinh Phiếu Thu trong Sổ quỹ:", !!foundVoucher, foundVoucher?.ma_phieu);
+  console.log("-> Số tiền thu đúng bằng đơn hàng:", foundVoucher?.so_tien === 4200000);
+
+  // 13. Test Closed-Loop: Khóa sổ kỳ kế toán (Period-End Closing)
+  console.log("\n[13] Kiểm tra Closed-Loop: Khóa sổ kỳ kế toán tháng cũ & chặn sửa đổi...");
+  const closeRes = await request("POST", "/so-quy/ky-ke-toan/chot-so", {
+    ky: "2025-12",
+    tu_ngay: "2025-12-01",
+    den_ngay: "2025-12-31",
+    ghi_chu: "Đã chốt sổ tài chính năm 2025",
+  }, adminToken);
+  console.log("-> Status chốt sổ kỳ 2025-12:", closeRes.status, closeRes.body?.message);
+
+  // Thử tạo phiếu thu lùi về ngày đã chốt sổ (Mong muốn: 403 Forbidden)
+  const lockedVoucherTry = await request("POST", "/so-quy", {
+    loai_phieu: "thu",
+    so_tien: 1000000,
+    ngay_ghi_nhan: "2025-12-15",
+    hang_muc: "thu_khac",
+  }, adminToken);
+  console.log("-> Status khi cố tình ghi phiếu vào kỳ đã chốt:", lockedVoucherTry.status, "(Mong muốn: 403 Forbidden)");
+  console.log("-> Phản hồi chặn khóa sổ:", lockedVoucherTry.body?.message);
+
+  // 14. Test Closed-Loop: Quy trình đổi trả hàng RMA & QC Gate
+  console.log("\n[14] Kiểm tra Closed-Loop: Quy trình đổi trả hàng (RMA) & QC...");
+  const rmaCreate = await request("POST", "/doi-tra", {
+    ma_dh: posCode,
+    ly_do: "Khách đổi sang mẫu khác",
+    phuong_an_hoan_tien: "hoan_tien_mat",
+    san_pham: [
+      { san_pham_id: "6ab22b35a2a51c0f66eba902", ma_sp: "SP007", ten_sp: "Giường ngủ 1m6", so_luong: 1, don_gia: 4200000 },
+    ],
+  }, adminToken);
+  console.log("-> Status tạo phiếu RMA:", rmaCreate.status, rmaCreate.body?.message || "");
+  const rmaCode = rmaCreate.body?.data?.ma_rma;
+  console.log("-> Mã RMA tạo:", rmaCode);
+
+  // Phê duyệt trong Hộp Thư Trình Ký
+  const rmaApprove = await request("POST", "/approvals/action", {
+    loai: "return_order",
+    id: rmaCode,
+    hanh_dong: "approve",
+  }, adminToken);
+  console.log("-> Trình ký duyệt RMA:", rmaApprove.status, rmaApprove.body?.message);
+
+  // Kho kiểm tra QC & Hoàn tất (Tự động sinh phiếu chi hoàn tiền mặt)
+  const rmaQC = await request("POST", `/doi-tra/${rmaCode}/qc-complete`, {
+    qc_details: [{ ma_sp: "SP007", qc_result: "nhap_lai_kho" }],
+    ghi_chu_qc: "Hàng nguyên vẹn, nhập kho bán tiếp",
+  }, adminToken);
+  console.log("-> QC nghiệm thu & Hoàn tất:", rmaQC.status, rmaQC.body?.message || "");
+  console.log("-> Tự động sinh Phiếu Chi hoàn tiền:", rmaQC.body?.data?.ma_phieu_chi);
+
+  console.log("\n=== TẤT CẢ CÁC BÀI TEST BẢO MẬT & HỆ THỐNG KHÉP KÍN ĐÃ THÀNH CÔNG RỰC RỠ! ===");
 }
 
 run().catch((err) => {

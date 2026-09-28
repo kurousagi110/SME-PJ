@@ -45,7 +45,17 @@ export default class ApprovalController {
       .limit(50)
       .toArray();
 
-    // 4. Bảng lương tháng hiện tại
+    // 4. Phiếu đổi trả hàng chờ QC kiểm tra & phê duyệt (trang_thai = 'cho_xu_ly' hoặc 'kiem_tra_qc')
+    const returnOrders = await db
+      .collection("doi_tra_hang")
+      .find({
+        trang_thai: { $in: ["cho_xu_ly", "kiem_tra_qc"] },
+      })
+      .sort({ created_at: -1 })
+      .limit(50)
+      .toArray();
+
+    // 5. Bảng lương tháng hiện tại
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
@@ -55,6 +65,7 @@ export default class ApprovalController {
       purchases.length +
       stockAdjustments.length +
       sales.length +
+      returnOrders.length +
       (payrollStatus.da_chi ? 0 : 1);
 
     return res.status(200).json({
@@ -64,6 +75,7 @@ export default class ApprovalController {
         purchases,
         stockAdjustments,
         sales,
+        returnOrders,
         payroll: {
           thang: currentMonth,
           nam: currentYear,
@@ -204,6 +216,53 @@ export default class ApprovalController {
         success: true,
         message: `Đã duyệt chi trả lương Tháng ${thang}/${nam} thành công`,
         data: payResult,
+      });
+    }
+
+    if (loai === "return_order" || loai === "rma") {
+      if (!isWarehouseApprover && !isSalesManager) {
+        throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu đổi trả hàng");
+      }
+
+      if (!isApprove) {
+        const db = getDB();
+        await db.collection("doi_tra_hang").updateOne(
+          { ma_rma: String(id) },
+          {
+            $set: {
+              trang_thai: "tu_choi",
+              ly_do_tu_choi: ghi_chu || "Từ chối tiếp nhận đổi trả",
+              rejected_by: user,
+              updated_at: new Date(),
+            },
+          }
+        );
+        return res.status(200).json({ success: true, message: "Đã từ chối yêu cầu đổi trả hàng" });
+      }
+
+      // Khi approve → chuyển sang bước kiểm định kho (kiem_tra_qc)
+      const db = getDB();
+      await db.collection("doi_tra_hang").updateOne(
+        { ma_rma: String(id) },
+        {
+          $set: {
+            trang_thai: "kiem_tra_qc",
+            approved_by: user,
+            updated_at: new Date(),
+          },
+        }
+      );
+
+      notifyDepartment("kho", {
+        type: "RMA_APPROVED",
+        title: "Yêu cầu đổi trả đã được duyệt, chờ kiểm định QC",
+        message: `Phiếu đổi trả ${id} đã được duyệt bởi ${user.ho_ten || user.tai_khoan}. Vui lòng kiểm định QC khi nhận hàng.`,
+        created_by: user,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Đã phê duyệt yêu cầu đổi trả, chuyển kho kiểm tra QC",
       });
     }
 

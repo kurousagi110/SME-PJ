@@ -103,20 +103,29 @@ export default class SanXuatService {
         { session }
       );
 
-      // Step 3: ghi log lô sản xuất
+      // Step 3: Sinh Số Lô (Lot Number) & ghi log sản xuất khép kín
+      const d = new Date();
+      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const ma_lo = `LOT-${ymd}-${rand}`;
+
       const log = {
+        ma_lo,
         san_pham_id: new ObjectId(san_pham_id),
+        ten_sp: sp.ten_sp || "",
+        ma_sp: sp.ma_sp || "",
         so_luong_sx: qty,
         bom_snapshot: b.items,
         nguyen_lieu_used: need,
         unit_cost: unitCost,
         total_cost: totalCost,
+        qc_status: "passed", // QC đầu ra đạt chuẩn
         ghi_chu,
-        created_at: new Date(),
+        created_at: d,
       };
       const resLog = await san_xuat_logs.insertOne(log, { session });
 
-      return { logId: resLog.insertedId };
+      return { logId: resLog.insertedId, ma_lo };
     };
 
     // Path A: có mongoClient → dùng transaction (preferred)
@@ -127,7 +136,7 @@ export default class SanXuatService {
         await session.withTransaction(async () => {
           result = await performWrites(session);
         });
-        return { ok: true, unitCost, totalCost, logId: result.logId };
+        return { ok: true, unitCost, totalCost, logId: result.logId, ma_lo: result.ma_lo };
       } catch (e) {
         // MongoDB standalone không hỗ trợ transaction → fallback compensation
         if (!e?.message?.includes("Transaction numbers are only allowed")) throw e;
@@ -160,18 +169,27 @@ export default class SanXuatService {
       );
 
       // Step 3
+      const d = new Date();
+      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+      const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+      const ma_lo = `LOT-${ymd}-${rand}`;
+
       const log = {
+        ma_lo,
         san_pham_id: new ObjectId(san_pham_id),
+        ten_sp: sp.ten_sp || "",
+        ma_sp: sp.ma_sp || "",
         so_luong_sx: qty,
         bom_snapshot: b.items,
         nguyen_lieu_used: need,
         unit_cost: unitCost,
         total_cost: totalCost,
+        qc_status: "passed",
         ghi_chu,
-        created_at: new Date(),
+        created_at: d,
       };
       const resLog = await san_xuat_logs.insertOne(log);
-      return { ok: true, unitCost, totalCost, logId: resLog.insertedId };
+      return { ok: true, unitCost, totalCost, logId: resLog.insertedId, ma_lo };
     } catch (err) {
       // Compensation: cộng lại NL đã trừ
       for (const d of deducted) {

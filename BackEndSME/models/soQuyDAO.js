@@ -384,4 +384,16 @@ export default class SoQuyDAO {
       return null;
     }
   }
+
+  static async getByMaChungTu(ma_chung_tu, { loai_phieu } = {}) {
+    try {
+      if (!ma_chung_tu) return null;
+      const filter = { ma_chung_tu: String(ma_chung_tu).trim(), trang_thai: STATUS.ACTIVE };
+      if (loai_phieu) filter.loai_phieu = loai_phieu;
+      return await soQuyCol.findOne(filter);
+    } catch (e) {
+      logger.error("SoQuyDAO.getByMaChungTu error", { error: e.message });
+      return null;
+    }
+  }
 }
