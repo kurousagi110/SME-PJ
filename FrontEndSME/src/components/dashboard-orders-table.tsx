@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 
 import { DataTable } from "@/components/data-table";
-import { fetchDashboardTable } from "@/app/actions/dashbroard";
+import { fetchDashboardTable } from "@/app/actions/dashboard";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileSpreadsheet, Search } from "lucide-react";

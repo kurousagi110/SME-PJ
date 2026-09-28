@@ -15,24 +15,22 @@ import VanChuyenDAO from "../models/vanChuyenDAO.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
 
-export default class DonHangController {
+export class OrderController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
   static createPOS = asyncHandler(async (req, res) => {
     const performedBy = performedByOf(req);
     const userId = performedBy?.user_id || req.user?._id;
     const body = req.body || {};
 
-    const {
-      khach_hang_ten = "Khách lẻ tại quầy",
-      san_pham = [],
-      giam_gia = 0,
-      thue_rate = 0,
-      phi_vc = 0,
-      phuong_thuc_tt = "tien_mat",
-      tien_khach_dua = 0,
-      ghi_chu = "Bán lẻ tại quầy (POS)",
-      so_dien_thoai = "",
-    } = body;
+    const khach_hang_ten = body.customer_name || body.customerName || body.khach_hang_ten || "Khách lẻ tại quầy";
+    const san_pham = body.items || body.products || body.san_pham || [];
+    const giam_gia = body.discount ?? body.giam_gia ?? 0;
+    const thue_rate = body.tax_rate ?? body.taxRate ?? body.thue_rate ?? 0;
+    const phi_vc = body.shipping_fee ?? body.shippingFee ?? body.phi_vc ?? 0;
+    const phuong_thuc_tt = body.payment_method ?? body.paymentMethod ?? body.phuong_thuc_tt ?? "tien_mat";
+    const tien_khach_dua = body.amount_paid ?? body.amountPaid ?? body.tien_khach_dua ?? 0;
+    const ghi_chu = body.note ?? body.notes ?? body.ghi_chu ?? "Bán lẻ tại quầy (POS)";
+    const so_dien_thoai = body.phone ?? body.phone_number ?? body.so_dien_thoai ?? "";
 
     if (!san_pham || !san_pham.length) {
       throw ApiError.badRequest("Giỏ hàng POS cần ít nhất 1 sản phẩm", "EMPTY_CART");
@@ -659,3 +657,7 @@ export default class DonHangController {
     return sendSuccess(res, commentDoc, "Đã gửi bình luận");
   });
 }
+
+export const DonHangController = OrderController;
+export default OrderController;
+

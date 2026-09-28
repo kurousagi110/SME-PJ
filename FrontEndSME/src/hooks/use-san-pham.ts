@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchSanPhamById, fetchSanPhamList } from "@/app/actions/san-pham";
+import { fetchSanPhamById, fetchSanPhamList } from "@/app/actions/product";
 
 export type NguyenLieuInSanPham = {
   ma_nl: string;

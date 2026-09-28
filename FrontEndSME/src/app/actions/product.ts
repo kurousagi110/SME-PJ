@@ -76,3 +76,37 @@ export async function fetchProductStockList(params?: {
     );
   }
 }
+
+export async function fetchSanPhamList(params?: {
+  page?: number;
+  limit?: number;
+  q?: string;
+  sortBy?: string;
+  order?: "asc" | "desc";
+}) {
+  const qs = new URLSearchParams();
+  qs.set("page", String(params?.page ?? 1));
+  qs.set("limit", String(params?.limit ?? 200));
+  qs.set("q", params?.q ?? "");
+  qs.set("sortBy", params?.sortBy ?? "createAt");
+  qs.set("order", params?.order ?? "desc");
+
+  try {
+    const res: any = await http.get(`/san-pham?${qs.toString()}`);
+    return res?.data ?? res;
+  } catch (err: any) {
+    throw new Error(err?.response?.data?.message || err?.message || "API error");
+  }
+}
+
+export async function fetchSanPhamById(id: string) {
+  try {
+    const res: any = await http.get(`/san-pham/${id}`);
+    return res?.data ?? res;
+  } catch (err: any) {
+    throw new Error(err?.response?.data?.message || err?.message || "API error");
+  }
+}
+
+export const fetchProductListWithBOM = fetchSanPhamList;
+export const fetchProductByIdWithBOM = fetchSanPhamById;

@@ -65,7 +65,7 @@ import {
   fetchPeriodListAction,
   closePeriodAction,
   reopenPeriodAction,
-} from "@/app/actions/so-quy";
+} from "@/app/actions/cashbook";
 import { exportToCSV, printCashReceipt } from "@/lib/export";
 
 const HANG_MUC_LABELS: Record<string, string> = {

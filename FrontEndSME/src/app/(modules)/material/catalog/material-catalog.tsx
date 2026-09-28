@@ -32,7 +32,7 @@ import {
   useUpdateMaterialById,
 } from "@/hooks/use-material";
 import { useMyProfile } from "@/hooks/use-account";
-import { useCreateDieuChinhKho } from "@/hooks/use-dieu-chinh-kho";
+import { useCreateStockAdjustment as useCreateDieuChinhKho } from "@/hooks/use-stock-adjustment";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { DataTable } from "@/components/shared/DataTable";

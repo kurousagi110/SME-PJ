@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchDoiTacAction, DoiTacItem } from "@/app/actions/doi-tac";
+import { fetchDoiTacAction, DoiTacItem } from "@/app/actions/partner";
 
 type NguyenLieuStock = {
   _id: string;

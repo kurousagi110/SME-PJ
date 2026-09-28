@@ -30,7 +30,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 
-import { fetchDashboardChartCompare } from "@/app/actions/dashbroard";
+import { fetchDashboardChartCompare } from "@/app/actions/dashboard";
 
 type ChartRow = {
   date: string; // YYYY-MM-DD

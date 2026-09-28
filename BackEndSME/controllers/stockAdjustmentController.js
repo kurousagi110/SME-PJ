@@ -10,21 +10,23 @@ import { performedByOf } from "../utils/auditIdentity.js";
 import { isAdminUser } from "../middleware/auth.js";
 import logger from "../utils/logger.js";
 
-export default class DieuChinhKhoController {
+export default class StockAdjustmentController {
   /* ─── CREATE ─── */
   static create = asyncHandler(async (req, res) => {
-    const {
-      loai,
-      item_id,
-      ma_hang,
-      ten_hang,
-      so_luong_dieu_chinh,
-      ton_kho_truoc,
-      ly_do,
-    } = req.body || {};
+    const body = req.body || {};
+    let loai = body.loai || body.type;
+    if (loai === "material") loai = "nguyen_lieu";
+    if (loai === "product") loai = "san_pham";
+
+    const item_id = body.item_id || body.itemId;
+    const ma_hang = body.ma_hang || body.item_code || body.code;
+    const ten_hang = body.ten_hang || body.item_name || body.name;
+    const so_luong_dieu_chinh = body.so_luong_dieu_chinh ?? body.adjustment_qty ?? body.delta_qty;
+    const ton_kho_truoc = body.ton_kho_truoc ?? body.before_qty ?? body.current_qty;
+    const ly_do = body.ly_do || body.reason;
 
     if (!["nguyen_lieu", "san_pham"].includes(loai)) {
-      throw ApiError.badRequest("loai phải là 'nguyen_lieu' hoặc 'san_pham'", "VALIDATION_ERROR");
+      throw ApiError.badRequest("loai (type) phải là 'nguyen_lieu'/'material' hoặc 'san_pham'/'product'", "VALIDATION_ERROR");
     }
     if (Number(so_luong_dieu_chinh) === 0) {
       throw ApiError.badRequest("Số lượng điều chỉnh không được bằng 0", "VALIDATION_ERROR");
@@ -65,7 +67,13 @@ export default class DieuChinhKhoController {
 
   /* ─── LIST ─── */
   static list = asyncHandler(async (req, res) => {
-    const { loai, trang_thai, page = 1, limit = 20 } = req.query;
+    let loai = req.query.loai || req.query.type;
+    if (loai === "material") loai = "nguyen_lieu";
+    if (loai === "product") loai = "san_pham";
+    const trang_thai = req.query.trang_thai || req.query.status;
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 20;
+
     const result = await DieuChinhKhoDAO.getAll({
       loai:       loai       || undefined,
       trang_thai: trang_thai || undefined,
@@ -244,3 +252,5 @@ export default class DieuChinhKhoController {
     return sendSuccess(res, updated, "Từ chối phiếu điều chỉnh kho thành công");
   });
 }
+
+export const DieuChinhKhoController = StockAdjustmentController;

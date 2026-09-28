@@ -4,10 +4,14 @@ import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import PhongBanService from "../services/phongBanService.js";
 
-export default class PhongBanChucVuController {
+export default class DepartmentPositionController {
   /* ─── CREATE PHÒNG BAN ─── */
   static create = asyncHandler(async (req, res) => {
-    const { ten_phong_ban, mo_ta, chuc_vu } = req.body || {};
+    const body = req.body || {};
+    const ten_phong_ban = body.ten_phong_ban || body.name || body.department_name;
+    const mo_ta = body.mo_ta || body.description;
+    const chuc_vu = body.chuc_vu || body.positions;
+
     const data = await PhongBanService.create({ ten_phong_ban, mo_ta, chuc_vu });
     return sendSuccess(res, data, "Tạo phòng ban thành công", 201);
   });
@@ -57,7 +61,11 @@ export default class PhongBanChucVuController {
 
   /* ─── CHỨC VỤ ─── */
   static addChucVu = asyncHandler(async (req, res) => {
-    const { ten_chuc_vu, mo_ta, he_so_luong } = req.body || {};
+    const body = req.body || {};
+    const ten_chuc_vu = body.ten_chuc_vu || body.position_name || body.name;
+    const mo_ta = body.mo_ta || body.description;
+    const he_so_luong = body.he_so_luong ?? body.salary_coefficient;
+
     const data = await PhongBanService.addChucVu(req.params.id, { ten_chuc_vu, mo_ta, he_so_luong });
     return sendSuccess(res, data, "Thêm chức vụ thành công");
   });
@@ -81,3 +89,5 @@ export default class PhongBanChucVuController {
     return sendSuccess(res, data, "Cập nhật trạng thái chức vụ thành công");
   });
 }
+
+export const PhongBanChucVuController = DepartmentPositionController;

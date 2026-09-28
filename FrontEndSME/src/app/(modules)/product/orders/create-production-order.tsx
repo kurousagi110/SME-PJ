@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 import { useMyProfile } from "@/hooks/use-account";
 import { myProfile } from "@/app/actions/auth";
-import { useSanPhamList, SanPham } from "@/hooks/use-san-pham";
+import { useProductBOMList, type ProductWithBOM as SanPham } from "@/hooks/use-product-bom";
 import { useMaterialStockMap } from "@/hooks/use-material-stock";
 import { useCreateProductionReceipt } from "@/hooks/use-production-receipts";
 
@@ -74,7 +74,7 @@ export default function CreateProductionOrder() {
   const me = meQuery.data;
 
   // Load products (limit cao để search client-side mượt hơn)
-  const spQuery = useSanPhamList({ page: 1, limit: 500, q: "" });
+  const spQuery = useProductBOMList({ page: 1, limit: 500, q: "" });
   const products: SanPham[] = spQuery.data?.items ?? [];
 
   // Load stock NL

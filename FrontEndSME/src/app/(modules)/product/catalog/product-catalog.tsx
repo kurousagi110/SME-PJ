@@ -52,7 +52,7 @@ import {
   useDeleteProduct,
 } from "@/hooks/use-product";
 import { useMaterialCatalog } from "@/hooks/use-material";
-import { useCreateDieuChinhKho } from "@/hooks/use-dieu-chinh-kho";
+import { useCreateStockAdjustment as useCreateDieuChinhKho } from "@/hooks/use-stock-adjustment";
 
 import { useMyProfile } from "@/hooks/use-account";
 import { DataTable } from "@/components/shared/DataTable";

@@ -5,9 +5,13 @@ import VanChuyenDAO from "../models/vanChuyenDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
-export default class VanChuyenController {
+export default class ShippingController {
   static list = asyncHandler(async (req, res) => {
-    const { trang_thai, don_vi, search, page = 1, limit = 20 } = req.query;
+    const trang_thai = req.query.trang_thai || req.query.status;
+    const don_vi = req.query.don_vi || req.query.carrier || req.query.provider;
+    const search = req.query.search || req.query.q;
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 20;
     const result = await VanChuyenDAO.layDanhSach({ trang_thai, don_vi, search, page, limit });
     if (result.error) {
       throw ApiError.internal("Không thể lấy danh sách vận đơn: " + result.error.message);
@@ -86,3 +90,5 @@ export default class VanChuyenController {
     return sendSuccess(res, { success: true }, "Cập nhật trạng thái vận đơn thành công");
   });
 }
+
+export const VanChuyenController = ShippingController;

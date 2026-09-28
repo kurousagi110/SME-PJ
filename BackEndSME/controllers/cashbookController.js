@@ -7,19 +7,17 @@ import { sendWebhookNotification } from "../utils/webhookNotifier.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
-export default class SoQuyController {
+export default class CashbookController {
   /* ─── 1. Lấy danh sách phiếu thu chi ─── */
   static list = asyncHandler(async (req, res) => {
-    const {
-      loai_phieu,
-      hang_muc,
-      phuong_thuc,
-      tu_ngay,
-      den_ngay,
-      search,
-      page = 1,
-      limit = 20,
-    } = req.query;
+    const loai_phieu = req.query.loai_phieu || req.query.type;
+    const hang_muc = req.query.hang_muc || req.query.category;
+    const phuong_thuc = req.query.phuong_thuc || req.query.method;
+    const tu_ngay = req.query.tu_ngay || req.query.fromDate || req.query.from;
+    const den_ngay = req.query.den_ngay || req.query.toDate || req.query.to;
+    const search = req.query.search || req.query.q;
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 20;
 
     const result = await SoQuyDAO.layDanhSachSoQuy({
       loai_phieu,
@@ -60,19 +58,18 @@ export default class SoQuyController {
 
   /* ─── 4. Lập phiếu thu / chi mới ─── */
   static create = asyncHandler(async (req, res) => {
-    const {
-      loai_phieu,
-      hang_muc,
-      so_tien,
-      phuong_thuc,
-      doi_tuong,
-      ma_chung_tu,
-      ngay_ghi_nhan,
-      ghi_chu,
-    } = req.body || {};
+    const body = req.body || {};
+    const loai_phieu = body.loai_phieu || body.type;
+    const hang_muc = body.hang_muc || body.category;
+    const so_tien = body.so_tien ?? body.amount;
+    const phuong_thuc = body.phuong_thuc || body.method;
+    const doi_tuong = body.doi_tuong || body.partner || body.target;
+    const ma_chung_tu = body.ma_chung_tu || body.reference_code || body.doc_code;
+    const ngay_ghi_nhan = body.ngay_ghi_nhan || body.record_date || body.date;
+    const ghi_chu = body.ghi_chu || body.note;
 
     if (!loai_phieu || ![LOAI_PHIEU.THU, LOAI_PHIEU.CHI].includes(loai_phieu)) {
-      throw ApiError.badRequest("loai_phieu phải là 'thu' hoặc 'chi'", "VALIDATION_ERROR");
+      throw ApiError.badRequest("loai_phieu (type) phải là 'thu' hoặc 'chi'", "VALIDATION_ERROR");
     }
 
     const amount = Number(so_tien);
@@ -120,7 +117,7 @@ export default class SoQuyController {
   /* ─── 5. Hủy phiếu thu / chi ─── */
   static cancel = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { ly_do } = req.body || {};
+    const ly_do = req.body?.ly_do || req.body?.reason;
     const user = req.user || performedByOf(req) || {};
 
     const existing = await SoQuyDAO.getById(id);
@@ -172,9 +169,14 @@ export default class SoQuyController {
   });
 
   static closePeriod = asyncHandler(async (req, res) => {
-    const { ky, tu_ngay, den_ngay, ghi_chu } = req.body || {};
+    const body = req.body || {};
+    const ky = body.ky || body.period;
+    const tu_ngay = body.tu_ngay || body.fromDate || body.from;
+    const den_ngay = body.den_ngay || body.toDate || body.to;
+    const ghi_chu = body.ghi_chu || body.note;
+
     if (!ky || !tu_ngay || !den_ngay) {
-      throw ApiError.badRequest("Cần cung cấp tên kỳ (ky), từ ngày (tu_ngay) và đến ngày (den_ngay)");
+      throw ApiError.badRequest("Cần cung cấp tên kỳ (period/ky), từ ngày (fromDate/tu_ngay) và đến ngày (toDate/den_ngay)");
     }
     const user = req.user || performedByOf(req) || {};
     const result = await PeriodClosingDAO.closePeriod({ ky, tu_ngay, den_ngay, ghi_chu, user });
@@ -194,7 +196,7 @@ export default class SoQuyController {
 
   static reopenPeriod = asyncHandler(async (req, res) => {
     const { ky } = req.params;
-    const { ly_do } = req.body || {};
+    const ly_do = req.body?.ly_do || req.body?.reason;
     const user = req.user || performedByOf(req) || {};
     const result = await PeriodClosingDAO.reopenPeriod(ky, { ly_do, user });
     if (result.error) throw ApiError.internal(result.error.message);
@@ -211,3 +213,5 @@ export default class SoQuyController {
     return sendSuccess(res, result, `Mở khóa kỳ kế toán ${ky} thành công`);
   });
 }
+
+export const SoQuyController = CashbookController;

@@ -1,5 +1,5 @@
-import DieuChinhKhoPage from "./dieu-chinh-kho-page";
+import StockAdjustmentsView from "./stock-adjustments-view";
 
-export default function Page() {
-  return <DieuChinhKhoPage />;
+export default function StockAdjustmentsPage() {
+  return <StockAdjustmentsView />;
 }

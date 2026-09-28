@@ -36,7 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { fetchDashboardYearlyCompare } from "@/app/actions/dashbroard";
+import { fetchDashboardYearlyCompare } from "@/app/actions/dashboard";
 
 const currentYear = new Date().getFullYear();
 const years = Array.from({ length: 6 }, (_, i) => String(currentYear - (5 - i)));

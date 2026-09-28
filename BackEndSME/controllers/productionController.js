@@ -19,18 +19,21 @@ import { notifyApprover } from "../utils/socketManager.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
-export default class SanXuatController {
+export default class ProductionController {
   /* ─── PRODUCE (tạo lệnh sản xuất) ─── */
   static produce = asyncHandler(async (req, res) => {
-    const { san_pham_id, so_luong_sx, ghi_chu = "" } = req.body || {};
+    const body = req.body || {};
+    const san_pham_id = body.san_pham_id || body.product_id;
+    const so_luong_sx = body.so_luong_sx ?? body.quantity ?? body.produce_qty;
+    const ghi_chu = body.ghi_chu || body.note || "";
 
     // Validation tier 1 — shape cơ bản
     if (!ObjectId.isValid(san_pham_id)) {
-      throw ApiError.badRequest("san_pham_id không phải ObjectId hợp lệ", "VALIDATION_ERROR");
+      throw ApiError.badRequest("san_pham_id (product_id) không phải ObjectId hợp lệ", "VALIDATION_ERROR");
     }
     const qty = Number(so_luong_sx);
     if (!Number.isFinite(qty) || qty <= 0) {
-      throw ApiError.badRequest("so_luong_sx phải là số dương", "VALIDATION_ERROR");
+      throw ApiError.badRequest("so_luong_sx (quantity) phải là số dương", "VALIDATION_ERROR");
     }
 
     // Pass mongoClient để service dùng transaction (preferred).
@@ -110,3 +113,5 @@ export default class SanXuatController {
     return sendSuccess(res, item, "Lấy thông tin nguồn gốc lô hàng thành công", 200);
   });
 }
+
+export const SanXuatController = ProductionController;

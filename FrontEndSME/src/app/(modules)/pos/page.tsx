@@ -42,7 +42,7 @@ import {
 
 import { useMyProfile } from "@/hooks/use-account";
 import { useProductList } from "@/hooks/use-product";
-import { fetchDoiTacAction, type DoiTacItem } from "@/app/actions/doi-tac";
+import { fetchDoiTacAction, type DoiTacItem } from "@/app/actions/partner";
 import { checkoutPosAction, type PosOrderItemPayload } from "@/app/actions/pos";
 import { printPosThermalReceipt, type PosReceiptData } from "@/lib/barcode";
 

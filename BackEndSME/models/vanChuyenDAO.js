@@ -18,6 +18,9 @@ export const DON_VI_VAN_CHUYEN = {
   NOI_BO: "Đội xe nội bộ",
 };
 
+export const SHIPPING_STATUS = TRANG_THAI_VAN_CHUYEN;
+export const CARRIERS = DON_VI_VAN_CHUYEN;
+
 let vanChuyenCol = null;
 let donHangCol = null;
 let soQuyCol = null;

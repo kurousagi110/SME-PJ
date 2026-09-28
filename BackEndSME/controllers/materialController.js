@@ -5,10 +5,18 @@ import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import NguyenLieuService from "../services/nguyenLieuService.js";
 
-export default class NguyenLieuController {
+export default class MaterialController {
   /* ─── CREATE ─── */
   static create = asyncHandler(async (req, res) => {
-    const { ma_nl, ten_nl, don_vi, gia_nhap, so_luong, ton_toi_thieu, mo_ta } = req.body || {};
+    const body = req.body || {};
+    const ma_nl = body.ma_nl || body.code || body.material_code;
+    const ten_nl = body.ten_nl || body.name || body.material_name;
+    const don_vi = body.don_vi || body.unit;
+    const gia_nhap = body.gia_nhap ?? body.import_price ?? body.cost_price;
+    const so_luong = body.so_luong ?? body.quantity ?? body.stock_qty;
+    const ton_toi_thieu = body.ton_toi_thieu ?? body.min_quantity ?? body.min_stock;
+    const mo_ta = body.mo_ta || body.description;
+
     const data = await NguyenLieuService.create({ ma_nl, ten_nl, don_vi, gia_nhap, so_luong, ton_toi_thieu, mo_ta });
     return sendSuccess(res, data, "Tạo nguyên liệu thành công", 201);
   });
@@ -104,3 +112,5 @@ export default class NguyenLieuController {
     return sendSuccess(res, result.items ?? result, "Lấy tồn kho nguyên liệu thành công", 200, pagination);
   });
 }
+
+export const NguyenLieuController = MaterialController;

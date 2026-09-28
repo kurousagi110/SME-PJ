@@ -68,7 +68,7 @@ import {
   taoDoiTacAction,
   TongQuanCRM,
   xoaDoiTacAction,
-} from "@/app/actions/doi-tac";
+} from "@/app/actions/partner";
 import { exportToCSV } from "@/lib/export";
 
 const NHOM_LABELS: Record<string, { label: string; color: string }> = {

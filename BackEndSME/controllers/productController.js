@@ -7,11 +7,25 @@ import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
 import SanPhamService from "../services/sanPhamService.js";
 
-export default class SanPhamController {
+export class ProductController {
   /* ─── CREATE ─── */
   static create = asyncHandler(async (req, res) => {
-    const { ma_sp, ten_sp, don_gia, so_luong = 0, mo_ta = "", nguyen_lieu = [] } = req.body || {};
-    const data = await SanPhamService.create({ ma_sp, ten_sp, don_gia, so_luong, mo_ta, nguyen_lieu });
+    const {
+      ma_sp, code,
+      ten_sp, name,
+      don_gia, price,
+      so_luong, quantity = 0,
+      mo_ta, description = "",
+      nguyen_lieu, materials = [],
+    } = req.body || {};
+    const data = await SanPhamService.create({
+      ma_sp: code || ma_sp,
+      ten_sp: name || ten_sp,
+      don_gia: price ?? don_gia,
+      so_luong: quantity ?? so_luong,
+      mo_ta: description || mo_ta,
+      nguyen_lieu: materials || nguyen_lieu,
+    });
     return sendSuccess(res, data, "Tạo sản phẩm thành công", 201);
   });
 
@@ -119,3 +133,7 @@ export default class SanPhamController {
     return sendSuccess(res, result.items ?? result, "Lấy tồn kho sản phẩm thành công", 200, pagination);
   });
 }
+
+export const SanPhamController = ProductController;
+export default ProductController;
+

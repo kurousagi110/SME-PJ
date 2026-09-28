@@ -5,11 +5,14 @@ import DoiTacDAO from "../models/doiTacDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
-export default class DoiTacController {
+export default class PartnerController {
   /* ─── 1. Danh sách đối tác ─── */
   static list = asyncHandler(async (req, res) => {
-    const loai_doi_tac = req.query.loai_doi_tac || req.query.loai;
-    const { nhom, search, page = 1, limit = 50 } = req.query;
+    const loai_doi_tac = req.query.loai_doi_tac || req.query.loai || req.query.partner_type || req.query.type;
+    const nhom = req.query.nhom || req.query.group;
+    const search = req.query.search || req.query.q;
+    const page = req.query.page || 1;
+    const limit = req.query.limit || 50;
 
     const result = await DoiTacDAO.layDanhSachDoiTac({
       loai_doi_tac,
@@ -47,20 +50,19 @@ export default class DoiTacController {
 
   /* ─── 4. Tạo mới đối tác ─── */
   static create = asyncHandler(async (req, res) => {
-    const {
-      ma_doi_tac,
-      loai_doi_tac,
-      ten,
-      so_dien_thoai,
-      email,
-      dia_chi,
-      ma_so_thue,
-      nhom,
-      ghi_chu,
-    } = req.body || {};
+    const body = req.body || {};
+    const ma_doi_tac = body.ma_doi_tac || body.code || body.partner_code;
+    const loai_doi_tac = body.loai_doi_tac || body.type || body.partner_type;
+    const ten = body.ten || body.name || body.partner_name;
+    const so_dien_thoai = body.so_dien_thoai || body.phone;
+    const email = body.email;
+    const dia_chi = body.dia_chi || body.address;
+    const ma_so_thue = body.ma_so_thue || body.tax_id;
+    const nhom = body.nhom || body.group;
+    const ghi_chu = body.ghi_chu || body.note;
 
     if (!ten || !String(ten).trim()) {
-      throw ApiError.badRequest("Tên đối tác là bắt buộc", "VALIDATION_ERROR");
+      throw ApiError.badRequest("Tên đối tác (name) là bắt buộc", "VALIDATION_ERROR");
     }
 
     const user = req.user || performedByOf(req) || {};
@@ -138,3 +140,5 @@ export default class DoiTacController {
     return sendSuccess(res, { ok: true }, "Xóa đối tác thành công");
   });
 }
+
+export const DoiTacController = PartnerController;

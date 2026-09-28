@@ -15,27 +15,27 @@ import { injectSocketDB, initSocket } from "./utils/socketManager.js";
 import { injectAuditDB } from "./utils/auditLogger.js";
 import { injectAuditLogControllerDB } from "./controllers/auditLogController.js";
 
-import UsersDAO           from "./models/usersDAO.js";
-import NguyenLieuDAO      from "./models/nguyenLieuDAO.js";
-import SanPhamDAO         from "./models/sanPhamDAO.js";
-import DonHangDAO         from "./models/donHangDAO.js";
-import phongban_chucvuDAO from "./models/phongban_chucvuDAO.js";
-import LuongDAO           from "./models/luongDAO.js";
-import DashboardDAO       from "./models/dashboardDAO.js";
-import SanXuatService     from "./services/sanXuatService.js";
-import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
-import SoQuyDAO           from "./models/soQuyDAO.js";
-import DoiTacDAO          from "./models/doiTacDAO.js";
-import { PlanningDAO }    from "./models/planningDAO.js";
+import UsersDAO              from "./models/usersDAO.js";
+import MaterialDAO           from "./models/materialDAO.js";
+import ProductDAO            from "./models/productDAO.js";
+import OrderDAO              from "./models/orderDAO.js";
+import DepartmentPositionDAO from "./models/departmentPositionDAO.js";
+import PayrollDAO            from "./models/payrollDAO.js";
+import DashboardDAO          from "./models/dashboardDAO.js";
+import ProductionService     from "./services/productionService.js";
+import StockAdjustmentDAO    from "./models/stockAdjustmentDAO.js";
+import CashbookDAO           from "./models/cashbookDAO.js";
+import PartnerDAO            from "./models/partnerDAO.js";
+import { PlanningDAO }       from "./models/planningDAO.js";
 import { EcommercePolicyDAO } from "./models/ecommercePolicyDAO.js";
-import AiCopilotDAO       from "./models/aiCopilotDAO.js";
-import AiConfigDAO        from "./models/aiConfigDAO.js";
-import VanChuyenDAO       from "./models/vanChuyenDAO.js";
-import ThongBaoDAO        from "./models/thongBaoDAO.js";
-import PeriodClosingDAO   from "./models/periodClosingDAO.js";
-import ReturnOrderDAO     from "./models/returnOrderDAO.js";
-import StockLedgerDAO     from "./models/stockLedgerDAO.js";
-import QuotationDAO       from "./models/quotationDAO.js";
+import AiCopilotDAO          from "./models/aiCopilotDAO.js";
+import AiConfigDAO           from "./models/aiConfigDAO.js";
+import ShippingDAO           from "./models/shippingDAO.js";
+import NotificationDAO       from "./models/notificationDAO.js";
+import PeriodClosingDAO      from "./models/periodClosingDAO.js";
+import ReturnOrderDAO        from "./models/returnOrderDAO.js";
+import StockLedgerDAO        from "./models/stockLedgerDAO.js";
+import QuotationDAO          from "./models/quotationDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -95,22 +95,22 @@ async function main() {
 
     await Promise.all([
       UsersDAO.injectDB(client),
-      NguyenLieuDAO.injectDB(client),
-      SanPhamDAO.injectDB(client),
-      DonHangDAO.injectDB(client),
-      phongban_chucvuDAO.injectDB(client),
-      LuongDAO.injectDB(client),
+      MaterialDAO.injectDB(client),
+      ProductDAO.injectDB(client),
+      OrderDAO.injectDB(client),
+      DepartmentPositionDAO.injectDB(client),
+      PayrollDAO.injectDB(client),
       DashboardDAO.injectDB(client),
-      SanXuatService.injectDB(client), // M5 fix: was never called before (dead code)
-      DieuChinhKhoDAO.injectDB(client),
-      SoQuyDAO.injectDB(client),
-      DoiTacDAO.injectDB(client),
+      ProductionService.injectDB(client),
+      StockAdjustmentDAO.injectDB(client),
+      CashbookDAO.injectDB(client),
+      PartnerDAO.injectDB(client),
       PlanningDAO.injectDB(client),
       EcommercePolicyDAO.injectDB(client),
       AiCopilotDAO.injectDB(client),
       AiConfigDAO.injectDB(client),
-      VanChuyenDAO.injectDB(client),
-      ThongBaoDAO.injectDB(client),
+      ShippingDAO.injectDB(client),
+      NotificationDAO.injectDB(client),
       PeriodClosingDAO.injectDB(client),
       ReturnOrderDAO.injectDB(client),
       StockLedgerDAO.injectDB(client),
