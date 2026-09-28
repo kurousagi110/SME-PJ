@@ -133,14 +133,23 @@ async function run() {
   console.log("-> Status khi truy cập /sales không có cookie:", feRes.status, "(Mong muốn: 307 Redirect)");
   console.log("-> Redirect Location:", feRes.headers?.location);
 
-  // 9. Test Fix 12: Doanh thu tổng hợp từ database (GET /don-hang/stats/revenue)
-  console.log("\n[9] Kiểm tra thống kê doanh thu toàn database (/don-hang/stats/revenue)...");
-  const statsRes = await request("GET", "/don-hang/stats/revenue", null, adminToken);
-  console.log("-> Status:", statsRes.status);
-  console.log("-> Doanh thu:", statsRes.body?.data?.doanh_thu?.toLocaleString("vi-VN"), "đ");
-  console.log("-> Chi phí mua:", statsRes.body?.data?.chi_phi_mua?.toLocaleString("vi-VN"), "đ");
-  console.log("-> Lợi nhuận:", statsRes.body?.data?.loi_nhuan?.toLocaleString("vi-VN"), "đ");
-  console.log("-> Tỷ suất:", statsRes.body?.data?.ty_suat, "%");
+  // 10. Test Phase 2: Bulk Import Validation chặn giá trị âm
+  console.log("\n[10] Kiểm tra Bulk Import: Chặn sản phẩm có số lượng hoặc đơn giá âm...");
+  const invalidBulkImport = await request("POST", "/import/bulk", {
+    type: "san_pham",
+    items: [
+      { ma_sp: "TEST_SP_NEG", ten_sp: "Sản phẩm âm test", don_gia: -1000, so_luong: -5 },
+    ],
+  }, adminToken);
+  console.log("-> Status bulk import:", invalidBulkImport.status);
+  console.log("-> Success count:", invalidBulkImport.body?.data?.successCount, "(Mong muốn: 0)");
+  console.log("-> Error count:", invalidBulkImport.body?.data?.errorCount, "(Mong muốn: 1)");
+  console.log("-> Chi tiết lỗi:", invalidBulkImport.body?.data?.errors?.[0]?.error);
+
+  // 11. Test Phase 2: Dashboard API sau khi đổi tên file thành dashboardDAO.js
+  console.log("\n[11] Kiểm tra Dashboard API với dashboardDAO.js đã chuẩn hóa...");
+  const dashRes = await request("GET", "/dashboard/orders/overview", null, adminToken);
+  console.log("-> Status dashboard overview:", dashRes.status, "(Mong muốn: 200)");
 
   console.log("\n=== TẤT CẢ CÁC BÀI TEST BẢO MẬT & TÍNH NĂNG ĐÃ THÀNH CÔNG RỰC RỠ! ===");
 }

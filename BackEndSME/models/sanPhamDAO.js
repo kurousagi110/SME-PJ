@@ -304,6 +304,17 @@ export default class SanPhamDAO {
     }
   }
 
+  static async getSanPhamByMa(ma_sp, { includeDeleted = false } = {}) {
+    try {
+      const filter = { ma_sp: this._sanitizeString(ma_sp) };
+      if (!includeDeleted) filter.trang_thai = { $ne: STATUS.DELETED };
+      return await sanPham.findOne(filter);
+    } catch (e) {
+      logger.error("Unable to get sanPham by ma_sp", { error: e.message });
+      return null;
+    }
+  }
+
   static async listSanPham({
     q = "",
     minPrice,

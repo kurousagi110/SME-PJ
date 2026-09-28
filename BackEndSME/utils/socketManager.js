@@ -40,10 +40,8 @@ export function initSocket(httpServer) {
   io.use(async (socket, next) => {
     try {
       const cookieHeader = socket.handshake.headers.cookie || "";
-      const tokenFromCookie = cookieHeader
-        .split("; ")
-        .find((row) => row.startsWith("access_token="))
-        ?.split("=")[1];
+      const cookieMatch = cookieHeader.match(/(?:^|;\s*)access_token=([^;]+)/);
+      const tokenFromCookie = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null;
 
       const token =
         socket.handshake.auth?.token ||

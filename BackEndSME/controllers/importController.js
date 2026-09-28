@@ -40,13 +40,25 @@ export default class ImportController {
         const rowNum = i + 1;
         const ma_sp = (item.ma_sp || "").trim();
         const ten_sp = (item.ten_sp || "").trim();
-        const don_gia = Number(item.don_gia) || 0;
-        const so_luong = Number(item.so_luong) || 0;
+        const don_gia = Number(item.don_gia);
+        const so_luong = Number(item.so_luong);
         const mo_ta = (item.mo_ta || "").trim();
 
         if (!ma_sp || !ten_sp) {
           results.errorCount++;
           results.errors.push({ row: rowNum, ma: ma_sp, error: "Thiếu Mã SP hoặc Tên SP" });
+          continue;
+        }
+
+        if (Number.isNaN(don_gia) || don_gia < 0) {
+          results.errorCount++;
+          results.errors.push({ row: rowNum, ma: ma_sp, error: "Đơn giá không hợp lệ hoặc âm" });
+          continue;
+        }
+
+        if (Number.isNaN(so_luong) || so_luong < 0) {
+          results.errorCount++;
+          results.errors.push({ row: rowNum, ma: ma_sp, error: "Số lượng không hợp lệ hoặc âm" });
           continue;
         }
 
@@ -57,9 +69,7 @@ export default class ImportController {
             results.inserted.push({ row: rowNum, ma: ma_sp, ten: ten_sp });
           } else if (addRes?.error) {
             if (mode === "upsert" && addRes.error.message?.includes("đã tồn tại")) {
-              // Tìm và cập nhật
-              const found = await SanPhamDAO.listSanPham({ search: ma_sp, limit: 1 });
-              const existing = found?.items?.find((p) => p.ma_sp?.toLowerCase() === ma_sp.toLowerCase());
+              const existing = await SanPhamDAO.getSanPhamByMa(ma_sp);
               if (existing?._id) {
                 await SanPhamDAO.updateSanPham(existing._id, { ten_sp, don_gia, so_luong, mo_ta });
                 results.successCount++;
@@ -82,9 +92,9 @@ export default class ImportController {
         const ma_nl = (item.ma_nl || "").trim();
         const ten_nl = (item.ten_nl || "").trim();
         const don_vi = (item.don_vi || "").trim() || "cái";
-        const gia_nhap = Number(item.gia_nhap) || 0;
-        const so_luong = Number(item.so_luong) || 0;
-        const ton_toi_thieu = Number(item.ton_toi_thieu) || 0;
+        const gia_nhap = Number(item.gia_nhap);
+        const so_luong = Number(item.so_luong);
+        const ton_toi_thieu = Number(item.ton_toi_thieu);
         const mo_ta = (item.mo_ta || "").trim();
 
         if (!ma_nl || !ten_nl) {
@@ -93,6 +103,20 @@ export default class ImportController {
           continue;
         }
 
+        if (Number.isNaN(gia_nhap) || gia_nhap < 0) {
+          results.errorCount++;
+          results.errors.push({ row: rowNum, ma: ma_nl, error: "Giá nhập không hợp lệ hoặc âm" });
+          continue;
+        }
+
+        if (Number.isNaN(so_luong) || so_luong < 0) {
+          results.errorCount++;
+          results.errors.push({ row: rowNum, ma: ma_nl, error: "Số lượng không hợp lệ hoặc âm" });
+          continue;
+        }
+
+        const validTonToiThieu = !Number.isNaN(ton_toi_thieu) && ton_toi_thieu >= 0 ? ton_toi_thieu : 0;
+
         try {
           const addRes = await NguyenLieuDAO.addNguyenLieu({
             ma_nl,
@@ -100,7 +124,7 @@ export default class ImportController {
             don_vi,
             gia_nhap,
             so_luong,
-            ton_toi_thieu,
+            ton_toi_thieu: validTonToiThieu,
             mo_ta,
           });
 
@@ -109,15 +133,14 @@ export default class ImportController {
             results.inserted.push({ row: rowNum, ma: ma_nl, ten: ten_nl });
           } else if (addRes?.error) {
             if (mode === "upsert" && addRes.error.message?.includes("đã tồn tại")) {
-              const found = await NguyenLieuDAO.list({ search: ma_nl, limit: 1 });
-              const existing = found?.items?.find((m) => m.ma_nl?.toLowerCase() === ma_nl.toLowerCase());
+              const existing = await NguyenLieuDAO.getByMa(ma_nl);
               if (existing?._id) {
                 await NguyenLieuDAO.updateNguyenLieu(existing._id, {
                   ten_nl,
                   don_vi,
                   gia_nhap,
                   so_luong,
-                  ton_toi_thieu,
+                  ton_toi_thieu: validTonToiThieu,
                   mo_ta,
                 });
                 results.successCount++;

@@ -1,6 +1,6 @@
 // Refactored: 2026-04-02 | Issues fixed: S1, S2, C3 | Phase 3 – Service Layer
 
-import DashboardDAO from "../models/dashbroadDAO.js";
+import DashboardDAO from "../models/dashboardDAO.js";
 import ApiError from "../utils/ApiError.js";
 
 /**

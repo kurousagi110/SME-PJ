@@ -39,7 +39,15 @@ export default class UsersDAO {
     const hashed = await bcrypt.hash(refreshToken, SALT_ROUNDS);
     return users.updateOne(
       { _id: new ObjectId(userId) },
-      { $push: { tokens: { _id: new ObjectId(), hashed, createdAt: new Date() } }, $set: { updateAt: new Date() } }
+      {
+        $push: {
+          tokens: {
+            $each: [{ _id: new ObjectId(), hashed, createdAt: new Date() }],
+            $slice: -10,
+          },
+        },
+        $set: { updateAt: new Date() },
+      }
     );
   }
   static async _hasRefreshToken(user, refreshToken) {

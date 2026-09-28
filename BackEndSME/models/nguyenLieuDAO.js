@@ -322,6 +322,17 @@ export default class NguyenLieuDAO {
     }
   }
 
+  static async getByMa(ma_nl, { includeDeleted = false } = {}) {
+    try {
+      const filter = { ma_nl: this._s(ma_nl) };
+      if (!includeDeleted) filter.trang_thai = { $ne: STATUS.DELETED };
+      return await nguyen_lieu.findOne(filter);
+    } catch (e) {
+      logger.error("Unable to get nguyen_lieu by ma_nl", { error: e.message });
+      return null;
+    }
+  }
+
   static async list({
     q = "",
     page = 1,

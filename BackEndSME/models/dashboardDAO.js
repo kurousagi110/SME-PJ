@@ -176,7 +176,8 @@ export default class DashboardDAO {
     try {
       const loai_don = metricToLoaiDon(metric);
 
-      const yA = Number(yearA);
+      const currentYear = new Date().getFullYear();
+      const yA = yearA ? Number(yearA) : currentYear;
       if (!Number.isFinite(yA)) return { error: new Error("yearA không hợp lệ") };
 
       const days = parseRangeDays(range);

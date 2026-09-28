@@ -21,7 +21,7 @@ import SanPhamDAO         from "./models/sanPhamDAO.js";
 import DonHangDAO         from "./models/donHangDAO.js";
 import phongban_chucvuDAO from "./models/phongban_chucvuDAO.js";
 import LuongDAO           from "./models/luongDAO.js";
-import DashboardDAO       from "./models/dashbroadDAO.js";
+import DashboardDAO       from "./models/dashboardDAO.js";
 import SanXuatService     from "./services/sanXuatService.js";
 import DieuChinhKhoDAO    from "./models/dieuChinhKhoDAO.js";
 import SoQuyDAO           from "./models/soQuyDAO.js";
