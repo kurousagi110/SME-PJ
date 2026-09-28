@@ -35,7 +35,6 @@ export function useStockAdjustmentList(params?: {
         totalPages: (res as any).pagination?.totalPages ?? 1,
       };
     },
-    enabled: typeof window !== "undefined",
   });
 }
 
@@ -75,6 +74,9 @@ export function useApproveStockAdjustment() {
       queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
       queryClient.invalidateQueries({ queryKey: ["material-stock"] });
       queryClient.invalidateQueries({ queryKey: ["product-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["the-kho"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse-stock"] });
     },
     onError: (error: any) => {
       toast.error(error.message);

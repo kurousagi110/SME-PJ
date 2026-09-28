@@ -1,6 +1,8 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import { sanitizeNumber } from "../utils/number.js";
+import SoQuyDAO from "./soQuyDAO.js";
+import PeriodClosingDAO from "./periodClosingDAO.js";
 
 let luongCol;
 let usersCol;
@@ -437,14 +439,9 @@ export default class LuongDAO {
         throw new Error(`Lương tháng ${thangNum}/${namNum} đã được chi trả trước đó (Mã phiếu: ${existedVoucher.ma_phieu})`);
       }
 
-      // 3. Tạo Phiếu Chi trong sổ quỹ
+      // 3. Tạo Phiếu Chi trong sổ quỹ thông qua SoQuyDAO.taoPhieu (tự động kiểm tra khóa sổ kỳ kế toán)
       const d = new Date();
-      const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-      const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
-      const ma_phieu = `PC-${ymd}-${randCode}`;
-
-      const voucherDoc = {
-        ma_phieu,
+      const voucherResult = await SoQuyDAO.taoPhieu({
         loai_phieu: "chi",
         hang_muc: "chi_luong_nhan_vien",
         so_tien: tongThucLinh,
@@ -458,16 +455,15 @@ export default class LuongDAO {
         ma_chung_tu,
         ngay_ghi_nhan: d,
         ghi_chu: ghi_chu || `Chi trả lương tháng ${thangNum}/${namNum} (${items.length} nhân sự)`,
-        nguoi_lap: {
-          tai_khoan: user.tai_khoan || "admin",
-          ten: user.ho_ten || "Ban Giám Đốc",
-        },
-        trang_thai: "active",
-        created_at: d,
-        updated_at: d,
-      };
+        user,
+      });
 
-      await soQuyCol.insertOne(voucherDoc);
+      if (voucherResult.error) {
+        throw voucherResult.error;
+      }
+
+      const voucherDoc = voucherResult.doc;
+      const ma_phieu = voucherDoc.ma_phieu;
 
       // 4. Lưu log chốt lương
       await bangLuongChotCol.updateOne(

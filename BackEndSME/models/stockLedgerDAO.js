@@ -19,6 +19,17 @@ export default class StockLedgerDAO {
     doiTraCol = db.collection("doi_tra_hang");
     sanPhamCol = db.collection("san_pham");
     nguyenLieuCol = db.collection("nguyen_lieu");
+
+    try {
+      await donHangCol.createIndex({ "san_pham.san_pham_id": 1, created_at: -1 });
+      await donHangCol.createIndex({ "san_pham.ma_sp": 1, created_at: -1 });
+      await donHangCol.createIndex({ "items.san_pham_id": 1, created_at: -1 });
+      await donHangCol.createIndex({ "items.nguyen_lieu_id": 1, created_at: -1 });
+      await dieuChinhKhoCol.createIndex({ item_id: 1, created_at: -1 });
+      await doiTraCol.createIndex({ "san_pham.san_pham_id": 1, created_at: -1 });
+    } catch (err) {
+      logger.warn("StockLedgerDAO: Index creation skipped or already exists", { error: err.message });
+    }
   }
 
   /**
@@ -388,54 +399,214 @@ export default class StockLedgerDAO {
 
       const reportRows = [];
 
-      // Với từng mặt hàng, tính thẻ kho trong kỳ (xử lý song song theo batches 15 để tối ưu kết nối và tăng tốc 15x)
-      const chunkSize = 15;
-      for (let i = 0; i < itemsToInspect.length; i += chunkSize) {
-        const chunk = itemsToInspect.slice(i, i + chunkSize);
-        const cardResults = await Promise.all(
-          chunk.map((item) =>
-            StockLedgerDAO.getStockCard({
-              itemId: item._id,
-              itemType: item._type,
-              tu_ngay: fromDate,
-              den_ngay: toDate,
-            }).catch(() => null)
-          )
-        );
+      const itemObjectIds = itemsToInspect.map((it) => it._id);
+      const stringItemIds = itemObjectIds.map(String);
+      const productCodes = itemsToInspect.map((it) => it.ma_sp).filter(Boolean);
 
-        for (let j = 0; j < chunk.length; j++) {
-          const item = chunk[j];
-          const cardRes = cardResults[j];
-          if (!cardRes || cardRes.error) continue;
+      // Bulk query all 5 sources concurrently in 1 batch (eliminates O(N) query anti-pattern):
+      const [purchaseOrders, saleOrders, sxLogs, adjustments, rmaOrders] = await Promise.all([
+        // 1. Purchase orders
+        donHangCol
+          .find({
+            loai_don: "purchase_receipt",
+            trang_thai: { $in: ["confirmed", "completed", "paid"] },
+            $or: [
+              { "san_pham.san_pham_id": { $in: itemObjectIds } },
+              { "san_pham.nguyen_lieu_id": { $in: itemObjectIds } },
+              { "items.san_pham_id": { $in: itemObjectIds } },
+              { "items.nguyen_lieu_id": { $in: itemObjectIds } },
+            ],
+          })
+          .toArray(),
 
-          const price = Number(item.don_gia || item.gia_von || 0);
-          const gia_tri_dau = cardRes.ton_dau_ky * price;
-          const gia_tri_nhap = cardRes.tong_nhap_trong_ky * price;
-          const gia_tri_xuat = cardRes.tong_xuat_trong_ky * price;
-          const gia_tri_cuoi = cardRes.ton_cuoi_ky * price;
+        // 2. Sale orders
+        donHangCol
+          .find({
+            loai_don: { $in: ["sale", "order_sale"] },
+            trang_thai: { $in: ["completed", "paid", "confirmed"] },
+            $or: [
+              { "san_pham.san_pham_id": { $in: itemObjectIds } },
+              { "items.san_pham_id": { $in: itemObjectIds } },
+            ],
+          })
+          .toArray(),
 
-          tong_gia_tri_ton_dau += gia_tri_dau;
-          tong_gia_tri_nhap += gia_tri_nhap;
-          tong_gia_tri_xuat += gia_tri_xuat;
-          tong_gia_tri_ton_cuoi += gia_tri_cuoi;
+        // 3. Production logs
+        sanXuatLogsCol
+          .find({
+            $or: [
+              { san_pham_id: { $in: itemObjectIds } },
+              { "nguyen_lieu_used.nguyen_lieu_id": { $in: itemObjectIds } },
+            ],
+          })
+          .toArray(),
 
-          reportRows.push({
-            id: item._id,
-            loai: item._type === "product" ? "Thành phẩm" : "Nguyên vật liệu",
-            ma_hang: item.ma_sp || item.ma_nl || item.ma_vt || "",
-            ten_hang: item.ten_sp || item.ten_nl || item.ten_vt || "",
-            don_vi: item.don_vi || "Cái",
-            don_gia: price,
-            ton_dau_ky: cardRes.ton_dau_ky,
-            gia_tri_dau,
-            nhap_trong_ky: cardRes.tong_nhap_trong_ky,
-            gia_tri_nhap,
-            xuat_trong_ky: cardRes.tong_xuat_trong_ky,
-            gia_tri_xuat,
-            ton_cuoi_ky: cardRes.ton_cuoi_ky,
-            gia_tri_cuoi,
+        // 4. Stock adjustments
+        dieuChinhKhoCol
+          .find({
+            trang_thai: "approved",
+            $or: [
+              { item_id: { $in: [...itemObjectIds, ...stringItemIds] } },
+              { "items.item_id": { $in: itemObjectIds } },
+            ],
+          })
+          .toArray(),
+
+        // 5. RMA returns
+        doiTraCol
+          .find({
+            trang_thai: { $in: ["hoan_thanh", "completed", "approved", "qc_passed"] },
+            $or: [
+              { "san_pham.san_pham_id": { $in: [...itemObjectIds, ...stringItemIds] } },
+              { "san_pham.ma_sp": { $in: productCodes } },
+            ],
+          })
+          .toArray(),
+      ]);
+
+      // Index movements by itemId
+      const movementsMap = new Map();
+      const getList = (id) => {
+        const key = String(id);
+        if (!movementsMap.has(key)) movementsMap.set(key, []);
+        return movementsMap.get(key);
+      };
+
+      // 1. Process purchase orders
+      for (const po of purchaseOrders) {
+        const d = new Date(po.ngay_nhap || po.created_at || po.updated_at);
+        for (const line of (po.san_pham || po.items || [])) {
+          const targetId = line.san_pham_id || line.nguyen_lieu_id;
+          if (targetId) {
+            getList(targetId).push({
+              date: d,
+              nhap: Number(line.so_luong || 0),
+              xuat: 0,
+            });
+          }
+        }
+      }
+
+      // 2. Process sale orders
+      for (const so of saleOrders) {
+        const d = new Date(so.ngay_dat || so.created_at || so.updated_at);
+        for (const line of (so.san_pham || so.items || [])) {
+          if (line.san_pham_id) {
+            getList(line.san_pham_id).push({
+              date: d,
+              nhap: 0,
+              xuat: Number(line.so_luong || 0),
+            });
+          }
+        }
+      }
+
+      // 3. Process production logs
+      for (const log of sxLogs) {
+        const d = new Date(log.created_at);
+        if (log.san_pham_id) {
+          getList(log.san_pham_id).push({
+            date: d,
+            nhap: Number(log.so_luong_sx || 0),
+            xuat: 0,
           });
         }
+        for (const u of (log.nguyen_lieu_used || [])) {
+          if (u.nguyen_lieu_id) {
+            getList(u.nguyen_lieu_id).push({
+              date: d,
+              nhap: 0,
+              xuat: Number(u.qty_need || 0),
+            });
+          }
+        }
+      }
+
+      // 4. Process adjustments
+      for (const adj of adjustments) {
+        const d = new Date(adj.approved_at || adj.created_at);
+        if (adj.items && Array.isArray(adj.items)) {
+          for (const line of adj.items) {
+            if (line.item_id) {
+              const delta = Number(line.chenh_lech || line.so_luong_dieu_chinh || 0);
+              getList(line.item_id).push({
+                date: d,
+                nhap: delta > 0 ? delta : 0,
+                xuat: delta < 0 ? Math.abs(delta) : 0,
+              });
+            }
+          }
+        } else if (adj.item_id) {
+          const delta = Number(adj.so_luong_dieu_chinh || 0);
+          getList(adj.item_id).push({
+            date: d,
+            nhap: delta > 0 ? delta : 0,
+            xuat: delta < 0 ? Math.abs(delta) : 0,
+          });
+        }
+      }
+
+      // 5. Process RMA returns
+      for (const rma of rmaOrders) {
+        const d = new Date(rma.completed_at || rma.updated_at || rma.created_at);
+        for (const line of (rma.san_pham || [])) {
+          if (line.qc_result === "nhap_lai_kho" || !line.qc_result) {
+            if (line.san_pham_id) {
+              getList(line.san_pham_id).push({
+                date: d,
+                nhap: Number(line.so_luong || 0),
+                xuat: 0,
+              });
+            }
+          }
+        }
+      }
+
+      // Compute balance for each item in memory
+      for (const item of itemsToInspect) {
+        const key = String(item._id);
+        const movements = movementsMap.get(key) || [];
+        let ton_dau_ky = 0;
+        let nhap_trong_ky = 0;
+        let xuat_trong_ky = 0;
+
+        for (const m of movements) {
+          if (m.date < fromDate) {
+            ton_dau_ky += m.nhap - m.xuat;
+          } else if (m.date <= toDate) {
+            nhap_trong_ky += m.nhap;
+            xuat_trong_ky += m.xuat;
+          }
+        }
+
+        const ton_cuoi_ky = ton_dau_ky + nhap_trong_ky - xuat_trong_ky;
+        const price = Number(item.don_gia || item.gia_von || 0);
+        const gia_tri_dau = ton_dau_ky * price;
+        const gia_tri_nhap = nhap_trong_ky * price;
+        const gia_tri_xuat = xuat_trong_ky * price;
+        const gia_tri_cuoi = ton_cuoi_ky * price;
+
+        tong_gia_tri_ton_dau += gia_tri_dau;
+        tong_gia_tri_nhap += gia_tri_nhap;
+        tong_gia_tri_xuat += gia_tri_xuat;
+        tong_gia_tri_ton_cuoi += gia_tri_cuoi;
+
+        reportRows.push({
+          id: item._id,
+          loai: item._type === "product" ? "Thành phẩm" : "Nguyên vật liệu",
+          ma_hang: item.ma_sp || item.ma_nl || item.ma_vt || "",
+          ten_hang: item.ten_sp || item.ten_nl || item.ten_vt || "",
+          don_vi: item.don_vi || "Cái",
+          don_gia: price,
+          ton_dau_ky,
+          gia_tri_dau,
+          nhap_trong_ky,
+          gia_tri_nhap,
+          xuat_trong_ky,
+          gia_tri_xuat,
+          ton_cuoi_ky,
+          gia_tri_cuoi,
+        });
       }
 
       return {

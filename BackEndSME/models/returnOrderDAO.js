@@ -70,10 +70,24 @@ export default class ReturnOrderDAO {
         return { error: new Error("Cần ít nhất 1 sản phẩm yêu cầu đổi trả") };
       }
 
-      // Kiểm tra đối soát sản phẩm và số lượng với đơn hàng gốc
+      // Kiểm tra đối soát sản phẩm và số lượng với đơn hàng gốc (tính cả các lần đổi trả trước đó)
       const orderProducts = order.san_pham || order.items || [];
       if (!orderProducts.length) {
         return { error: new Error("Đơn hàng gốc không có sản phẩm để đổi trả") };
+      }
+
+      // Lấy các RMA trước đó chưa bị từ chối để tính tổng số lượng đã hoàn trả
+      const existingRmas = await rmaCol.find({
+        ma_dh: order.ma_dh,
+        trang_thai: { $ne: RMA_STATUS.REJECTED },
+      }).toArray();
+
+      const returnedQtyMap = new Map();
+      for (const rma of existingRmas) {
+        for (const it of (rma.san_pham || [])) {
+          const key = String(it.san_pham_id || it.ma_sp);
+          returnedQtyMap.set(key, (returnedQtyMap.get(key) || 0) + (Number(it.so_luong) || 0));
+        }
       }
 
       for (const sp of san_pham) {
@@ -94,10 +108,15 @@ export default class ReturnOrderDAO {
         if (reqQty <= 0) {
           return { error: new Error(`Số lượng đổi trả cho ${found.ten_sp || found.ma_sp} phải lớn hơn 0`) };
         }
-        if (reqQty > boughtQty) {
+
+        const key = String(found.san_pham_id || found.ma_sp);
+        const alreadyReturned = returnedQtyMap.get(key) || 0;
+        const remainingAllowed = Math.max(0, boughtQty - alreadyReturned);
+
+        if (reqQty > remainingAllowed) {
           return {
             error: new Error(
-              `Số lượng đổi trả (${reqQty}) vượt quá số lượng đã mua (${boughtQty}) của sản phẩm ${found.ten_sp || found.ma_sp}`
+              `Số lượng đổi trả (${reqQty}) vượt quá số lượng còn lại có thể đổi trả (${remainingAllowed}, đã đổi trả trước đó: ${alreadyReturned}) của sản phẩm ${found.ten_sp || found.ma_sp}`
             ),
           };
         }

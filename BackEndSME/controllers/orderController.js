@@ -63,25 +63,25 @@ export class OrderController {
     // 3. Fetch full completed order to get final totals
     const orderDoc = await DonHangService.getById(orderId);
 
-    // 4. Automatically create receipt in so_quy
-    try {
-      await SoQuyDAO.taoPhieu({
-        loai_phieu: "thu",
-        hang_muc: "thu_tien_ban_hang",
-        so_tien: orderDoc.tong_tien || 0,
-        phuong_thuc: phuong_thuc_tt === "chuyen_khoan" ? "chuyen_khoan" : "tien_mat",
-        doi_tuong: {
-          loai: "khach_hang",
-          ten: khach_hang_ten,
-          so_dien_thoai,
-          dia_chi: "",
-        },
-        ma_chung_tu: ma_dh,
-        ghi_chu: `Thu tiền đơn POS ${ma_dh}`,
-        user: req.user,
-      });
-    } catch (e) {
-      logger.warn("Auto create POS receipt in so_quy warning", { error: e.message });
+    // 4. Automatically create receipt in so_quy (Closed-Loop)
+    const receiptRes = await SoQuyDAO.taoPhieu({
+      loai_phieu: "thu",
+      hang_muc: "thu_tien_ban_hang",
+      so_tien: orderDoc.tong_tien || 0,
+      phuong_thuc: phuong_thuc_tt === "chuyen_khoan" ? "chuyen_khoan" : "tien_mat",
+      doi_tuong: {
+        loai: "khach_hang",
+        ten: khach_hang_ten,
+        so_dien_thoai,
+        dia_chi: "",
+      },
+      ma_chung_tu: ma_dh,
+      ghi_chu: `Thu tiền đơn POS ${ma_dh}`,
+      user: req.user,
+    });
+    if (receiptRes?.error) {
+      logger.error("Auto create POS receipt in so_quy failed", { error: receiptRes.error.message });
+      throw ApiError.badRequest(`Không thể ghi nhận phiếu thu sổ quỹ cho đơn POS: ${receiptRes.error.message}`);
     }
 
     // 4.1 Auto-link or create customer in Mini CRM if phone provided
@@ -200,7 +200,9 @@ export class OrderController {
   });
 
   static applyTax = asyncHandler(async (req, res) => {
-    const data = await DonHangService.applyTax(req.params.id, req.body?.thue_rate);
+    let rawRate = Number(req.body?.thue_rate ?? req.body?.tax_rate ?? 0);
+    const normalizedRate = rawRate > 1 ? rawRate / 100 : rawRate;
+    const data = await DonHangService.applyTax(req.params.id, normalizedRate);
     return sendSuccess(res, data, "Áp dụng thuế thành công");
   });
 
@@ -413,198 +415,51 @@ export class OrderController {
   static chuyenSangSanXuat = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const user = req.user;
-    const order = await DonHangService.getById(id);
-    if (!order) throw ApiError.notFound("Không tìm thấy đơn bán hàng");
-
-    if (order.co_lenh_san_xuat) {
-      throw ApiError.badRequest(`Đơn bán ${order.ma_dh} đã được chuyển sang Lệnh SX trước đó (Mã: ${order.ma_lenh_sx || "Đang xử lý"})`);
-    }
-
-    const db = getDB();
-    const itemsToProduce = (order.san_pham || []).map((sp) => ({
-      san_pham_id: sp.san_pham_id || sp._id,
-      ma_sp: sp.ma_sp,
-      ten_sp: sp.ten_sp,
-      so_luong: Number(sp.so_luong) || 1,
-      don_gia: Number(sp.don_gia) || 0,
-    }));
-
-    if (itemsToProduce.length === 0) {
-      throw ApiError.badRequest("Đơn hàng không có sản phẩm để sản xuất");
-    }
-
-    const now = new Date();
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
-    const ma_sx = `LSX-${ymd}-${randCode}`;
-
-    const workOrder = {
-      ma_dh: ma_sx,
-      ma_dh_goc: order.ma_dh,
-      don_hang_goc_id: order._id,
-      loai_don: "production_order",
-      trang_thai: "confirmed",
-      san_pham: itemsToProduce,
-      so_luong_tong: itemsToProduce.reduce((s, it) => s + it.so_luong, 0),
-      ghi_chu: `Lệnh sản xuất chuyển giao từ Đơn bán hàng ${order.ma_dh}`,
-      nguoi_lap_id: user._id,
-      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
-      created_at: now,
-      updated_at: now,
-      lich_su: [
-        {
-          hanh_dong: "handover_from_sales",
-          at: now,
-          by: user._id,
-          note: `Khởi tạo lệnh sản xuất tự động từ đơn bán ${order.ma_dh}`,
-        },
-      ],
-    };
-
-    const insertRes = await db.collection("don_hang").insertOne(workOrder);
-
-    // Update sales order history
-    await db.collection("don_hang").updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          co_lenh_san_xuat: true,
-          ma_lenh_sx: ma_sx,
-          updated_at: now,
-        },
-        $push: {
-          lich_su: {
-            hanh_dong: "chuyen_san_xuat",
-            at: now,
-            by: user._id,
-            note: `Đã chuyển giao sang Phòng Sản Xuất (Lệnh: ${ma_sx})`,
-          },
-        },
-      }
-    );
+    const result = await DonHangService.chuyenSangSanXuat(id, user);
 
     notifyDepartment("san_xuat", {
       type: "DON_SAN_XUAT_CREATED",
       title: "Lệnh sản xuất mới từ phòng Kinh Doanh",
-      message: `Đơn bán ${order.ma_dh} vừa chuyển sang Lệnh SX ${ma_sx} (${workOrder.so_luong_tong} sản phẩm)`,
+      message: `Đơn bán ${result.order.ma_dh} vừa chuyển sang Lệnh SX ${result.ma_sx} (${result.workOrder.so_luong_tong} sản phẩm)`,
       lien_ket: `/product/orders`,
       created_by: user,
     });
 
-    return sendSuccess(res, { ma_sx, id: insertRes.insertedId }, "Đã chuyển giao sang Phòng Sản Xuất thành công");
+    return sendSuccess(res, { ma_sx: result.ma_sx, id: result.id }, "Đã chuyển giao sang Phòng Sản Xuất thành công");
   });
 
   /* ─── HANDOVER: PRODUCTION -> FINISHED GOODS RECEIPT ─── */
   static banGiaoNhapKho = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const user = req.user;
-    const prodOrder = await DonHangService.getById(id);
-    if (!prodOrder) throw ApiError.notFound("Không tìm thấy lệnh sản xuất");
-
-    if (prodOrder.da_ban_giao_kho) {
-      throw ApiError.badRequest(`Lệnh sản xuất ${prodOrder.ma_dh} đã bàn giao nhập kho trước đó (Mã: ${prodOrder.ma_phieu_nhap_tp || "Đang xử lý"})`);
-    }
-
-    const db = getDB();
-    const now = new Date();
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
-    const ma_tp = `TP-${ymd}-${randCode}`;
-
-    const receiptDoc = {
-      ma_dh: ma_tp,
-      ma_lenh_sx: prodOrder.ma_dh,
-      lenh_sx_id: prodOrder._id,
-      loai_don: "production_receipt",
-      trang_thai: "draft",
-      san_pham: prodOrder.san_pham || [],
-      tong_tien: 0,
-      ghi_chu: `Phiếu nhập thành phẩm bàn giao từ ${prodOrder.ma_dh}`,
-      nguoi_lap_id: user._id,
-      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
-      created_at: now,
-      updated_at: now,
-    };
-
-    const insertRes = await db.collection("don_hang").insertOne(receiptDoc);
-
-    // Update prodOrder status
-    await db.collection("don_hang").updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          da_ban_giao_kho: true,
-          ma_phieu_nhap_tp: ma_tp,
-          trang_thai: "completed",
-          updated_at: now,
-        },
-      }
-    );
+    const result = await DonHangService.banGiaoNhapKho(id, user);
 
     notifyDepartment("kho", {
       type: "PROD_RECEIPT_CREATED",
       title: "Thành phẩm hoàn tất chờ nhập kho",
-      message: `Lệnh SX ${prodOrder.ma_dh} đã bàn giao lô hàng ${ma_tp} chờ thủ kho kiểm đếm`,
+      message: `Lệnh SX ${result.prodOrder.ma_dh} đã bàn giao lô hàng ${result.ma_tp} chờ thủ kho kiểm đếm`,
       lien_ket: `/product/orders`,
       created_by: user,
     });
 
-    return sendSuccess(res, { ma_tp, id: insertRes.insertedId }, "Đã bàn giao nhập kho thành phẩm");
+    return sendSuccess(res, { ma_tp: result.ma_tp, id: result.id }, "Đã bàn giao nhập kho thành phẩm");
   });
 
   /* ─── HANDOVER: WAREHOUSE -> LOGISTICS WAYBILL ─── */
   static chuyenSangVanChuyen = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const user = req.user;
-    const order = await DonHangService.getById(id);
-    if (!order) throw ApiError.notFound("Không tìm thấy đơn hàng");
-
-    if (order.ma_van_don || order.trang_thai_van_chuyen) {
-      throw ApiError.badRequest(`Đơn hàng ${order.ma_dh} đã được tạo vận đơn trước đó (Mã: ${order.ma_van_don || "Đang giao"})`);
-    }
-
-    const donViVC = req.body.don_vi_van_chuyen || "GHTK";
-    const waybillRes = await VanChuyenDAO.taoVanDon({
-      ma_don_hang: order.ma_dh,
-      don_vi_van_chuyen: donViVC,
-      phi_van_chuyen: Number(req.body.phi_van_chuyen) || Number(order.phi_vc) || 30000,
-      tien_thu_ho_cod: order.thanh_toan?.status === "paid" ? 0 : Number(order.tong_tien) || 0,
-      nguoi_nhan: {
-        ten: order.khach_hang_ten || order.khach_hang?.ten || "Khách Hàng",
-        sdt: order.so_dien_thoai || order.khach_hang?.so_dien_thoai || "",
-        dia_chi: order.dia_chi_giao || order.dia_chi_giao_hang || order.khach_hang?.dia_chi || "",
-      },
-      san_pham: order.san_pham || [],
-      ghi_chu: req.body.ghi_chu || `Đóng gói từ đơn bán ${order.ma_dh}`,
-      user,
-    });
-
-    if (waybillRes.error) {
-      throw ApiError.badRequest(waybillRes.error.message || "Tạo vận đơn thất bại");
-    }
-
-    // Update sales order with waybill info
-    await getDB().collection("don_hang").updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          ma_van_don: waybillRes.ma_van_don,
-          don_vi_van_chuyen: donViVC,
-          trang_thai_van_chuyen: "cho_lay_hang",
-          updated_at: new Date(),
-        },
-      }
-    );
+    const result = await DonHangService.chuyenSangVanChuyen(id, user, req.body || {});
 
     notifyDepartment("kho", {
       type: "SYSTEM_NOTIFICATION",
       title: "Đã tạo vận đơn giao hàng",
-      message: `Đơn hàng ${order.ma_dh} đã được tạo vận đơn ${waybillRes.ma_van_don} (${donViVC})`,
+      message: `Đơn hàng ${result.order.ma_dh} đã được tạo vận đơn ${result.waybill.ma_van_don} (${result.donViVC})`,
       lien_ket: `/shipping`,
       created_by: user,
     });
 
-    return sendSuccess(res, waybillRes, "Đã chuyển giao vận chuyển thành công");
+    return sendSuccess(res, result.waybill, "Đã chuyển giao vận chuyển thành công");
   });
 
   /* ─── INTERNAL COMMENTS & MENTIONS ─── */

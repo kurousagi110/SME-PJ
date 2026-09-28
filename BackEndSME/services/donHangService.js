@@ -3,6 +3,8 @@
 
 import DonHangDAO from "../models/donHangDAO.js";
 import ApiError from "../utils/ApiError.js";
+import { state } from "../models/donHangState.js";
+import { toObjectId } from "../models/donHangConstants.js";
 
 /**
  * DonHangService – business logic for order (chứng từ) management.
@@ -185,5 +187,171 @@ export default class DonHangService {
     const result = await DonHangDAO.thongKeDoanhThu({ date_from, date_to });
     this._daoError(result, "Thống kê thất bại", "STATS_FAILED");
     return result;
+  }
+
+  /* ─── HANDOVER: SALES -> PRODUCTION ORDER ─── */
+  static async chuyenSangSanXuat(id, user = {}) {
+    const order = await this.getById(id);
+    if (!order) throw ApiError.notFound("Không tìm thấy đơn hàng");
+    if (order.loai_don !== "sale") {
+      throw ApiError.badRequest("Chỉ có thể chuyển đơn bán hàng sang sản xuất");
+    }
+    if (order.co_lenh_san_xuat) {
+      throw ApiError.badRequest(`Đơn bán ${order.ma_dh} đã được chuyển sang Lệnh SX trước đó (Mã: ${order.ma_lenh_sx || "Đang xử lý"})`);
+    }
+
+    const itemsToProduce = (order.san_pham || []).map((sp) => ({
+      san_pham_id: sp.san_pham_id || sp._id,
+      ma_sp: sp.ma_sp,
+      ten_sp: sp.ten_sp,
+      so_luong: Number(sp.so_luong) || 1,
+      don_gia: Number(sp.don_gia) || 0,
+    }));
+
+    if (itemsToProduce.length === 0) {
+      throw ApiError.badRequest("Đơn hàng không có sản phẩm để sản xuất");
+    }
+
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ma_sx = `LSX-${ymd}-${randCode}`;
+
+    const workOrder = {
+      ma_dh: ma_sx,
+      ma_dh_goc: order.ma_dh,
+      don_hang_goc_id: order._id,
+      loai_don: "production_order",
+      trang_thai: "confirmed",
+      san_pham: itemsToProduce,
+      so_luong_tong: itemsToProduce.reduce((s, it) => s + it.so_luong, 0),
+      ghi_chu: `Lệnh sản xuất chuyển giao từ Đơn bán hàng ${order.ma_dh}`,
+      nguoi_lap_id: user._id,
+      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
+      created_at: now,
+      updated_at: now,
+      lich_su: [
+        {
+          hanh_dong: "handover_from_sales",
+          at: now,
+          by: user._id,
+          note: `Khởi tạo lệnh sản xuất tự động từ đơn bán ${order.ma_dh}`,
+        },
+      ],
+    };
+
+    const insertRes = await state.don_hang.insertOne(workOrder);
+
+    await state.don_hang.updateOne(
+      { _id: toObjectId(id) },
+      {
+        $set: {
+          co_lenh_san_xuat: true,
+          ma_lenh_sx: ma_sx,
+          updated_at: now,
+        },
+        $push: {
+          lich_su: {
+            hanh_dong: "chuyen_san_xuat",
+            at: now,
+            by: user._id,
+            note: `Đã chuyển giao sang Phòng Sản Xuất (Lệnh: ${ma_sx})`,
+          },
+        },
+      }
+    );
+
+    return { ma_sx, id: insertRes.insertedId, order, workOrder };
+  }
+
+  /* ─── HANDOVER: PRODUCTION -> FINISHED GOODS RECEIPT ─── */
+  static async banGiaoNhapKho(id, user = {}) {
+    const prodOrder = await this.getById(id);
+    if (!prodOrder) throw ApiError.notFound("Không tìm thấy lệnh sản xuất");
+
+    if (prodOrder.da_ban_giao_kho) {
+      throw ApiError.badRequest(`Lệnh sản xuất ${prodOrder.ma_dh} đã bàn giao nhập kho trước đó (Mã: ${prodOrder.ma_phieu_nhap_tp || "Đang xử lý"})`);
+    }
+
+    const now = new Date();
+    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+    const randCode = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const ma_tp = `TP-${ymd}-${randCode}`;
+
+    const receiptDoc = {
+      ma_dh: ma_tp,
+      ma_lenh_sx: prodOrder.ma_dh,
+      lenh_sx_id: prodOrder._id,
+      loai_don: "production_receipt",
+      trang_thai: "draft",
+      san_pham: prodOrder.san_pham || [],
+      tong_tien: 0,
+      ghi_chu: `Phiếu nhập thành phẩm bàn giao từ ${prodOrder.ma_dh}`,
+      nguoi_lap_id: user._id,
+      nguoi_lap_ten: user.ho_ten || user.tai_khoan,
+      created_at: now,
+      updated_at: now,
+    };
+
+    const insertRes = await state.don_hang.insertOne(receiptDoc);
+
+    await state.don_hang.updateOne(
+      { _id: toObjectId(id) },
+      {
+        $set: {
+          da_ban_giao_kho: true,
+          ma_phieu_nhap_tp: ma_tp,
+          trang_thai: "completed",
+          updated_at: now,
+        },
+      }
+    );
+
+    return { ma_tp, id: insertRes.insertedId, prodOrder };
+  }
+
+  /* ─── HANDOVER: WAREHOUSE -> LOGISTICS WAYBILL ─── */
+  static async chuyenSangVanChuyen(id, user = {}, body = {}) {
+    const order = await this.getById(id);
+    if (!order) throw ApiError.notFound("Không tìm thấy đơn hàng");
+
+    if (order.ma_van_don || order.trang_thai_van_chuyen) {
+      throw ApiError.badRequest(`Đơn hàng ${order.ma_dh} đã được tạo vận đơn trước đó (Mã: ${order.ma_van_don || "Đang giao"})`);
+    }
+
+    const donViVC = body.don_vi_van_chuyen || "GHTK";
+    const VanChuyenDAO = (await import("../models/vanChuyenDAO.js")).default;
+    const waybillRes = await VanChuyenDAO.taoVanDon({
+      ma_don_hang: order.ma_dh,
+      don_vi_van_chuyen: donViVC,
+      phi_van_chuyen: Number(body.phi_van_chuyen) || Number(order.phi_vc) || 30000,
+      tien_thu_ho_cod: order.thanh_toan?.status === "paid" ? 0 : Number(order.tong_tien) || 0,
+      nguoi_nhan: {
+        ten: order.khach_hang_ten || order.khach_hang?.ten || "Khách Hàng",
+        sdt: order.so_dien_thoai || order.khach_hang?.so_dien_thoai || "",
+        dia_chi: order.dia_chi_giao || order.dia_chi_giao_hang || order.khach_hang?.dia_chi || "",
+      },
+      san_pham: order.san_pham || [],
+      ghi_chu: body.ghi_chu || `Đóng gói từ đơn bán ${order.ma_dh}`,
+      user,
+    });
+
+    if (waybillRes.error) {
+      throw ApiError.badRequest(waybillRes.error.message || "Tạo vận đơn thất bại");
+    }
+
+    await state.don_hang.updateOne(
+      { _id: toObjectId(id) },
+      {
+        $set: {
+          ma_van_don: waybillRes.ma_van_don,
+          don_vi_van_chuyen: donViVC,
+          trang_thai_van_chuyen: "cho_lay_hang",
+          updated_at: new Date(),
+        },
+      }
+    );
+
+    return { waybill: waybillRes, order, donViVC };
   }
 }

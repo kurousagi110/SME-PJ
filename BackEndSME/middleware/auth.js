@@ -20,10 +20,21 @@ export function injectAuthDB(conn) {
 
 /** Single source of truth for admin-level role check. */
 export function isAdminUser(user) {
+  if (!user) return false;
+  if (user.role === "admin" || user.is_admin === true || user.role_id === 1) return true;
+  if (user.tai_khoan === "admin") return true;
+
+  const deptName = (user?.phong_ban?.ten || user?.phong_ban?.code || user?.department || "").toLowerCase().trim();
+  const titleName = (user?.chuc_vu?.ten || user?.chuc_vu?.code || user?.position || "").toLowerCase().trim();
+
   return (
-    user?.phong_ban?.ten === "Phòng giám đốc" ||
-    user?.chuc_vu?.ten  === "Giám đốc" ||
-    user?.role          === "admin"
+    deptName === "phòng giám đốc" ||
+    deptName === "ban giám đốc" ||
+    deptName === "board" ||
+    deptName === "admin" ||
+    titleName === "giám đốc" ||
+    titleName === "director" ||
+    titleName === "admin"
   );
 }
 
@@ -85,9 +96,14 @@ export function verifyApprover(req, res, next) {
   const user = req.user;
   if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
 
+  const titleName = (user?.chuc_vu?.ten || user?.chuc_vu?.code || user?.position || "").toLowerCase().trim();
   const isApprover =
     isAdminUser(user) ||
-    user?.chuc_vu?.ten === "Thủ kho";
+    user?.is_approver === true ||
+    user?.role === "approver" ||
+    titleName === "thủ kho" ||
+    titleName === "warehouse_manager" ||
+    titleName === "trưởng kho";
 
   if (!isApprover) return next(ApiError.forbidden("Không có quyền duyệt phiếu điều chỉnh kho", "FORBIDDEN"));
   next();
@@ -117,8 +133,13 @@ export function verifyProductionManager(req, res, next) {
   const user = req.user;
   if (!user) return next(ApiError.unauthorized("Chưa xác thực", "UNAUTHORIZED"));
 
+  const titleName = (user?.chuc_vu?.ten || user?.chuc_vu?.code || user?.position || "").toLowerCase().trim();
   const isProductionManager =
-    isAdminUser(user) || user?.chuc_vu?.ten === "Trưởng xưởng";
+    isAdminUser(user) ||
+    user?.is_production_manager === true ||
+    titleName === "trưởng xưởng" ||
+    titleName === "quản đốc" ||
+    titleName === "production_manager";
 
   if (!isProductionManager) {
     return next(ApiError.forbidden("Không có quyền tạo lệnh sản xuất", "FORBIDDEN"));
