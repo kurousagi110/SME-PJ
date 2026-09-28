@@ -362,6 +362,10 @@ export default class DonHangController {
     const order = await DonHangService.getById(id);
     if (!order) throw ApiError.notFound("Không tìm thấy đơn bán hàng");
 
+    if (order.co_lenh_san_xuat) {
+      throw ApiError.badRequest(`Đơn bán ${order.ma_dh} đã được chuyển sang Lệnh SX trước đó (Mã: ${order.ma_lenh_sx || "Đang xử lý"})`);
+    }
+
     const db = getDB();
     const itemsToProduce = (order.san_pham || []).map((sp) => ({
       san_pham_id: sp.san_pham_id || sp._id,
@@ -443,6 +447,10 @@ export default class DonHangController {
     const prodOrder = await DonHangService.getById(id);
     if (!prodOrder) throw ApiError.notFound("Không tìm thấy lệnh sản xuất");
 
+    if (prodOrder.da_ban_giao_kho) {
+      throw ApiError.badRequest(`Lệnh sản xuất ${prodOrder.ma_dh} đã bàn giao nhập kho trước đó (Mã: ${prodOrder.ma_phieu_nhap_tp || "Đang xử lý"})`);
+    }
+
     const db = getDB();
     const now = new Date();
     const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
@@ -497,6 +505,10 @@ export default class DonHangController {
     const order = await DonHangService.getById(id);
     if (!order) throw ApiError.notFound("Không tìm thấy đơn hàng");
 
+    if (order.ma_van_don || order.trang_thai_van_chuyen) {
+      throw ApiError.badRequest(`Đơn hàng ${order.ma_dh} đã được tạo vận đơn trước đó (Mã: ${order.ma_van_don || "Đang giao"})`);
+    }
+
     const donViVC = req.body.don_vi_van_chuyen || "GHTK";
     const waybillRes = await VanChuyenDAO.taoVanDon({
       ma_don_hang: order.ma_dh,
@@ -516,6 +528,19 @@ export default class DonHangController {
     if (waybillRes.error) {
       throw ApiError.badRequest(waybillRes.error.message || "Tạo vận đơn thất bại");
     }
+
+    // Update sales order with waybill info
+    await getDB().collection("don_hang").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          ma_van_don: waybillRes.ma_van_don,
+          don_vi_van_chuyen: donViVC,
+          trang_thai_van_chuyen: "cho_lay_hang",
+          updated_at: new Date(),
+        },
+      }
+    );
 
     notifyDepartment("kho", {
       type: "SYSTEM_NOTIFICATION",

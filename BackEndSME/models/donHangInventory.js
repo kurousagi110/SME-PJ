@@ -235,6 +235,99 @@ export async function applyInventoryOnCompleted(doc, { session } = {}) {
   }
 }
 
+/* ══════════════ Revert inventory on cancelled/deleted ══════════════ */
+export async function revertInventoryOnCancelled(doc, { session } = {}) {
+  const loai_don = ensureOrderType(doc.loai_don);
+  const lines = Array.isArray(doc.san_pham) ? doc.san_pham : [];
+
+  // (1) SALE revert: hoàn lại thành phẩm vào kho
+  if (loai_don === ORDER_TYPE.SALE) {
+    const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
+    if (!spLines.length) return;
+
+    const spMap = await batchFetchSanPham(spLines, { session });
+    for (const ln of spLines) {
+      const qty = Number(ln.so_luong);
+      const sp = lookupSanPham(spMap, ln);
+      if (sp) {
+        await state.san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: qty } }, { session });
+        logger.info("[donHangInventory] Hoàn trả tồn kho SP do hủy đơn bán", { ma_sp: sp.ma_sp || ln.ma_sp, qty });
+      }
+    }
+    return;
+  }
+
+  // (2) PURCHASE_RECEIPT revert: trừ lại NL/SP đã nhập
+  if (loai_don === ORDER_TYPE.PURCHASE_RECEIPT) {
+    const nlLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.NGUYEN_LIEU && Number(ln.so_luong) > 0);
+    const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
+
+    const nlMap = nlLines.length ? await batchFetchNguyenLieu(nlLines, { session }) : { byId: new Map(), byMa: new Map() };
+    const spMap = spLines.length ? await batchFetchSanPham(spLines, { session }) : { byId: new Map(), byMa: new Map() };
+
+    for (const ln of nlLines) {
+      const qty = Number(ln.so_luong);
+      const nl = lookupNguyenLieu(nlMap, ln);
+      if (nl) {
+        await state.nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: -qty } }, { session });
+        logger.info("[donHangInventory] Trừ hoàn kho NL do hủy đơn mua", { ma_nl: nl.ma_nl || ln.ma_nl, qty });
+      }
+    }
+
+    for (const ln of spLines) {
+      const qty = Number(ln.so_luong);
+      const sp = lookupSanPham(spMap, ln);
+      if (sp) {
+        await state.san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: -qty } }, { session });
+        logger.info("[donHangInventory] Trừ hoàn kho SP do hủy đơn mua", { ma_sp: sp.ma_sp || ln.ma_sp, qty });
+      }
+    }
+    return;
+  }
+
+  // (3) PROD_RECEIPT revert: trừ lại TP + cộng hoàn lại NL theo BOM
+  if (loai_don === ORDER_TYPE.PROD_RECEIPT) {
+    const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
+    if (!spLines.length) return;
+
+    const spMap = await batchFetchSanPham(spLines, { session });
+    const maNLSet = new Set();
+    for (const ln of spLines) {
+      const sp = lookupSanPham(spMap, ln);
+      if (!sp) continue;
+      const bomList = bomFromSanPhamDoc(sp);
+      for (const b of bomList) if (b.ma_nl) maNLSet.add(String(b.ma_nl).trim());
+    }
+
+    const maNLs = Array.from(maNLSet);
+    const nlDocs = maNLs.length
+      ? await state.nguyen_lieu_col.find({ ma_nl: { $in: maNLs } }, { session }).toArray()
+      : [];
+    const nlByMa = new Map(nlDocs.map(nl => [String(nl.ma_nl).trim(), nl]));
+
+    for (const ln of spLines) {
+      const qtyTP = Number(ln.so_luong);
+      const sp = lookupSanPham(spMap, ln);
+      if (!sp) continue;
+      const bomList = bomFromSanPhamDoc(sp);
+
+      // Trừ lại thành phẩm
+      await state.san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: -qtyTP } }, { session });
+
+      // Hoàn lại nguyên liệu
+      for (const b of bomList) {
+        const need = (Number(b.dinh_muc) || 0) * qtyTP;
+        if (need <= 0) continue;
+        const nl = nlByMa.get(String(b.ma_nl).trim());
+        if (nl) {
+          await state.nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: need } }, { session });
+        }
+      }
+    }
+    return;
+  }
+}
+
 /* ══════════════ Production needs (BOM aggregation) ══════════════ */
 export async function getProductionNeeds(orderId, { session } = {}) {
   try {

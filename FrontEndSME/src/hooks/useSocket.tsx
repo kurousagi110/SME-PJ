@@ -152,20 +152,28 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
       setNotifications((prev) => [item, ...prev.slice(0, 19)]);
 
-      // Invalidate query keys
-      queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
-      queryClient.invalidateQueries({ queryKey: ["material-catalog"] });
-      queryClient.invalidateQueries({ queryKey: ["material-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["nguyen-lieu-stock-map"] });
-      queryClient.invalidateQueries({ queryKey: ["product-catalog"] });
-      queryClient.invalidateQueries({ queryKey: ["product-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
-      queryClient.invalidateQueries({ queryKey: ["prod-receipts"] });
-      queryClient.invalidateQueries({ queryKey: ["production-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["order-sale"] });
-      queryClient.invalidateQueries({ queryKey: ["dash-chart"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-table"] });
-      queryClient.invalidateQueries({ queryKey: ["audit-log"] });
+      // Selective query invalidation based on notification type
+      if (type.includes("SALE")) {
+        queryClient.invalidateQueries({ queryKey: ["order-sale"] });
+        queryClient.invalidateQueries({ queryKey: ["dash-chart"] });
+        queryClient.invalidateQueries({ queryKey: ["dashboard-table"] });
+      } else if (type.includes("PURCHASE")) {
+        queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
+        queryClient.invalidateQueries({ queryKey: ["material-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["product-stock"] });
+      } else if (type.includes("PROD_RECEIPT") || type.includes("SX")) {
+        queryClient.invalidateQueries({ queryKey: ["prod-receipts"] });
+        queryClient.invalidateQueries({ queryKey: ["production-orders"] });
+        queryClient.invalidateQueries({ queryKey: ["material-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["product-stock"] });
+      } else if (type.includes("DCK")) {
+        queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
+        queryClient.invalidateQueries({ queryKey: ["material-stock"] });
+        queryClient.invalidateQueries({ queryKey: ["product-stock"] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["audit-log"] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["pending-approvals"] });
     });
 
     return () => {

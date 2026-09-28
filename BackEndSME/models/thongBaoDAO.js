@@ -21,6 +21,7 @@ export default class ThongBaoDAO {
       await thongBaoCol.createIndex({ user_id: 1, da_doc: 1, created_at: -1 });
       await thongBaoCol.createIndex({ phong_ban: 1, created_at: -1 });
       await thongBaoCol.createIndex({ ma_tb: 1 }, { unique: true });
+      await thongBaoCol.createIndex({ created_at: -1 });
     } catch (err) {
       logger.error("Error creating indexes for thong_bao", { error: err.message });
     }

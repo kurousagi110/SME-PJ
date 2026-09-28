@@ -48,7 +48,8 @@ export default class SoQuyController {
 
   /* ─── 3. Danh sách công nợ khách hàng & nhà cung cấp ─── */
   static getCongNo = asyncHandler(async (req, res) => {
-    const result = await SoQuyDAO.layDanhSachCongNo();
+    const limit = req.query.limit ? Number(req.query.limit) : 300;
+    const result = await SoQuyDAO.layDanhSachCongNo({ limit });
     if (result.error) {
       throw ApiError.internal("Không thể lấy danh sách công nợ: " + result.error.message);
     }

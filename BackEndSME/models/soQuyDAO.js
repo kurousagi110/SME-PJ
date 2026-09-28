@@ -215,23 +215,29 @@ export default class SoQuyDAO {
     }
   }
 
-  static async layDanhSachCongNo() {
+  static async layDanhSachCongNo({ limit = 300 } = {}) {
     try {
-      // 1. Phải thu từ khách hàng (Đơn bán hàng)
+      const maxLimit = Math.min(1000, Math.max(20, Number(limit) || 300));
+
+      // 1. Phải thu từ khách hàng (Đơn bán hàng gần nhất)
       const salesOrders = await donHangCol
         .find({ loai_don: "sale", trang_thai: { $nin: ["draft", "cancelled", "deleted"] } })
-        .sort({ ngay_dat: -1, createAt: -1 })
+        .sort({ created_at: -1, ngay_dat: -1 })
+        .limit(maxLimit)
         .toArray();
 
-      // 2. Phải trả nhà cung cấp (Đơn mua nguyên vật liệu / purchase receipt)
+      // 2. Phải trả nhà cung cấp (Đơn mua nguyên vật liệu gần nhất)
       const purchaseOrders = await donHangCol
         .find({ loai_don: "purchase_receipt", trang_thai: { $nin: ["draft", "cancelled", "deleted"] } })
-        .sort({ ngay_dat: -1, createAt: -1 })
+        .sort({ created_at: -1, ngay_dat: -1 })
+        .limit(maxLimit)
         .toArray();
 
       // Lấy tất cả phiếu thu chi active đã liên kết chứng từ
       const activeReceipts = await soQuyCol
         .find({ trang_thai: STATUS.ACTIVE, ma_chung_tu: { $ne: "" } })
+        .sort({ ngay_ghi_nhan: -1 })
+        .limit(maxLimit * 2)
         .toArray();
 
       const receiptsMap = new Map(); // ma_chung_tu -> { da_thu: 0, da_chi: 0 }

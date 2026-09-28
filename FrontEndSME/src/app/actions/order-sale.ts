@@ -55,3 +55,15 @@ export async function updateOrderSaleStatusById(id: string, data: any) {
     );
   }
 }
+
+export async function fetchRevenueStatsAction() {
+  try {
+    const result = await http.get("/don-hang/stats/revenue");
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    return {
+      success: false,
+      data: { doanh_thu: 0, chi_phi_mua: 0, loi_nhuan: 0, ty_suat: "0", so_don: 0 },
+    };
+  }
+}

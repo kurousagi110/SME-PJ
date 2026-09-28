@@ -240,7 +240,9 @@ export async function listDonHang({
 
     const skip = Math.max(0, (Number(page) - 1) * Number(limit));
     const sortDir = order === "asc" ? 1 : -1;
-    const sort = { [sortBy]: sortDir };
+    const ALLOWED_SORT_FIELDS = ["created_at", "updated_at", "ngay_dat", "tong_tien", "ma_dh", "trang_thai"];
+    const safeSortBy = ALLOWED_SORT_FIELDS.includes(sortBy) ? sortBy : "created_at";
+    const sort = { [safeSortBy]: sortDir };
 
     const [items, total] = await Promise.all([
       state.don_hang

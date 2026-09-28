@@ -6,6 +6,7 @@ import DieuChinhKhoDAO from "../models/dieuChinhKhoDAO.js";
 import LuongDAO from "../models/luongDAO.js";
 import { notifyDepartment, notifyUser } from "../utils/socketManager.js";
 import ApiError from "../utils/ApiError.js";
+import { isAdminUser } from "../middleware/auth.js";
 
 export default class ApprovalController {
   /* GET /api/v1/approvals/pending — Tổng hợp tất cả chứng từ đang chờ phê duyệt */
@@ -84,8 +85,25 @@ export default class ApprovalController {
     }
 
     const isApprove = hanh_dong === "approve";
+    const isDirectorOrAdmin = isAdminUser(user);
+    const isChiefAccountant =
+      isDirectorOrAdmin ||
+      user?.chuc_vu?.ten === "Kế toán trưởng" ||
+      user?.chuc_vu?.ten === "Kế toán" ||
+      user?.phong_ban?.ten === "Phòng kế toán";
+    const isSalesManager =
+      isDirectorOrAdmin ||
+      user?.chuc_vu?.ten === "Trưởng phòng" ||
+      user?.phong_ban?.ten === "Phòng kinh doanh";
+    const isWarehouseApprover =
+      isDirectorOrAdmin ||
+      user?.chuc_vu?.ten === "Thủ kho" ||
+      user?.phong_ban?.ten === "Phòng kho";
 
     if (loai === "purchase") {
+      if (!isWarehouseApprover) {
+        throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn mua hàng");
+      }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {
         mongoClient: req.app?.locals?.mongoClient,
@@ -106,6 +124,9 @@ export default class ApprovalController {
     }
 
     if (loai === "stock_adjustment") {
+      if (!isWarehouseApprover) {
+        throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu điều chỉnh kho");
+      }
       if (isApprove) {
         await DieuChinhKhoDAO.duyetPhieu(id, user);
       } else {
@@ -126,6 +147,9 @@ export default class ApprovalController {
     }
 
     if (loai === "sale") {
+      if (!isSalesManager) {
+        throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn bán hàng");
+      }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {
         mongoClient: req.app?.locals?.mongoClient,
@@ -146,6 +170,9 @@ export default class ApprovalController {
     }
 
     if (loai === "payroll") {
+      if (!isDirectorOrAdmin && !isChiefAccountant) {
+        throw ApiError.forbidden("Chỉ Ban Giám Đốc hoặc Kế toán trưởng mới có quyền duyệt chi lương");
+      }
       if (!isApprove) {
         return res.status(200).json({ success: true, message: "Đã tạm hoãn duyệt chi lương" });
       }

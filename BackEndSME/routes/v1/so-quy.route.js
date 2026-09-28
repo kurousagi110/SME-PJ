@@ -1,6 +1,6 @@
 import express from "express";
 import SoQuyController from "../../controllers/soQuyController.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
@@ -20,6 +20,6 @@ router.post(
   SoQuyController.create
 );
 
-router.put("/:id/huy", SoQuyController.cancel);
+router.put("/:id/huy", verifyAdmin, SoQuyController.cancel);
 
 export default router;

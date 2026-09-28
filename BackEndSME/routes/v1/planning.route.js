@@ -3,7 +3,7 @@
 
 import express from "express";
 import PlanningController from "../../controllers/planningController.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyApprover } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -13,8 +13,8 @@ router.get("/forecast", verifyToken, PlanningController.getForecast);
 // GET /api/v1/planning/mrp?lead_time=7
 router.get("/mrp", verifyToken, PlanningController.getMRP);
 
-// POST /api/v1/planning/mrp/tao-don-mua
-router.post("/mrp/tao-don-mua", verifyToken, PlanningController.taoDonMuaTuMRP);
+// POST /api/v1/planning/mrp/tao-don-mua (Thủ kho + Admin)
+router.post("/mrp/tao-don-mua", verifyToken, verifyApprover, PlanningController.taoDonMuaTuMRP);
 
 // GET /api/v1/planning/abc?months=6
 router.get("/abc", verifyToken, PlanningController.getABC);

@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.use(verifyToken);
 
-router.get("/pending", ApprovalController.getPendingApprovals);
+router.get("/pending", verifyApprover, ApprovalController.getPendingApprovals);
 router.post("/action", verifyApprover, ApprovalController.processApproval);
 
 export default router;

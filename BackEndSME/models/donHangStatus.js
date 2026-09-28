@@ -10,7 +10,7 @@ import logger from "../utils/logger.js";
 import { state } from "./donHangState.js";
 import { STATUS, ORDER_TYPE, toObjectId } from "./donHangConstants.js";
 import { getAllowedTransitions, ensureOrderType } from "./donHangHelpers.js";
-import { applyInventoryOnCompleted } from "./donHangInventory.js";
+import { applyInventoryOnCompleted, revertInventoryOnCancelled } from "./donHangInventory.js";
 
 /* ══════════════ Status transition + inventory ══════════════ */
 export async function capNhatTrangThaiVaTonKho(id, trang_thai_moi, { session, nguoi_thao_tac_id } = {}) {
@@ -45,6 +45,13 @@ export async function capNhatTrangThaiVaTonKho(id, trang_thai_moi, { session, ng
     !purchaseAlreadyApplied &&
     (trang_thai_moi === STATUS.COMPLETED ||
       (trang_thai_moi === STATUS.CONFIRMED && isPurchase));
+
+  const wasInventoryApplied =
+    (isPurchase && [STATUS.CONFIRMED, STATUS.PAID, STATUS.COMPLETED].includes(doc.trang_thai)) ||
+    (!isPurchase && doc.trang_thai === STATUS.COMPLETED);
+
+  const shouldRevertInventory =
+    trang_thai_moi === STATUS.CANCELLED && wasInventoryApplied;
 
   const now = new Date();
   const log = {
@@ -86,13 +93,46 @@ export async function capNhatTrangThaiVaTonKho(id, trang_thai_moi, { session, ng
     }
   }
 
+  // Revert inventory nếu đơn bị hủy sau khi đã nhập/xuất kho
+  if (shouldRevertInventory) {
+    try {
+      await revertInventoryOnCancelled(doc, { session });
+    } catch (revErr) {
+      logger.error("revertInventoryOnCancelled error", { error: revErr.message });
+      await state.don_hang.updateOne(
+        { _id, trang_thai: trang_thai_moi },
+        { $set: { trang_thai: doc.trang_thai, updated_at: new Date() } },
+        { session }
+      );
+      return { error: revErr };
+    }
+  }
+
   return { modifiedCount: res.modifiedCount };
 }
 
 /* ══════════════ Delete / Restore ══════════════ */
 export async function softDeleteDonHang(id, { session } = {}) {
+  const _id = new ObjectId(id);
+  const doc = await state.don_hang.findOne({ _id }, { session });
+  if (!doc) return { error: new Error("Không tìm thấy chứng từ") };
+
+  const isPurchase = doc.loai_don === ORDER_TYPE.PURCHASE_RECEIPT;
+  const wasInventoryApplied =
+    (isPurchase && [STATUS.CONFIRMED, STATUS.PAID, STATUS.COMPLETED].includes(doc.trang_thai)) ||
+    (!isPurchase && doc.trang_thai === STATUS.COMPLETED);
+
+  if (wasInventoryApplied) {
+    try {
+      await revertInventoryOnCancelled(doc, { session });
+    } catch (revErr) {
+      logger.error("softDeleteDonHang revert error", { error: revErr.message });
+      return { error: revErr };
+    }
+  }
+
   const res = await state.don_hang.updateOne(
-    { _id: new ObjectId(id) },
+    { _id },
     { $set: { trang_thai: STATUS.DELETED, updated_at: new Date() } },
     { session }
   );

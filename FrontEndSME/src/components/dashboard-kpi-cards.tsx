@@ -12,31 +12,15 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { fetchDashboardOrdersTable } from "@/app/actions/dashbroard";
+import { fetchRevenueStatsAction } from "@/app/actions/order-sale";
 import { useProductStockList } from "@/hooks/use-product";
 import { useMaterialStockList } from "@/hooks/use-material";
 
 export function DashboardKpiCards() {
-  // Fetch sales orders
-  const { data: salesData } = useQuery({
-    queryKey: ["dashboard-kpi-sales"],
-    queryFn: () =>
-      fetchDashboardOrdersTable({
-        loai_don: "sale",
-        page: 1,
-        limit: 100,
-      }),
-  });
-
-  // Fetch purchase orders
-  const { data: purchaseData } = useQuery({
-    queryKey: ["dashboard-kpi-purchases"],
-    queryFn: () =>
-      fetchDashboardOrdersTable({
-        loai_don: "purchase_receipt",
-        page: 1,
-        limit: 100,
-      }),
+  // Fetch full aggregated financial metrics from backend
+  const { data: revStats } = useQuery({
+    queryKey: ["dashboard-revenue-stats"],
+    queryFn: () => fetchRevenueStatsAction(),
   });
 
   // Stock status
@@ -54,27 +38,14 @@ export function DashboardKpiCards() {
 
   const { totalRevenue, totalPurchases, grossProfit, profitMargin } =
     React.useMemo(() => {
-      const sales = ((salesData as any)?.data || []) as any[];
-      const purchases = ((purchaseData as any)?.data || []) as any[];
-
-      const rev = sales
-        .filter((s) => s.trang_thai !== "cancelled")
-        .reduce((sum, s) => sum + Number(s.tong_tien ?? 0), 0);
-
-      const cost = purchases
-        .filter((p) => p.trang_thai !== "cancelled")
-        .reduce((sum, p) => sum + Number(p.tong_tien ?? 0), 0);
-
-      const profit = rev - cost;
-      const margin = rev > 0 ? ((profit / rev) * 100).toFixed(1) : "0";
-
+      const stats = revStats?.data || { doanh_thu: 0, chi_phi_mua: 0, loi_nhuan: 0, ty_suat: "0" };
       return {
-        totalRevenue: rev,
-        totalPurchases: cost,
-        grossProfit: profit,
-        profitMargin: margin,
+        totalRevenue: Number(stats.doanh_thu || 0),
+        totalPurchases: Number(stats.chi_phi_mua || 0),
+        grossProfit: Number(stats.loi_nhuan || 0),
+        profitMargin: String(stats.ty_suat || "0"),
       };
-    }, [salesData, purchaseData]);
+    }, [revStats]);
 
   const lowStockCount = React.useMemo(() => {
     const pItems = ((productStockData as any)?.items || []) as any[];

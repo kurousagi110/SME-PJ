@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import escapeRegex from "../utils/escapeRegex.js";
 
 export const TRANG_THAI_VAN_CHUYEN = {
   CHO_DONG_GOI: "cho_dong_goi",
@@ -96,12 +97,13 @@ export default class VanChuyenDAO {
       if (don_vi && don_vi !== "all") {
         filter.don_vi_van_chuyen = don_vi;
       }
-      if (search) {
+      if (search && String(search).trim()) {
+        const s = escapeRegex(String(search).trim());
         filter.$or = [
-          { ma_van_don: { $regex: search, $options: "i" } },
-          { ma_don_hang: { $regex: search, $options: "i" } },
-          { "nguoi_nhan.ten": { $regex: search, $options: "i" } },
-          { "nguoi_nhan.sdt": { $regex: search, $options: "i" } },
+          { ma_van_don: { $regex: s, $options: "i" } },
+          { ma_don_hang: { $regex: s, $options: "i" } },
+          { "nguoi_nhan.ten": { $regex: s, $options: "i" } },
+          { "nguoi_nhan.sdt": { $regex: s, $options: "i" } },
         ];
       }
 

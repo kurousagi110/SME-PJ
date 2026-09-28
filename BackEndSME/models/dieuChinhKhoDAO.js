@@ -1,4 +1,6 @@
 import { ObjectId } from "mongodb";
+import NguyenLieuDAO from "./nguyenLieuDAO.js";
+import SanPhamDAO from "./sanPhamDAO.js";
 
 export const DCK_STATUS = {
   CHO_DUYET: "cho_duyet",
@@ -127,5 +129,65 @@ export default class DieuChinhKhoDAO {
       },
       { returnDocument: "after" }
     );
+  }
+
+  /**
+   * duyetPhieu — atomic approve and adjust inventory for Unified Approval Hub
+   */
+  static async duyetPhieu(id, user = {}) {
+    if (!ObjectId.isValid(id)) throw new Error("ID phiếu không hợp lệ");
+    const phieu = await this.getById(id);
+    if (!phieu) throw new Error("Không tìm thấy phiếu điều chỉnh kho");
+    if (phieu.trang_thai !== DCK_STATUS.CHO_DUYET) {
+      throw new Error("Phiếu đã được xử lý trước đó");
+    }
+
+    const approvedBy = {
+      user_id: user._id || user.id ? String(user._id || user.id) : null,
+      tai_khoan: user.tai_khoan || "system",
+      ho_ten: user.ho_ten || user.tai_khoan || "Hệ thống",
+    };
+
+    // 1) Latch: reserve phiếu điều chỉnh kho
+    const reserved = await this.approve(id, approvedBy);
+    if (!reserved) {
+      throw new Error("Phiếu đã được xử lý bởi người khác");
+    }
+
+    // 2) Trừ/cộng tồn kho
+    const adjustFn = phieu.loai === "nguyen_lieu"
+      ? (itemId, delta) => NguyenLieuDAO.adjustStock(itemId, delta, { allowNegative: false })
+      : (itemId, delta) => SanPhamDAO.adjustStock(itemId, delta, { allowNegative: false });
+
+    const adjustResult = await adjustFn(phieu.item_id.toString(), phieu.so_luong_dieu_chinh);
+    if (adjustResult?.error) {
+      await this.revertToChoDuyet(id, approvedBy, adjustResult.error.message);
+      throw new Error(adjustResult.error.message || "Điều chỉnh tồn kho thất bại");
+    }
+
+    return reserved;
+  }
+
+  /**
+   * tuChoiPhieu — reject adjustment ticket with reason
+   */
+  static async tuChoiPhieu(id, ghi_chu = "", user = {}) {
+    if (!ObjectId.isValid(id)) throw new Error("ID phiếu không hợp lệ");
+    const phieu = await this.getById(id);
+    if (!phieu) throw new Error("Không tìm thấy phiếu điều chỉnh kho");
+    if (phieu.trang_thai !== DCK_STATUS.CHO_DUYET) {
+      throw new Error("Phiếu đã được xử lý trước đó");
+    }
+
+    const rejectedBy = {
+      user_id: user._id || user.id ? String(user._id || user.id) : null,
+      tai_khoan: user.tai_khoan || "system",
+      ho_ten: user.ho_ten || user.tai_khoan || "Hệ thống",
+      ly_do: ghi_chu || "Từ chối duyệt điều chỉnh kho",
+    };
+
+    const res = await this.reject(id, rejectedBy);
+    if (!res) throw new Error("Từ chối phiếu thất bại");
+    return res;
   }
 }
