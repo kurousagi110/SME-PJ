@@ -1377,3 +1377,310 @@ All endpoints return one of the following shapes:
 | 88 | PATCH | /api/v1/phongban-chucvu/:id/chuc-vu/:chucVuId | Yes | Cập nhật chức vụ |
 | 89 | DELETE | /api/v1/phongban-chucvu/:id/chuc-vu/:chucVuId | Yes | Xóa chức vụ |
 | 90 | PATCH | /api/v1/phongban-chucvu/:id/chuc-vu/:chucVuId/status | Yes | Trạng thái chức vụ |
+
+---
+
+## 9. Sổ Quỹ & Khóa Sổ Kỳ Kế Toán (Cashbook & Period Closing)
+
+**Base Route:** `/api/v1/cashbook` *(Alias: `/api/v1/so-quy`)*
+
+### GET /api/v1/cashbook
+**Description:** Lấy danh sách phiếu thu / chi kèm phân trang và lọc đa tiêu chí  
+**Auth required:** Yes  
+**Query Parameters:**
+- `type` / `loai_phieu`: "thu" | "chi"
+- `category` / `hang_muc`: danh mục thu chi
+- `method` / `phuong_thuc`: "tien_mat" | "chuyen_khoan"
+- `fromDate` / `tu_ngay`, `toDate` / `den_ngay`: khoảng thời gian ghi nhận (YYYY-MM-DD)
+- `search` / `q`: tìm kiếm mã phiếu, đối tượng, ghi chú
+- `page`, `limit`: phân trang (mặc định page=1, limit=20)
+
+### GET /api/v1/cashbook/tong-quan
+**Description:** Thống kê tổng quan dòng tiền (Tổng thu, Tổng chi, Tồn quỹ hiện tại, Biểu đồ biến động)  
+**Auth required:** Yes  
+
+### GET /api/v1/cashbook/cong-no
+**Description:** Danh sách đối soát công nợ 2 chiều (Phải thu khách hàng & Phải trả nhà cung cấp)  
+**Auth required:** Yes  
+
+### POST /api/v1/cashbook
+**Description:** Lập phiếu thu hoặc phiếu chi mới (Kiểm tra chặn tự động nếu ngày ghi nhận thuộc kỳ kế toán đã khóa sổ)  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "type": "thu",
+  "category": "thu_ban_hang",
+  "amount": 2500000,
+  "method": "chuyen_khoan",
+  "partner": "Công ty TNHH Giải Pháp Công Nghệ",
+  "reference_code": "DH-20260928-1234",
+  "record_date": "2026-09-28",
+  "note": "Thu tiền đơn bán hàng"
+}
+```
+
+### PUT /api/v1/cashbook/:id/huy
+**Description:** Hủy phiếu thu / chi (Chỉ Admin / Kế toán trưởng; Chặn nếu thuộc kỳ đã khóa sổ)  
+**Auth required:** Yes (Admin)  
+**Request Body:**
+```json
+{
+  "reason": "Nhập sai số tiền hóa đơn"
+}
+```
+
+### GET /api/v1/cashbook/ky-ke-toan
+**Description:** Danh sách các kỳ kế toán và trạng thái khóa sổ  
+**Auth required:** Yes  
+
+### POST /api/v1/cashbook/ky-ke-toan/chot-so
+**Description:** Niêm phong và khóa sổ kỳ kế toán (Chỉ Ban Giám Đốc / Kế toán trưởng)  
+**Auth required:** Yes (Admin)  
+**Request Body:**
+```json
+{
+  "period": "2026-08",
+  "fromDate": "2026-08-01",
+  "toDate": "2026-08-31",
+  "note": "Chốt sổ Báo cáo Tài chính Tháng 8/2026"
+}
+```
+
+### POST /api/v1/cashbook/ky-ke-toan/:ky/mo-khoa
+**Description:** Mở khóa kỳ kế toán đã chốt sổ phục vụ điều chỉnh ngoại lệ (Ghi nhật ký Audit bắt buộc)  
+**Auth required:** Yes (Admin)  
+**Request Body:**
+```json
+{
+  "reason": "Điều chỉnh bổ sung hóa đơn chiết khấu theo quyết định giám đốc"
+}
+```
+
+---
+
+## 10. Thẻ Kho & Báo Cáo Xuất - Nhập - Tồn (Stock Movement Ledger)
+
+**Base Route:** `/api/v1/stock-ledger` *(Alias: `/api/v1/the-kho`)*
+
+### GET /api/v1/stock-ledger/in-out-balance
+**Description:** Báo cáo Xuất - Nhập - Tồn tổng hợp theo kỳ (Tồn đầu, Nhập trong kỳ, Xuất trong kỳ, Tồn cuối & Giá trị thành tiền)  
+**Auth required:** Yes  
+**Query Parameters:**
+- `fromDate` / `tu_ngay`: Ngày bắt đầu kỳ (YYYY-MM-DD)
+- `toDate` / `den_ngay`: Ngày kết thúc kỳ (YYYY-MM-DD)
+- `type` / `loai`: "all" | "san_pham" | "nguyen_lieu"
+
+### GET /api/v1/stock-ledger/card
+**Description:** Thẻ kho chi tiết cho một mặt hàng cụ thể, liệt kê toàn bộ dòng phát sinh và số dư lũy kế tức thời  
+**Auth required:** Yes  
+**Query Parameters:**
+- `itemId`: ID mặt hàng (bắt buộc)
+- `type`: "san_pham" | "nguyen_lieu"
+- `fromDate`, `toDate`: Khoảng thời gian tra cứu
+
+---
+
+## 11. Báo Giá B2B & Chuyển Đổi Đơn Hàng (Quotations & Quote-to-Order)
+
+**Base Route:** `/api/v1/quotations` *(Alias: `/api/v1/bao-gia`)*
+
+### POST /api/v1/quotations
+**Description:** Lập báo giá B2B mới kèm tính toán chiết khấu và thuế VAT  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "customer_name": "Tập đoàn Công nghệ Alpha Tech",
+  "phone": "0987654321",
+  "email": "contact@alphatech.vn",
+  "items": [
+    {
+      "product_id": "6732f...",
+      "code": "SP001",
+      "name": "Bàn làm việc thông minh Pro",
+      "quantity": 5,
+      "price": 5000000
+    }
+  ],
+  "discount": 1250000,
+  "tax_rate": 0.1,
+  "valid_until": "2026-10-28",
+  "note": "Báo giá cung cấp nội thất văn phòng"
+}
+```
+
+### GET /api/v1/quotations
+**Description:** Lấy danh sách báo giá kèm bộ lọc trạng thái và phân trang  
+**Auth required:** Yes  
+**Query Parameters:** `status` ("draft", "sent", "accepted", "rejected", "converted"), `search`, `page`, `limit`
+
+### GET /api/v1/quotations/:id
+**Description:** Chi tiết 1 báo giá theo ID hoặc mã báo giá `BG-...`  
+**Auth required:** Yes  
+
+### PATCH /api/v1/quotations/:id/status
+**Description:** Cập nhật trạng thái báo giá (`sent`, `accepted`, `rejected`, `expired`)  
+**Auth required:** Yes  
+
+### POST /api/v1/quotations/:id/convert-to-order
+**Description:** Chuyển đổi 1-Click từ Báo giá sang Đơn Bán Hàng, kế thừa toàn bộ danh sách mặt hàng, giá bán, chiết khấu và thuế VAT  
+**Auth required:** Yes  
+
+---
+
+## 12. Trung Tâm Phê Duyệt Thống Nhất (Unified Approval Hub)
+
+**Base Route:** `/api/v1/approvals`
+
+### GET /api/v1/approvals/pending
+**Description:** Lấy toàn bộ danh sách chứng từ đang chờ phê duyệt trên toàn hệ thống (Đơn mua NVL, Điều chỉnh kiểm kê, Đơn bán chiết khấu cao, Bảng lương tháng)  
+**Auth required:** Yes (Approver/Admin)  
+
+### POST /api/v1/approvals/action
+**Description:** Phê duyệt hoặc từ chối chứng từ tập trung (Áp dụng anti self-approve)  
+**Auth required:** Yes (Approver/Admin)  
+**Request Body:**
+```json
+{
+  "type": "STOCK_ADJUSTMENT",
+  "id": "6732f...",
+  "action": "APPROVE",
+  "reason": "Số liệu kiểm kê thực tế chính xác"
+}
+```
+
+---
+
+## 13. Đổi Trả Hàng RMA & Kiểm Định QC (Return Orders)
+
+**Base Route:** `/api/v1/return-orders` *(Alias: `/api/v1/doi-tra`)*
+
+### POST /api/v1/return-orders
+**Description:** Tạo yêu cầu đổi trả hàng RMA (Kiểm soát nghiêm ngặt không cho đổi trả vượt số lượng đơn gốc)  
+**Auth required:** Yes  
+
+### GET /api/v1/return-orders
+**Description:** Lấy danh sách phiếu RMA kèm trạng thái xử lý  
+**Auth required:** Yes  
+
+### PATCH /api/v1/return-orders/:id/approve
+**Description:** Quản lý phê duyệt yêu cầu đổi trả, chuyển kho tiến hành kiểm định QC  
+**Auth required:** Yes (Approver)  
+
+### PATCH /api/v1/return-orders/:id/qc-inspect
+**Description:** Nghiệm thu kiểm định QC: Nhập hoàn kho sản phẩm đạt chuẩn và tự động sinh Phiếu Chi hoàn tiền trong Sổ Quỹ  
+**Auth required:** Yes (Warehouse/QC)  
+
+---
+
+## 14. Bàn Giao Liên Ban Bộ 1-Click Handover & Thảo Luận @Mentions
+
+**Base Route:** `/api/v1/order` *(Alias: `/api/v1/don-hang`)*
+
+### POST /api/v1/order/:id/chuyen-san-xuat
+**Description:** Bàn giao đơn bán hàng sang Phòng Sản Xuất để lập Lệnh Sản Xuất  
+**Auth required:** Yes  
+
+### POST /api/v1/order/:id/ban-giao-kho
+**Description:** Sản xuất hoàn tất, bàn giao thành phẩm nhập kho lưu trữ  
+**Auth required:** Yes  
+
+### POST /api/v1/order/:id/chuyen-van-chuyen
+**Description:** Kho đóng gói xong, chuyển giao đơn hàng tạo Vận Đơn Logistics  
+**Auth required:** Yes  
+
+### POST /api/v1/order/:id/comments
+**Description:** Thảo luận nội bộ trên chứng từ, trích xuất `@username` và phát thông báo Socket.io realtime  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "content": "Đã bàn giao đơn hàng cho @truongkd và @sale kiểm tra tiến độ giao hàng!"
+}
+```
+
+---
+
+## 15. Vận Chuyển Logistics (Shipping)
+
+**Base Route:** `/api/v1/shipping` *(Alias: `/api/v1/van-chuyen`)*
+
+### GET /api/v1/shipping
+**Description:** Danh sách vận đơn logistics, đối soát tiền thu hộ COD  
+**Auth required:** Yes  
+
+### GET /api/v1/shipping/tong-quan
+**Description:** Thống kê tổng quan tình hình giao nhận hàng hóa  
+**Auth required:** Yes  
+
+### POST /api/v1/shipping
+**Description:** Tạo vận đơn vận chuyển mới  
+**Auth required:** Yes  
+
+### PATCH /api/v1/shipping/:id/status
+**Description:** Cập nhật trạng thái giao nhận vận đơn  
+**Auth required:** Yes  
+
+---
+
+## 16. Đối Tác CRM (Partners)
+
+**Base Route:** `/api/v1/partner` *(Alias: `/api/v1/doi-tac`)*
+
+### GET /api/v1/partner
+**Description:** Danh sách đối tác khách hàng & nhà cung cấp kèm phân loại VIP, công nợ và doanh số LTV  
+**Auth required:** Yes  
+
+### GET /api/v1/partner/tong-quan
+**Description:** Thống kê CRM đối tác  
+**Auth required:** Yes  
+
+### GET /api/v1/partner/:id
+**Description:** Chi tiết hồ sơ Customer 360°  
+**Auth required:** Yes  
+
+### POST /api/v1/partner
+**Description:** Tạo đối tác mới  
+**Auth required:** Yes  
+
+---
+
+## 17. Điều Chỉnh Kho Kiểm Kê (Stock Adjustments)
+
+**Base Route:** `/api/v1/stock-adjustment` *(Alias: `/api/v1/dieu-chinh-kho`)*
+
+### POST /api/v1/stock-adjustment
+**Description:** Lập phiếu kiểm kê điều chỉnh tồn kho  
+**Auth required:** Yes  
+
+### GET /api/v1/stock-adjustment
+**Description:** Danh sách phiếu kiểm kê chờ duyệt và đã xử lý  
+**Auth required:** Yes  
+
+### PATCH /api/v1/stock-adjustment/:id/approve
+**Description:** Phê duyệt phiếu điều chỉnh kho (Tự động cộng/trừ tồn kho an toàn bằng MongoDB session transaction / atomic latch)  
+**Auth required:** Yes (Approver)  
+
+### PATCH /api/v1/stock-adjustment/:id/reject
+**Description:** Từ chối phiếu điều chỉnh kho kèm lý do  
+**Auth required:** Yes (Approver)  
+
+---
+
+## 18. Sản Xuất & Lệnh SX (Production Orders & Traceability)
+
+**Base Route:** `/api/v1/production` *(Alias: `/api/v1/san-xuat`)*
+
+### POST /api/v1/production
+**Description:** Tạo lệnh sản xuất: Bóc tách BOM, kiểm tra trừ kho NVL và cộng thành phẩm  
+**Auth required:** Yes  
+
+### GET /api/v1/production/logs
+**Description:** Nhật ký lịch sử các đợt sản xuất  
+**Auth required:** Yes  
+
+### GET /api/v1/production/lo/:ma_lo
+**Description:** Tra cứu nguồn gốc xuất xứ lô sản xuất theo mã lô  
+**Auth required:** Yes  
+
