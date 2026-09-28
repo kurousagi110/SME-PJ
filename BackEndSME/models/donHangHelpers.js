@@ -99,8 +99,9 @@ export function calcTotals(items, giam_gia = 0, thue_rate = 0, phi_vc = 0) {
   const subtotal = (items || []).reduce((s, it) => s + (Number(it.thanh_tien) || 0), 0);
   const discount = Math.max(0, num(giam_gia, 0));
   const base = Math.max(0, subtotal - discount);
-  const taxRate = Math.max(0, num(thue_rate, 0));
-  const taxAmount = base * taxRate;
+  const rawTax = Math.max(0, num(thue_rate, 0));
+  const taxRate = rawTax > 1 ? rawTax / 100 : rawTax;
+  const taxAmount = Math.round(base * taxRate);
   const shipping = Math.max(0, num(phi_vc, 0));
   const total = Math.max(0, base + taxAmount + shipping);
   return { subtotal, discount, taxRate, taxAmount, shipping, total };

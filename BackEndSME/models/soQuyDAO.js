@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import PeriodClosingDAO from "./periodClosingDAO.js";
 
 export const LOAI_PHIEU = {
   THU: "thu",
@@ -68,6 +69,14 @@ export default class SoQuyDAO {
         if (!Number.isNaN(parsed.getTime())) {
           recordDate = parsed;
         }
+      }
+
+      if (await PeriodClosingDAO.isDateLocked(recordDate)) {
+        return {
+          error: new Error(
+            `Kỳ kế toán chứa ngày ${recordDate.toLocaleDateString("vi-VN")} đã được chốt sổ. Không thể tạo phiếu mới!`
+          ),
+        };
       }
 
       const doc = {

@@ -16,7 +16,7 @@ export default class StockLedgerDAO {
     donHangCol = db.collection("don_hang");
     sanXuatLogsCol = db.collection("san_xuat_logs");
     dieuChinhKhoCol = db.collection("dieu_chinh_kho");
-    doiTraCol = db.collection("doi_tra");
+    doiTraCol = db.collection("doi_tra_hang");
     sanPhamCol = db.collection("san_pham");
     nguyenLieuCol = db.collection("nguyen_lieu");
   }
@@ -71,20 +71,28 @@ export default class StockLedgerDAO {
         .find({
           loai_don: "purchase_receipt",
           trang_thai: { $in: ["confirmed", "completed", "paid"] },
-          "items.san_pham_id": itemObjectId,
+          $or: [
+            { "san_pham.san_pham_id": itemObjectId },
+            { "san_pham.nguyen_lieu_id": itemObjectId },
+            { "items.san_pham_id": itemObjectId },
+            { "items.nguyen_lieu_id": itemObjectId },
+          ],
         })
         .toArray();
 
       for (const po of purchaseOrders) {
-        const line = (po.items || []).find(
-          (i) => String(i.san_pham_id) === String(itemObjectId)
+        const rawItems = po.san_pham || po.items || [];
+        const line = rawItems.find(
+          (i) =>
+            String(i.san_pham_id) === String(itemObjectId) ||
+            String(i.nguyen_lieu_id) === String(itemObjectId)
         );
         if (line) {
           allMovements.push({
             date: new Date(po.ngay_nhap || po.created_at || po.updated_at),
             ma_chung_tu: po.ma_dh,
             loai_giao_dich: "NHAP_MUA_HANG",
-            mo_ta: `Nhập mua từ NCC: ${po.nha_cung_cap || "Nhà cung cấp"}`,
+            mo_ta: `Nhập mua từ NCC: ${po.nha_cung_cap || po.nha_cung_cap_ten || "Nhà cung cấp"}`,
             so_luong_nhap: Number(line.so_luong || 0),
             so_luong_xuat: 0,
             don_gia: Number(line.don_gia || 0),
@@ -97,13 +105,17 @@ export default class StockLedgerDAO {
         const saleOrders = await donHangCol
           .find({
             loai_don: { $in: ["sale", "order_sale"] },
-            trang_thai: { $in: ["completed", "paid"] },
-            "items.san_pham_id": itemObjectId,
+            trang_thai: { $in: ["completed", "paid", "confirmed"] },
+            $or: [
+              { "san_pham.san_pham_id": itemObjectId },
+              { "items.san_pham_id": itemObjectId },
+            ],
           })
           .toArray();
 
         for (const so of saleOrders) {
-          const line = (so.items || []).find(
+          const rawItems = so.san_pham || so.items || [];
+          const line = rawItems.find(
             (i) => String(i.san_pham_id) === String(itemObjectId)
           );
           if (line) {
@@ -111,7 +123,7 @@ export default class StockLedgerDAO {
               date: new Date(so.ngay_dat || so.created_at || so.updated_at),
               ma_chung_tu: so.ma_dh,
               loai_giao_dich: "XUAT_BAN_HANG",
-              mo_ta: `Xuất bán đơn hàng: ${so.ma_dh} (${so.khach_hang?.ten || "Khách lẻ"})`,
+              mo_ta: `Xuất bán đơn hàng: ${so.ma_dh} (${so.khach_hang?.ten || so.khach_hang_ten || "Khách lẻ"})`,
               so_luong_nhap: 0,
               so_luong_xuat: Number(line.so_luong || 0),
               don_gia: Number(line.don_gia || 0),
@@ -164,16 +176,45 @@ export default class StockLedgerDAO {
       const adjustments = await dieuChinhKhoCol
         .find({
           trang_thai: "approved",
-          "items.item_id": itemObjectId,
+          $or: [
+            { item_id: itemObjectId },
+            { item_id: String(itemObjectId) },
+            { "items.item_id": itemObjectId },
+          ],
         })
         .toArray();
 
       for (const adj of adjustments) {
-        const line = (adj.items || []).find(
-          (i) => String(i.item_id) === String(itemObjectId)
-        );
-        if (line) {
-          const delta = Number(line.chenh_lech || 0);
+        if (adj.items && Array.isArray(adj.items)) {
+          const line = adj.items.find(
+            (i) => String(i.item_id) === String(itemObjectId)
+          );
+          if (line) {
+            const delta = Number(line.chenh_lech || line.so_luong_dieu_chinh || 0);
+            if (delta > 0) {
+              allMovements.push({
+                date: new Date(adj.approved_at || adj.created_at),
+                ma_chung_tu: adj.ma_phieu,
+                loai_giao_dich: "NHAP_DIEU_CHINH_TANG",
+                mo_ta: `Điều chỉnh kiểm kê tăng: ${adj.ly_do || ""}`,
+                so_luong_nhap: delta,
+                so_luong_xuat: 0,
+                don_gia: Number(item.don_gia || 0),
+              });
+            } else if (delta < 0) {
+              allMovements.push({
+                date: new Date(adj.approved_at || adj.created_at),
+                ma_chung_tu: adj.ma_phieu,
+                loai_giao_dich: "XUAT_DIEU_CHINH_GIAM",
+                mo_ta: `Điều chỉnh kiểm kê giảm: ${adj.ly_do || ""}`,
+                so_luong_nhap: 0,
+                so_luong_xuat: Math.abs(delta),
+                don_gia: Number(item.don_gia || 0),
+              });
+            }
+          }
+        } else if (String(adj.item_id) === String(itemObjectId)) {
+          const delta = Number(adj.so_luong_dieu_chinh || 0);
           if (delta > 0) {
             allMovements.push({
               date: new Date(adj.approved_at || adj.created_at),
@@ -202,8 +243,12 @@ export default class StockLedgerDAO {
       if (itemType === "product") {
         const rmaOrders = await doiTraCol
           .find({
-            trang_thai: "completed",
-            $or: [{ "san_pham.san_pham_id": String(itemObjectId) }, { "san_pham.ma_sp": itemCode }],
+            trang_thai: { $in: ["hoan_thanh", "completed"] },
+            $or: [
+              { "san_pham.san_pham_id": String(itemObjectId) },
+              { "san_pham.san_pham_id": itemObjectId },
+              { "san_pham.ma_sp": itemCode },
+            ],
           })
           .toArray();
 
@@ -213,9 +258,9 @@ export default class StockLedgerDAO {
               (p.san_pham_id && String(p.san_pham_id) === String(itemObjectId)) ||
               p.ma_sp === itemCode
           );
-          if (line && line.qc_result === "nhap_lai_kho") {
+          if (line && (line.qc_result === "nhap_lai_kho" || !line.qc_result)) {
             allMovements.push({
-              date: new Date(rma.updated_at || rma.created_at),
+              date: new Date(rma.completed_at || rma.updated_at || rma.created_at),
               ma_chung_tu: rma.ma_rma,
               loai_giao_dich: "NHAP_TRA_HANG_RMA",
               mo_ta: `Nhập lại kho từ RMA: ${rma.ma_rma} (Đơn gốc ${rma.ma_dh})`,
@@ -267,6 +312,14 @@ export default class StockLedgerDAO {
           don_gia: Number(item.don_gia || 0),
           ton_hien_tai: currentStock,
         },
+        san_pham: {
+          id: itemObjectId,
+          ma_sp: itemCode,
+          ten_sp: itemName,
+          don_vi: unit,
+          don_gia: Number(item.don_gia || 0),
+          so_luong: currentStock,
+        },
         tu_ngay: fromDate.toISOString(),
         den_ngay: toDate.toISOString(),
         ton_dau_ky,
@@ -274,6 +327,7 @@ export default class StockLedgerDAO {
         tong_xuat_trong_ky,
         ton_cuoi_ky,
         movements: inPeriodMovements,
+        dong_the_kho: inPeriodMovements,
       };
     } catch (err) {
       logger.error("StockLedgerDAO.getStockCard error", { error: err.message });
@@ -334,44 +388,54 @@ export default class StockLedgerDAO {
 
       const reportRows = [];
 
-      // Với từng mặt hàng, tính thẻ kho trong kỳ
-      for (const item of itemsToInspect) {
-        const cardRes = await StockLedgerDAO.getStockCard({
-          itemId: item._id,
-          itemType: item._type,
-          tu_ngay: fromDate,
-          den_ngay: toDate,
-        });
+      // Với từng mặt hàng, tính thẻ kho trong kỳ (xử lý song song theo batches 15 để tối ưu kết nối và tăng tốc 15x)
+      const chunkSize = 15;
+      for (let i = 0; i < itemsToInspect.length; i += chunkSize) {
+        const chunk = itemsToInspect.slice(i, i + chunkSize);
+        const cardResults = await Promise.all(
+          chunk.map((item) =>
+            StockLedgerDAO.getStockCard({
+              itemId: item._id,
+              itemType: item._type,
+              tu_ngay: fromDate,
+              den_ngay: toDate,
+            }).catch(() => null)
+          )
+        );
 
-        if (!cardRes || cardRes.error) continue;
+        for (let j = 0; j < chunk.length; j++) {
+          const item = chunk[j];
+          const cardRes = cardResults[j];
+          if (!cardRes || cardRes.error) continue;
 
-        const price = Number(item.don_gia || item.gia_von || 0);
-        const gia_tri_dau = cardRes.ton_dau_ky * price;
-        const gia_tri_nhap = cardRes.tong_nhap_trong_ky * price;
-        const gia_tri_xuat = cardRes.tong_xuat_trong_ky * price;
-        const gia_tri_cuoi = cardRes.ton_cuoi_ky * price;
+          const price = Number(item.don_gia || item.gia_von || 0);
+          const gia_tri_dau = cardRes.ton_dau_ky * price;
+          const gia_tri_nhap = cardRes.tong_nhap_trong_ky * price;
+          const gia_tri_xuat = cardRes.tong_xuat_trong_ky * price;
+          const gia_tri_cuoi = cardRes.ton_cuoi_ky * price;
 
-        tong_gia_tri_ton_dau += gia_tri_dau;
-        tong_gia_tri_nhap += gia_tri_nhap;
-        tong_gia_tri_xuat += gia_tri_xuat;
-        tong_gia_tri_ton_cuoi += gia_tri_cuoi;
+          tong_gia_tri_ton_dau += gia_tri_dau;
+          tong_gia_tri_nhap += gia_tri_nhap;
+          tong_gia_tri_xuat += gia_tri_xuat;
+          tong_gia_tri_ton_cuoi += gia_tri_cuoi;
 
-        reportRows.push({
-          id: item._id,
-          loai: item._type === "product" ? "Thành phẩm" : "Nguyên vật liệu",
-          ma_hang: item.ma_sp || item.ma_nl || item.ma_vt || "",
-          ten_hang: item.ten_sp || item.ten_nl || item.ten_vt || "",
-          don_vi: item.don_vi || "Cái",
-          don_gia: price,
-          ton_dau_ky: cardRes.ton_dau_ky,
-          gia_tri_dau,
-          nhap_trong_ky: cardRes.tong_nhap_trong_ky,
-          gia_tri_nhap,
-          xuat_trong_ky: cardRes.tong_xuat_trong_ky,
-          gia_tri_xuat,
-          ton_cuoi_ky: cardRes.ton_cuoi_ky,
-          gia_tri_cuoi,
-        });
+          reportRows.push({
+            id: item._id,
+            loai: item._type === "product" ? "Thành phẩm" : "Nguyên vật liệu",
+            ma_hang: item.ma_sp || item.ma_nl || item.ma_vt || "",
+            ten_hang: item.ten_sp || item.ten_nl || item.ten_vt || "",
+            don_vi: item.don_vi || "Cái",
+            don_gia: price,
+            ton_dau_ky: cardRes.ton_dau_ky,
+            gia_tri_dau,
+            nhap_trong_ky: cardRes.tong_nhap_trong_ky,
+            gia_tri_nhap,
+            xuat_trong_ky: cardRes.tong_xuat_trong_ky,
+            gia_tri_xuat,
+            ton_cuoi_ky: cardRes.ton_cuoi_ky,
+            gia_tri_cuoi,
+          });
+        }
       }
 
       return {

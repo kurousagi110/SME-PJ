@@ -149,6 +149,7 @@ async function runTests() {
   }
 
   console.log("\n=== TẤT CẢ 5 TÍNH NĂNG LIÊN BAN BỘ ĐÃ HOẠT ĐỘNG HOÀN HẢO! ===");
+  process.exit(0);
 }
 
 runTests().catch((err) => {

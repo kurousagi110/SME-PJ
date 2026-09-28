@@ -70,6 +70,39 @@ export default class ReturnOrderDAO {
         return { error: new Error("Cần ít nhất 1 sản phẩm yêu cầu đổi trả") };
       }
 
+      // Kiểm tra đối soát sản phẩm và số lượng với đơn hàng gốc
+      const orderProducts = order.san_pham || order.items || [];
+      if (!orderProducts.length) {
+        return { error: new Error("Đơn hàng gốc không có sản phẩm để đổi trả") };
+      }
+
+      for (const sp of san_pham) {
+        const found = orderProducts.find(
+          (op) =>
+            (sp.san_pham_id && String(op.san_pham_id) === String(sp.san_pham_id)) ||
+            (sp.ma_sp && op.ma_sp === sp.ma_sp)
+        );
+        if (!found) {
+          return {
+            error: new Error(
+              `Sản phẩm ${sp.ten_sp || sp.ma_sp || "không xác định"} không thuộc đơn hàng ${ma_dh}`
+            ),
+          };
+        }
+        const reqQty = Number(sp.so_luong) || 0;
+        const boughtQty = Number(found.so_luong) || 0;
+        if (reqQty <= 0) {
+          return { error: new Error(`Số lượng đổi trả cho ${found.ten_sp || found.ma_sp} phải lớn hơn 0`) };
+        }
+        if (reqQty > boughtQty) {
+          return {
+            error: new Error(
+              `Số lượng đổi trả (${reqQty}) vượt quá số lượng đã mua (${boughtQty}) của sản phẩm ${found.ten_sp || found.ma_sp}`
+            ),
+          };
+        }
+      }
+
       const ma_rma = genRmaCode();
       const now = new Date();
 

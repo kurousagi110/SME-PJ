@@ -202,7 +202,7 @@ export default class QuotationDAO {
           thanh_tien: it.thanh_tien,
         })),
         giam_gia: q.tong_chiet_khau || 0,
-        thue_rate: q.thue_vat || 0,
+        thue_rate: (q.thue_vat || 0) > 1 ? (q.thue_vat || 0) / 100 : (q.thue_vat || 0),
         ghi_chu: `Chuyển đổi từ Báo giá ${q.ma_bao_gia}. ${q.ghi_chu || ""}`,
         trang_thai: "confirmed",
       };
