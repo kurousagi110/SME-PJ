@@ -1,5 +1,5 @@
-import DieuChinhKhoPage from "./dieu-chinh-kho-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <DieuChinhKhoPage />;
+export default function DieuChinhKhoRedirect() {
+  redirect("/stock-adjustments");
 }

@@ -163,7 +163,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           },
           {
             title: "Kiểm Kê Điều Chỉnh",
-            url: "/dieu-chinh-kho",
+            url: "/stock-adjustments",
             icon: IconAdjustments,
           },
           {
