@@ -26,6 +26,8 @@ import {
   IconFileCheck,
   IconArrowBackUp,
   IconScan,
+  IconReportAnalytics,
+  IconFileInvoice,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -104,6 +106,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : null,
           canSeeSalesMenu
             ? {
+                title: "Báo Giá B2B",
+                url: "/quotations",
+                icon: IconFileInvoice,
+                badge: "Mới",
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
                 title: "Đơn Bán Hàng",
                 url: "/sales",
                 icon: IconListDetails,
@@ -171,6 +181,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/traceability",
             icon: IconScan,
             badge: "Lot",
+          },
+          {
+            title: "Thẻ Kho & Xuất Nhập Tồn",
+            url: "/stock-ledger",
+            icon: IconReportAnalytics,
+            badge: "Mới",
           },
         ],
       },
