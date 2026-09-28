@@ -20,7 +20,9 @@ router.post(
   SanXuatController.produce
 );
 
-/* ─── READ (lịch sử lô sản xuất) ─── */
+/* ─── READ (lịch sử lô sản xuất / tra cứu lô) ─── */
 router.get("/logs", verifyToken, SanXuatController.getLogs);
+router.get("/lots", verifyToken, SanXuatController.getLogs);
+router.get("/lots/:ma_lo", verifyToken, SanXuatController.getByMaLo);
 
 export default router;

@@ -16,6 +16,8 @@ import {
   IconSearch,
   IconTrash,
   IconWallet,
+  IconLock,
+  IconLockOpen,
 } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +61,10 @@ import {
   SoQuyItem,
   taoPhieuAction,
   TongQuanSoQuy,
+  PeriodClosingItem,
+  fetchPeriodListAction,
+  closePeriodAction,
+  reopenPeriodAction,
 } from "@/app/actions/so-quy";
 import { exportToCSV, printCashReceipt } from "@/lib/export";
 
@@ -90,6 +96,19 @@ export default function CashbookPage() {
     khach_hang: { items: [], tong_phai_thu: 0, tong_da_thu: 0, tong_con_phai_thu: 0 },
     nha_cung_cap: { items: [], tong_phai_tra: 0, tong_da_tra: 0, tong_con_phai_tra: 0 },
   });
+  const [periods, setPeriods] = React.useState<PeriodClosingItem[]>([]);
+
+  // Dialog Khóa Sổ & Mở Khóa Kỳ
+  const [openClosePeriod, setOpenClosePeriod] = React.useState(false);
+  const [closePeriodForm, setClosePeriodForm] = React.useState({
+    ky: "",
+    tu_ngay: "",
+    den_ngay: "",
+    ghi_chu: "",
+  });
+  const [openReopenPeriod, setOpenReopenPeriod] = React.useState(false);
+  const [reopenTargetKy, setReopenTargetKy] = React.useState("");
+  const [reopenReason, setReopenReason] = React.useState("");
 
   // Filters
   const [filterLoai, setFilterLoai] = React.useState<string>("all");
@@ -123,7 +142,7 @@ export default function CashbookPage() {
   const loadAllData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [tqRes, sqRes, cnRes] = await Promise.all([
+      const [tqRes, sqRes, cnRes, periodRes] = await Promise.all([
         fetchTongQuanSoQuyAction(),
         fetchSoQuyAction({
           loai_phieu: filterLoai === "all" ? undefined : filterLoai,
@@ -131,11 +150,13 @@ export default function CashbookPage() {
           search: search.trim() || undefined,
         }),
         fetchCongNoAction(),
+        fetchPeriodListAction(),
       ]);
 
       if (tqRes.success && tqRes.data) setTongQuan(tqRes.data);
       if (sqRes.success && sqRes.items) setSoQuyItems(sqRes.items);
       if (cnRes.success && cnRes.data) setCongNo(cnRes.data);
+      if (periodRes.success && periodRes.data) setPeriods(periodRes.data);
     } catch (err: any) {
       toast.error(err?.message || "Không thể tải dữ liệu sổ quỹ");
     } finally {
@@ -207,6 +228,61 @@ export default function CashbookPage() {
       }
     } catch (err: any) {
       toast.error(err?.message || "Lỗi khi hủy phiếu");
+    }
+  };
+
+  const handleOpenClosePeriodModal = () => {
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(curYear, now.getMonth() + 1, 0).getDate();
+    setClosePeriodForm({
+      ky: `KY-${curMonth}-${curYear}`,
+      tu_ngay: `${curYear}-${curMonth}-01`,
+      den_ngay: `${curYear}-${curMonth}-${String(lastDay).padStart(2, "0")}`,
+      ghi_chu: `Khóa sổ kỳ kế toán tháng ${curMonth}/${curYear}`,
+    });
+    setOpenClosePeriod(true);
+  };
+
+  const handleSubmitClosePeriod = async () => {
+    if (!closePeriodForm.ky || !closePeriodForm.tu_ngay || !closePeriodForm.den_ngay) {
+      toast.error("Vui lòng điền đủ tên kỳ, từ ngày và đến ngày");
+      return;
+    }
+    try {
+      const res = await closePeriodAction(closePeriodForm);
+      if (res.success) {
+        toast.success(`Đã khóa sổ kỳ kế toán ${closePeriodForm.ky}`);
+        setOpenClosePeriod(false);
+        loadAllData();
+      } else {
+        toast.error(res.error || "Khóa sổ thất bại");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi khóa sổ kỳ kế toán");
+    }
+  };
+
+  const handleOpenReopenModal = (ky: string) => {
+    setReopenTargetKy(ky);
+    setReopenReason("");
+    setOpenReopenPeriod(true);
+  };
+
+  const handleSubmitReopenPeriod = async () => {
+    if (!reopenTargetKy) return;
+    try {
+      const res = await reopenPeriodAction(reopenTargetKy, reopenReason);
+      if (res.success) {
+        toast.success(`Đã mở khóa kỳ kế toán ${reopenTargetKy}`);
+        setOpenReopenPeriod(false);
+        loadAllData();
+      } else {
+        toast.error(res.error || "Mở khóa thất bại");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Lỗi khi mở khóa kỳ kế toán");
     }
   };
 
@@ -407,6 +483,9 @@ export default function CashbookPage() {
           </TabsTrigger>
           <TabsTrigger value="cong-no-ncc" className="font-semibold">
             Công Nợ Nhà Cung Cấp ({congNo.nha_cung_cap.items.filter((i) => i.con_lai > 0).length} đơn nợ)
+          </TabsTrigger>
+          <TabsTrigger value="ky-ke-toan" className="font-semibold">
+            Khóa Sổ Kỳ Kế Toán ({periods.length})
           </TabsTrigger>
         </TabsList>
 
@@ -805,6 +884,116 @@ export default function CashbookPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* TAB 4: KHÓA SỔ KỲ KẾ TOÁN & P&L */}
+        <TabsContent value="ky-ke-toan" className="space-y-4">
+          <Card className="border shadow-sm bg-white">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b gap-4">
+              <div>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <IconLock className="w-5 h-5 text-indigo-600" />
+                  Quản Lý Khóa Sổ Kỳ Kế Toán & P&L
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Đảm bảo tính khép kín tài chính: Sau khi khóa sổ, không ai có thể tạo mới, chỉnh sửa hay hủy phiếu trong kỳ đã chốt.
+                </p>
+              </div>
+              <Button
+                onClick={handleOpenClosePeriodModal}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5"
+              >
+                <IconLock className="w-4 h-4" />
+                Chốt Sổ Kỳ Mới
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-semibold text-xs">Mã Kỳ</TableHead>
+                      <TableHead className="font-semibold text-xs">Từ Ngày</TableHead>
+                      <TableHead className="font-semibold text-xs">Đến Ngày</TableHead>
+                      <TableHead className="font-semibold text-xs text-right">Tổng Doanh Thu</TableHead>
+                      <TableHead className="font-semibold text-xs text-right">Tổng Chi Phí</TableHead>
+                      <TableHead className="font-semibold text-xs text-right">Thặng Dư (P&L)</TableHead>
+                      <TableHead className="font-semibold text-xs text-center">Trạng Thái</TableHead>
+                      <TableHead className="font-semibold text-xs">Người Chốt / Thời Gian</TableHead>
+                      <TableHead className="font-semibold text-xs text-right">Hành Động</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {periods.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-slate-400 text-sm">
+                          Chưa có kỳ kế toán nào được tạo hoặc chốt sổ. Hãy bấm &quot;Chốt Sổ Kỳ Mới&quot; để thiết lập.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      periods.map((item) => {
+                        const pnl = (item.tong_thu || 0) - (item.tong_chi || 0);
+                        const isClosed = item.trang_thai === "closed";
+                        return (
+                          <TableRow key={item._id} className="hover:bg-slate-50">
+                            <TableCell className="font-bold font-mono text-sm text-slate-800">
+                              {item.ky}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-600">
+                              {new Date(item.tu_ngay).toLocaleDateString("vi-VN")}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-600">
+                              {new Date(item.den_ngay).toLocaleDateString("vi-VN")}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-semibold text-emerald-600">
+                              {toVND(item.tong_thu || 0)}
+                            </TableCell>
+                            <TableCell className="text-right text-xs font-semibold text-rose-600">
+                              {toVND(item.tong_chi || 0)}
+                            </TableCell>
+                            <TableCell className={`text-right text-xs font-bold ${pnl >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                              {toVND(pnl)}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {isClosed ? (
+                                <Badge className="bg-slate-700 text-white flex items-center gap-1 w-fit mx-auto">
+                                  <IconLock className="w-3 h-3" /> Đã Khóa Sổ
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1 w-fit mx-auto">
+                                  <IconLockOpen className="w-3 h-3" /> Đang Mở
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-600">
+                              <div>{item.closed_by?.ho_ten || "Hệ thống"}</div>
+                              {item.closed_at && (
+                                <div className="text-[10px] text-muted-foreground">
+                                  {new Date(item.closed_at).toLocaleString("vi-VN")}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {isClosed && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleOpenReopenModal(item.ky)}
+                                  className="h-7 text-xs border-amber-300 text-amber-800 hover:bg-amber-50"
+                                >
+                                  Mở khóa kỳ
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Dialog Lập Phiếu Thu / Chi */}
@@ -980,6 +1169,115 @@ export default function CashbookPage() {
               }
             >
               Lưu {createForm.loai_phieu === "thu" ? "Phiếu Thu" : "Phiếu Chi"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Chốt Sổ Kỳ Kế Toán */}
+      <Dialog open={openClosePeriod} onOpenChange={setOpenClosePeriod}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <div className="p-1.5 rounded-full bg-indigo-100 text-indigo-700">
+                <IconLock className="w-5 h-5" />
+              </div>
+              Chốt Sổ Kỳ Kế Toán
+            </DialogTitle>
+            <DialogDescription>
+              Khi chốt sổ, toàn bộ giao dịch sổ quỹ trong khoảng thời gian này sẽ được khóa vĩnh viễn, ngăn chặn gian lận và sai lệch số liệu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Tên kỳ kế toán *</Label>
+              <Input
+                placeholder="Ví dụ: KY-09-2026"
+                value={closePeriodForm.ky}
+                onChange={(e) => setClosePeriodForm((prev) => ({ ...prev, ky: e.target.value }))}
+                className="font-mono text-sm bg-slate-50"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Từ ngày *</Label>
+                <Input
+                  type="date"
+                  value={closePeriodForm.tu_ngay}
+                  onChange={(e) => setClosePeriodForm((prev) => ({ ...prev, tu_ngay: e.target.value }))}
+                  className="bg-slate-50 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Đến ngày *</Label>
+                <Input
+                  type="date"
+                  value={closePeriodForm.den_ngay}
+                  onChange={(e) => setClosePeriodForm((prev) => ({ ...prev, den_ngay: e.target.value }))}
+                  className="bg-slate-50 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Ghi chú khóa sổ</Label>
+              <Textarea
+                placeholder="Nhập ghi chú hoặc biên bản đối soát..."
+                rows={2}
+                value={closePeriodForm.ghi_chu}
+                onChange={(e) => setClosePeriodForm((prev) => ({ ...prev, ghi_chu: e.target.value }))}
+                className="bg-slate-50 text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenClosePeriod(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleSubmitClosePeriod} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+              Xác Nhận Khóa Sổ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Mở Khóa Kỳ Kế Toán */}
+      <Dialog open={openReopenPeriod} onOpenChange={setOpenReopenPeriod}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <div className="p-1.5 rounded-full bg-amber-100 text-amber-700">
+                <IconLockOpen className="w-5 h-5" />
+              </div>
+              Mở Khóa Kỳ Kế Toán ({reopenTargetKy})
+            </DialogTitle>
+            <DialogDescription>
+              Lưu ý: Mở khóa kỳ kế toán đã chốt sổ là thao tác nhạy cảm và sẽ được ghi vào nhật ký kiểm toán (Audit Log).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Lý do mở khóa *</Label>
+              <Textarea
+                placeholder="Nhập lý do điều chỉnh hoặc phê duyệt từ Ban Giám Đốc..."
+                rows={3}
+                value={reopenReason}
+                onChange={(e) => setReopenReason(e.target.value)}
+                className="bg-slate-50 text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpenReopenPeriod(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleSubmitReopenPeriod} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold">
+              Mở Khóa Kỳ
             </Button>
           </DialogFooter>
         </DialogContent>

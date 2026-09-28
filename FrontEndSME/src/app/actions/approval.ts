@@ -7,6 +7,7 @@ export interface PendingApprovalsData {
   purchases: any[];
   stockAdjustments: any[];
   sales: any[];
+  returnOrders?: any[];
   payroll: {
     thang: number;
     nam: number;
@@ -36,6 +37,7 @@ export async function fetchPendingApprovalsAction(): Promise<{
         purchases: [],
         stockAdjustments: [],
         sales: [],
+        returnOrders: [],
         payroll: {
           thang: new Date().getMonth() + 1,
           nam: new Date().getFullYear(),
@@ -49,7 +51,7 @@ export async function fetchPendingApprovalsAction(): Promise<{
 }
 
 export async function processApprovalAction(payload: {
-  loai: "purchase" | "stock_adjustment" | "sale" | "payroll";
+  loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "rma";
   id: string;
   hanh_dong: "approve" | "reject";
   ghi_chu?: string;

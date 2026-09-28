@@ -3,6 +3,7 @@ import { sendSuccess } from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
 import SoQuyDAO, { LOAI_PHIEU, PHUONG_THUC } from "../models/soQuyDAO.js";
 import PeriodClosingDAO from "../models/periodClosingDAO.js";
+import { sendWebhookNotification } from "../utils/webhookNotifier.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 
@@ -180,6 +181,14 @@ export default class SoQuyController {
     if (result.error) throw ApiError.internal(result.error.message);
 
     logAction("CLOSE_PERIOD", "so_quy", ky, `Chốt sổ kỳ kế toán: ${ky}`, user, req.ip);
+
+    sendWebhookNotification({
+      event: "PERIOD_CLOSED",
+      title: "Chốt Sổ Kỳ Kế Toán",
+      message: `Kỳ kế toán ${ky} đã được khóa sổ bởi ${user.ho_ten || "Kế toán trưởng"}. Tất cả chứng từ sổ quỹ trong kỳ đã được niêm phong.`,
+      data: { ky, tu_ngay, den_ngay },
+    }).catch(() => {});
+
     return sendSuccess(res, result, `Chốt sổ kỳ kế toán ${ky} thành công`);
   });
 
@@ -191,6 +200,14 @@ export default class SoQuyController {
     if (result.error) throw ApiError.internal(result.error.message);
 
     logAction("REOPEN_PERIOD", "so_quy", ky, `Mở khóa kỳ kế toán: ${ky} (${ly_do || ""})`, user, req.ip);
+
+    sendWebhookNotification({
+      event: "PERIOD_REOPENED",
+      title: "Mở Khóa Kỳ Kế Toán",
+      message: `Kỳ kế toán ${ky} được mở khóa bởi ${user.ho_ten || "Giám đốc"}. Lý do: ${ly_do || "Điều chỉnh số liệu"}.`,
+      data: { ky, ly_do },
+    }).catch(() => {});
+
     return sendSuccess(res, result, `Mở khóa kỳ kế toán ${ky} thành công`);
   });
 }

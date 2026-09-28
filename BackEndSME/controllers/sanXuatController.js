@@ -80,9 +80,9 @@ export default class SanXuatController {
     return sendSuccess(res, result, "Tạo lệnh sản xuất thành công", 201);
   });
 
-  /* ─── GET LOGS (lịch sử lô sản xuất) ─── */
+  /* ─── GET LOGS (lịch sử lô sản xuất / tra cứu lô) ─── */
   static getLogs = asyncHandler(async (req, res) => {
-    const { san_pham_id, page = 1, limit = 20 } = req.query;
+    const { san_pham_id, search, page = 1, limit = 20 } = req.query;
 
     if (san_pham_id && !ObjectId.isValid(san_pham_id)) {
       throw ApiError.badRequest("san_pham_id không phải ObjectId hợp lệ", "VALIDATION_ERROR");
@@ -90,11 +90,23 @@ export default class SanXuatController {
 
     const result = await SanXuatService.getLogs({
       san_pham_id: san_pham_id || undefined,
+      search: search || undefined,
       page:  Number(page)  || 1,
       limit: Number(limit) || 20,
     });
 
     const pagination = buildPagination(result.page, result.limit, result.total);
     return sendSuccess(res, result.items, "Lấy lịch sử sản xuất thành công", 200, pagination);
+  });
+
+  /* ─── GET BY MA LO (tra cứu chi tiết nguồn gốc lô) ─── */
+  static getByMaLo = asyncHandler(async (req, res) => {
+    const { ma_lo } = req.params;
+    if (!ma_lo) throw ApiError.badRequest("Thiếu mã lô hàng");
+
+    const item = await SanXuatService.getByMaLo(ma_lo);
+    if (!item) throw ApiError.notFound("Không tìm thấy thông tin lô hàng");
+
+    return sendSuccess(res, item, "Lấy thông tin nguồn gốc lô hàng thành công", 200);
   });
 }

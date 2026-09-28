@@ -27,6 +27,7 @@ export default class SanXuatService {
     bom = db.collection("bom_san_pham");
     san_xuat_logs = db.collection("san_xuat_logs");
     await san_xuat_logs.createIndex({ created_at: -1 });
+    await san_xuat_logs.createIndex({ ma_lo: 1 }, { sparse: true });
   }
 
   static _n(v, d = 0) { return sanitizeNumber(v, d); }
@@ -206,14 +207,28 @@ export default class SanXuatService {
     }
   }
 
-  static async getLogs({ san_pham_id, page = 1, limit = 20 } = {}) {
+  static async getLogs({ san_pham_id, search, page = 1, limit = 20 } = {}) {
     const filter = {};
     if (san_pham_id) filter.san_pham_id = new ObjectId(san_pham_id);
+    if (search) {
+      const q = String(search).trim();
+      filter.$or = [
+        { ma_lo: { $regex: q, $options: "i" } },
+        { ten_sp: { $regex: q, $options: "i" } },
+        { ma_sp: { $regex: q, $options: "i" } },
+      ];
+    }
     const skip = Math.max(0, (Number(page) - 1) * Number(limit));
     const [items, total] = await Promise.all([
       san_xuat_logs.find(filter).sort({ created_at: -1 }).skip(skip).limit(Number(limit)).toArray(),
       san_xuat_logs.countDocuments(filter),
     ]);
     return { items, page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / Number(limit)) || 1 };
+  }
+
+  static async getByMaLo(ma_lo) {
+    if (!ma_lo) return null;
+    const log = await san_xuat_logs.findOne({ ma_lo: String(ma_lo).trim() });
+    return log;
   }
 }

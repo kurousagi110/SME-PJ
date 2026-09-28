@@ -24,6 +24,8 @@ import {
   IconScale,
   IconTruck,
   IconFileCheck,
+  IconArrowBackUp,
+  IconScan,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -107,6 +109,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: IconListDetails,
               }
             : null,
+          canSeeSalesMenu
+            ? {
+                title: "Đổi & Trả Hàng (RMA)",
+                url: "/returns",
+                icon: IconArrowBackUp,
+                badge: "QC",
+              }
+            : null,
           {
             title: "Vận Chuyển & Giao Hàng",
             url: "/shipping",
@@ -155,6 +165,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Kiểm Kê Điều Chỉnh",
             url: "/dieu-chinh-kho",
             icon: IconAdjustments,
+          },
+          {
+            title: "Truy Xuất Lô Hàng",
+            url: "/traceability",
+            icon: IconScan,
+            badge: "Lot",
           },
         ],
       },

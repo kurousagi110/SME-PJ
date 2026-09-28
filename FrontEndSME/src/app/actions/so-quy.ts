@@ -158,3 +158,64 @@ export async function huyPhieuAction(id: string, ly_do?: string) {
     throw new Error(err?.message || "Hủy phiếu thất bại");
   }
 }
+
+export interface PeriodClosingItem {
+  _id: string;
+  ky: string;
+  tu_ngay: string;
+  den_ngay: string;
+  trang_thai: "closed" | "open";
+  tong_thu: number;
+  tong_chi: number;
+  so_du_ky: number;
+  closed_at?: string;
+  closed_by?: {
+    user_id?: string;
+    ho_ten?: string;
+  };
+  reopened_at?: string;
+  reopened_by?: {
+    user_id?: string;
+    ho_ten?: string;
+  };
+  ghi_chu?: string;
+}
+
+export async function fetchPeriodListAction() {
+  try {
+    const res: any = await http.get("/so-quy/ky-ke-toan");
+    return {
+      success: true,
+      data: (res?.data?.items || []) as PeriodClosingItem[],
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      data: [],
+      error: err?.message || "Không thể tải danh sách kỳ kế toán",
+    };
+  }
+}
+
+export async function closePeriodAction(payload: {
+  ky: string;
+  tu_ngay: string;
+  den_ngay: string;
+  ghi_chu?: string;
+}) {
+  try {
+    const res: any = await http.post("/so-quy/ky-ke-toan", payload);
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Chốt sổ kỳ kế toán thất bại" };
+  }
+}
+
+export async function reopenPeriodAction(ky: string, ly_do?: string) {
+  try {
+    const res: any = await http.post(`/so-quy/ky-ke-toan/${ky}/mo-khoa`, { ly_do });
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Mở khóa kỳ kế toán thất bại" };
+  }
+}

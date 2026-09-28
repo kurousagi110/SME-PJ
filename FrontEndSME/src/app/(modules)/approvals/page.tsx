@@ -67,7 +67,7 @@ export default function ApprovalsPage() {
 
   const mutation = useMutation({
     mutationFn: async (payload: {
-      loai: "purchase" | "stock_adjustment" | "sale" | "payroll";
+      loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "rma";
       id: string;
       hanh_dong: "approve" | "reject";
       ghi_chu?: string;
@@ -86,6 +86,7 @@ export default function ApprovalsPage() {
       queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
       queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
       queryClient.invalidateQueries({ queryKey: ["order-sale"] });
+      queryClient.invalidateQueries({ queryKey: ["rma-orders"] });
     },
     onError: (err: any) => {
       toast.error(err.message || "Xử lý thất bại");
@@ -93,7 +94,7 @@ export default function ApprovalsPage() {
   });
 
   const handleApprove = (
-    loai: "purchase" | "stock_adjustment" | "sale" | "payroll",
+    loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order",
     id: string,
     title: string
   ) => {
@@ -103,7 +104,7 @@ export default function ApprovalsPage() {
   };
 
   const handleReject = (
-    loai: "purchase" | "stock_adjustment" | "sale" | "payroll",
+    loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order",
     id: string,
     title: string
   ) => {
@@ -123,6 +124,7 @@ export default function ApprovalsPage() {
     purchases: [],
     stockAdjustments: [],
     sales: [],
+    returnOrders: [],
     payroll: { thang: 9, nam: 2026, da_chi: false },
   };
 
@@ -236,7 +238,7 @@ export default function ApprovalsPage() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-5 w-full">
+        <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full">
           <TabsTrigger value="all">
             Tất cả ({pending.totalPending})
           </TabsTrigger>
@@ -248,6 +250,9 @@ export default function ApprovalsPage() {
           </TabsTrigger>
           <TabsTrigger value="sales">
             Đơn Bán Hàng ({pending.sales.length})
+          </TabsTrigger>
+          <TabsTrigger value="rma">
+            Đổi Trả RMA ({pending.returnOrders?.length || 0})
           </TabsTrigger>
           <TabsTrigger value="payroll">
             Lương Tháng
@@ -619,7 +624,81 @@ export default function ApprovalsPage() {
           </Card>
         </TabsContent>
 
-        {/* TAB 5: PAYROLL */}
+        {/* TAB 5: RMA ĐỔI TRẢ HÀNG */}
+        <TabsContent value="rma" className="mt-4">
+          <Card className="shadow-xs overflow-hidden border-border/70">
+            <Table>
+              <TableHeader className="bg-muted/40">
+                <TableRow>
+                  <TableHead className="w-[140px]">Mã RMA</TableHead>
+                  <TableHead>Đơn Gốc</TableHead>
+                  <TableHead>Khách Hàng</TableHead>
+                  <TableHead>Lý Do Trả</TableHead>
+                  <TableHead>Số Mặt Hàng</TableHead>
+                  <TableHead className="text-right">Tiền Hoàn Dự Kiến</TableHead>
+                  <TableHead className="text-right w-[180px]">Hành Động</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!pending.returnOrders || pending.returnOrders.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Không có phiếu đổi trả hàng nào đang chờ duyệt
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pending.returnOrders.map((r: any) => (
+                    <TableRow key={r._id} className="hover:bg-muted/30">
+                      <TableCell className="font-mono font-bold text-foreground">
+                        {r.ma_rma}
+                        <div className="text-[11px] text-muted-foreground font-sans">
+                          {fmtDate(r.created_at)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
+                        <Link href={`/sales`} className="text-primary hover:underline">
+                          {r.ma_dh}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{r.khach_hang?.ten || "Khách hàng"}</div>
+                        <div className="text-xs text-muted-foreground">{r.khach_hang?.so_dien_thoai || ""}</div>
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                        {r.ly_do || "Không có lý do cụ thể"}
+                      </TableCell>
+                      <TableCell>
+                        {(r.san_pham || []).length} sản phẩm
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-foreground">
+                        {toVND(r.tong_tien_hoan)}
+                      </TableCell>
+                      <TableCell className="text-right space-x-1.5">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
+                          onClick={() => handleApprove("return_order", r.ma_rma, `Phiếu đổi trả ${r.ma_rma}`)}
+                        >
+                          Duyệt Chuyển Kho QC
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 h-8"
+                          onClick={() => handleReject("return_order", r.ma_rma, `Phiếu đổi trả ${r.ma_rma}`)}
+                        >
+                          Từ Chối
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 6: PAYROLL */}
         <TabsContent value="payroll" className="mt-4">
           <Card className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import ReturnOrderDAO from "../models/returnOrderDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
+import { sendWebhookNotification } from "../utils/webhookNotifier.js";
 
 export default class ReturnOrderController {
   /* ─── 1. Lấy danh sách phiếu RMA ─── */
@@ -43,6 +44,14 @@ export default class ReturnOrderController {
     if (result.error) throw ApiError.badRequest(result.error.message);
 
     logAction("CREATE_RMA", "doi_tra", result.doc?.ma_rma, `Tạo yêu cầu đổi trả: ${result.doc?.ma_rma} cho đơn ${ma_dh}`, user, req.ip);
+
+    sendWebhookNotification({
+      event: "RMA_CREATED",
+      title: "Yêu Cầu Đổi Trả Hàng Mới",
+      message: `Phiếu RMA ${result.doc?.ma_rma} được tạo cho đơn hàng ${ma_dh} bởi ${user.ho_ten || "Nhân viên"}. Tổng tiền hoàn: ${(result.doc?.tong_tien_hoan || 0).toLocaleString()} VNĐ.`,
+      data: { ma_rma: result.doc?.ma_rma, ma_dh },
+    }).catch(() => {});
+
     return sendSuccess(res, result.doc, "Tạo yêu cầu đổi trả hàng thành công", 201);
   });
 
@@ -62,6 +71,14 @@ export default class ReturnOrderController {
     if (result.error) throw ApiError.badRequest(result.error.message);
 
     logAction("PROCESS_QC_RMA", "doi_tra", ma_rma, `QC và hoàn tất trả hàng: ${ma_rma}`, user, req.ip);
+
+    sendWebhookNotification({
+      event: "RMA_QC_COMPLETED",
+      title: "Hoàn Tất Kiểm Định RMA & Nhập Kho",
+      message: `Phiếu RMA ${ma_rma} đã được kiểm định QC và hoàn tất bởi ${user.ho_ten || "Thủ kho"}.`,
+      data: { ma_rma },
+    }).catch(() => {});
+
     return sendSuccess(res, result, "Kiểm định QC và hoàn tất đổi trả hàng thành công");
   });
 }
