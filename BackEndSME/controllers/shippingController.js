@@ -89,6 +89,27 @@ export default class ShippingController {
 
     return sendSuccess(res, { success: true }, "Cập nhật trạng thái vận đơn thành công");
   });
+
+  static calculateFee = asyncHandler(async (req, res) => {
+    const { carrier, weightGram, fromProvince, toProvince, isCOD, codAmount } = req.query;
+    const { LogisticsService } = await import("../services/logisticsService.js");
+    const result = LogisticsService.calculateShippingFee({
+      carrier,
+      weightGram: Number(weightGram) || 1000,
+      fromProvince,
+      toProvince,
+      isCOD: isCOD === "true",
+      codAmount: Number(codAmount) || 0,
+    });
+    return sendSuccess(res, result, "Ước tính phí vận chuyển thành công");
+  });
+
+  static pushCarrier = asyncHandler(async (req, res) => {
+    const { LogisticsService } = await import("../services/logisticsService.js");
+    const result = await LogisticsService.pushOrderToCarrier(req.body);
+    return sendSuccess(res, result, "Đẩy đơn hàng sang hãng vận chuyển thành công", 201);
+  });
 }
+
 
 export const VanChuyenController = ShippingController;

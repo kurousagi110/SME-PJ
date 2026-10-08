@@ -22,6 +22,9 @@ import {
   useStockAdjustmentList,
   useApproveStockAdjustment,
   useRejectStockAdjustment,
+  useDieuChinhKhoList,
+  useApproveDieuChinhKho,
+  useRejectDieuChinhKho,
 } from "@/hooks/use-stock-adjustment";
 
 /* ── helpers ── */
@@ -41,7 +44,7 @@ function fmtQty(n: number) {
   return `${sign}${n}`;
 }
 
-export default function DieuChinhKhoPage() {
+export default function StockAdjustmentsView() {
   const [filterLoai,    setFilterLoai]    = useState("");
   const [filterTT,      setFilterTT]      = useState("");
   const [page,          setPage]          = useState(1);

@@ -71,5 +71,7 @@ router.post("/:id/chuyen-san-xuat",   verifyToken, DonHangController.chuyenSangS
 router.post("/:id/ban-giao-kho",      verifyToken, verifyApprover, DonHangController.banGiaoNhapKho);
 router.post("/:id/chuyen-van-chuyen", verifyToken, DonHangController.chuyenSangVanChuyen);
 router.post("/:id/comments",          verifyToken, DonHangController.themBinhLuan);
+router.post("/:id/e-invoice",         verifyToken, verifyApprover, DonHangController.issueEInvoice);
 
 export default router;
+

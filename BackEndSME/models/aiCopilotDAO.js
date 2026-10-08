@@ -322,9 +322,35 @@ ${context}
       return await this.handleHRQuery(q, originalQuery);
     }
 
-    // 7. DEFAULT / TỔNG QUAN HỆ THỐNG
+    // 7. THANH TOÁN QR / VIETQR / WEBHOOK TỰ ĐỘNG
+    if (q.includes("vietqr") || q.includes("chuyen khoan") || q.includes("ngan hang") || q.includes("sepay")) {
+      return {
+        answer: `### 💳 Hệ Thống Thanh Toán VietQR & Webhook Tự Động\n\n` +
+          `- ⚡ **Cơ chế Napas 247:** Tự động sinh mã VietQR động đính kèm mã đơn hàng và số tiền chính xác.\n` +
+          `- 🔄 **Khớp lệnh tự động:** Khi khách quét mã chuyển khoản, Webhook ghi nhận và tự động đổi trạng thái đơn sang **Đã thanh toán**, đồng thời sinh **Phiếu Thu** vào Sổ Quỹ realtime.\n\n` +
+          `👉 Bạn có thể trải nghiệm quét mã ngay tại màn hình **Quầy Thu Ngân POS** (\`/pos\`).`,
+        action: { title: "Mở Quầy POS & VietQR", url: "/pos" },
+        suggestions: await this.getSuggestions(),
+      };
+    }
+
+    // 8. LÔ SẢN XUẤT & HẠN DÙNG (LOT / BATCH / FEFO)
+    if (q.includes("lo hang") || q.includes("han dung") || q.includes("fefo") || q.includes("truy xuat")) {
+      return {
+        answer: `### 🏷️ Quản Lý Lô Sản Xuất & Hạn Sử Dụng (FEFO)\n\n` +
+          `- 📦 **Kiểm soát vòng đời:** Quản lý số lô (*Lot Number*), ngày sản xuất và hạn sử dụng của từng đợt hàng xuất xưởng.\n` +
+          `- 🛡️ **Chiến lược FEFO:** Tự động ưu tiên xuất lô cận date nhất trước nhằm giảm thiểu tỷ lệ hàng hỏng hủy.\n` +
+          `- 🔍 **Truy xuất nguồn gốc:** Tra cứu phả hệ vật tư cấu thành nên từng lô thành phẩm.\n\n` +
+          `👉 Xem danh sách lô tại phân hệ **Truy Xuất Lô Hàng** (\`/traceability\`).`,
+        action: { title: "Truy Xuất Lô Hàng", url: "/traceability" },
+        suggestions: await this.getSuggestions(),
+      };
+    }
+
+    // 9. DEFAULT / TỔNG QUAN HỆ THỐNG
     return await this.handleGeneralOverview(q, originalQuery);
   }
+
 
   /* ─── 1. Xử lý tồn kho & cảnh báo ─── */
   static async handleInventoryQuery(q, originalQuery) {

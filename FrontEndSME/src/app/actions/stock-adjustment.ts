@@ -68,3 +68,10 @@ export async function rejectDieuChinhKho(id: string) {
     };
   }
 }
+
+// Aliases for English naming
+export const fetchStockAdjustmentList = fetchDieuChinhKhoList;
+export const createStockAdjustment = createDieuChinhKho;
+export const approveStockAdjustment = approveDieuChinhKho;
+export const rejectStockAdjustment = rejectDieuChinhKho;
+

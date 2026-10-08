@@ -45,6 +45,7 @@ import { useProductList } from "@/hooks/use-product";
 import { fetchDoiTacAction, type DoiTacItem } from "@/app/actions/partner";
 import { checkoutPosAction, type PosOrderItemPayload } from "@/app/actions/pos";
 import { printPosThermalReceipt, type PosReceiptData } from "@/lib/barcode";
+import { VietQRDialog } from "@/components/payment/vietqr-dialog";
 
 interface CartItem {
   san_pham_id: string;
@@ -90,6 +91,7 @@ export default function PosCashierPage() {
   // Success Dialog
   const [completedOrder, setCompletedOrder] = useState<PosReceiptData | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState<boolean>(false);
+  const [showQRDialog, setShowQRDialog] = useState<boolean>(false);
 
   // Real-time clock
   const [currentTime, setCurrentTime] = useState<string>("");
@@ -613,9 +615,12 @@ export default function PosCashierPage() {
                 variant={paymentMethod === "chuyen_khoan" ? "default" : "outline"}
                 size="sm"
                 className="h-8 text-xs gap-1.5"
-                onClick={() => setPaymentMethod("chuyen_khoan")}
+                onClick={() => {
+                  setPaymentMethod("chuyen_khoan");
+                  if (cart.length > 0) setShowQRDialog(true);
+                }}
               >
-                <IconCreditCard className="h-4 w-4" /> Chuyển khoản QR
+                <IconCreditCard className="h-4 w-4" /> Quét VietQR
               </Button>
             </div>
 
@@ -758,6 +763,20 @@ export default function PosCashierPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* VietQR Payment Modal */}
+      <VietQRDialog
+        open={showQRDialog}
+        onOpenChange={setShowQRDialog}
+        orderCode={`POS-${Date.now().toString(36).slice(-5).toUpperCase()}`}
+        amount={grandTotal}
+        onSuccess={() => {
+          setCashGiven(grandTotal);
+          toast.success("Đã ghi nhận thanh toán chuyển khoản thành công!");
+          handleCheckout();
+        }}
+      />
     </div>
   );
 }
+

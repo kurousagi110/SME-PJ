@@ -25,6 +25,8 @@ import approvalRoute           from "./approval.route.js";
 import returnOrderRoute        from "./return-order.route.js";
 import stockLedgerRoute       from "./stock-ledger.route.js";
 import quotationRoute         from "./quotation.route.js";
+import paymentRoute           from "./payment.route.js";
+import batchRoute             from "./batch.route.js";
 
 const v1Router = Router();
 
@@ -52,10 +54,14 @@ v1Router.use("/approvals",          approvalRoute);
 v1Router.use("/returns",            returnOrderRoute);
 v1Router.use("/stock-ledger",       stockLedgerRoute);
 v1Router.use("/quotations",         quotationRoute);
+v1Router.use("/payments",           paymentRoute);
+v1Router.use("/batches",            batchRoute);
 
 /* ─── 2. Backward-Compatible Aliases ─── */
 v1Router.use("/the-kho",            stockLedgerRoute);
 v1Router.use("/bao-gia",            quotationRoute);
+v1Router.use("/thanh-toan",         paymentRoute);
+v1Router.use("/lo-hang",            batchRoute);
 v1Router.use("/san-pham",           productRoute);
 v1Router.use("/nguyen-lieu",        materialRoute);
 v1Router.use("/san-xuat",           productionRoute);

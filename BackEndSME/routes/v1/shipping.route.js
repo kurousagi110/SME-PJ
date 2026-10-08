@@ -7,9 +7,11 @@ const router = express.Router();
 
 router.use(verifyToken);
 
-router.get("/tong-quan", VanChuyenController.getTongQuan);
-router.get("/", VanChuyenController.list);
-router.get("/:id", VanChuyenController.getById);
+router.get("/tong-quan",      VanChuyenController.getTongQuan);
+router.get("/calculate-fee",  VanChuyenController.calculateFee);
+router.post("/push-carrier",  VanChuyenController.pushCarrier);
+router.get("/",               VanChuyenController.list);
+router.get("/:id",            VanChuyenController.getById);
 
 router.post(
   "/",
@@ -22,5 +24,6 @@ router.put(
   requireBody("trang_thai"),
   VanChuyenController.updateStatus
 );
+
 
 export default router;

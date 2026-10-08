@@ -511,7 +511,56 @@ export class OrderController {
 
     return sendSuccess(res, commentDoc, "Đã gửi bình luận");
   });
+
+  /* ─── PHÁT HÀNH HÓA ĐƠN ĐIỆN TỬ (e-Invoice TT78) ─── */
+  static issueEInvoice = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const db = getDB();
+    const order = await db.collection("don_hang").findOne({ _id: new ObjectId(id) });
+    if (!order) {
+      throw ApiError.notFound("Không tìm thấy đơn hàng");
+    }
+
+    const { EInvoiceService } = await import("../services/einvoiceService.js");
+    const invoice = EInvoiceService.generateInvoice({
+      orderCode: order.ma_dh,
+      buyerName: order.khach_hang_ten || "Khách mua hàng",
+      subtotal: order.tam_tinh || order.tong_tien,
+      discount: order.giam_gia || 0,
+      taxRate: order.thue_rate || 8,
+      taxAmount: order.thue_tien || 0,
+      total: order.tong_tien,
+      paymentMethod: order.thanh_toan?.method || "TM/CK",
+    });
+
+    // Lưu thông tin hóa đơn vào đơn hàng
+    await db.collection("don_hang").updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          hoa_don_dien_tu: invoice,
+          updated_at: new Date(),
+        },
+      }
+    );
+
+    logAction({
+      req,
+      action: "ISSUE_EINVOICE",
+      target: "ORDER",
+      targetId: id,
+      details: {
+        orderCode: order.ma_dh,
+        invoiceNumber: invoice.invoiceNumber,
+        cqtCode: invoice.cqtCode,
+      },
+      status: "SUCCESS",
+    });
+
+    return sendSuccess(res, invoice, "Phát hành hóa đơn điện tử thành công");
+  });
 }
+
 
 export const DonHangController = OrderController;
 export default OrderController;
