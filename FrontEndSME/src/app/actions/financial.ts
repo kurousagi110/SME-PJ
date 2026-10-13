@@ -222,3 +222,73 @@ export async function recalculateCOGSAction(): Promise<{
     };
   }
 }
+
+export interface WeeklyCashBucket {
+  week: string;
+  startDate: string;
+  endDate: string;
+  openingCash: number;
+  inflows: number;
+  outflows: number;
+  netCashflow: number;
+  closingCash: number;
+  isDeficit: boolean;
+}
+
+export interface CashFlowForecastResponse {
+  currentCashBalance: number;
+  monthlyBurnRate: number;
+  runwayMonths: number;
+  healthStatus: "HEALTHY" | "WARNING" | "DANGER";
+  healthAdvice: string;
+  totalProjectedInflow: number;
+  totalProjectedOutflow: number;
+  weeklyBuckets: WeeklyCashBucket[];
+  topReceivables: Array<{ source: string; referenceCode: string; partnerName: string; amount: number; dueDate: string }>;
+  topPayables: Array<{ purpose: string; referenceCode: string; partnerName: string; amount: number; dueDate: string }>;
+}
+
+/**
+ * Lấy dự báo dòng tiền 30 - 60 - 90 ngày tới
+ */
+export async function fetchCashFlowForecastAction({ days = 90 }: { days?: number } = {}): Promise<{
+  success: boolean;
+  data?: CashFlowForecastResponse;
+  error?: string;
+}> {
+  try {
+    const res: any = await http.get(`/financial/cashflow-forecast?days=${days}`);
+    return {
+      success: true,
+      data: res?.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Không thể tải dự báo dòng tiền",
+    };
+  }
+}
+
+/**
+ * Đối soát sao kê ngân hàng
+ */
+export async function reconcileBankAction(transactions: any[]): Promise<{
+  success: boolean;
+  data?: any;
+  error?: string;
+}> {
+  try {
+    const res: any = await http.post("/financial/bank-reconcile", { transactions });
+    return {
+      success: true,
+      data: res?.data,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || "Đối soát sao kê thất bại",
+    };
+  }
+}
+

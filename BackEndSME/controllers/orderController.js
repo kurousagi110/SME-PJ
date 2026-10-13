@@ -11,9 +11,9 @@ import ApiError from "../utils/ApiError.js";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "../models/soQuyDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
-import VanChuyenDAO from "../models/vanChuyenDAO.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
+import { isAdminUser } from "../middleware/auth.js";
 
 export class OrderController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
@@ -122,6 +122,32 @@ export class OrderController {
   static create = asyncHandler(async (req, res) => {
     const body = { ...(req.body || {}) };
     const nguoi_lap_id = req.user?._id || req.user?.id || null;
+
+    // Kiểm tra Hạn mức tín dụng nếu là Đơn bán hàng
+    if (body.loai_don === "sale") {
+      const partnerName = body.khach_hang_ten || body.customer_name;
+      const partnerId = body.doi_tac_id || body.partner_id;
+      const db = getDB();
+      const partner = await db.collection("doi_tac").findOne({
+        $or: [
+          ...(partnerId && ObjectId.isValid(partnerId) ? [{ _id: new ObjectId(partnerId) }] : []),
+          ...(partnerName ? [{ ten: partnerName }] : []),
+        ],
+      });
+
+      if (partner && Number(partner.han_muc_cong_no) > 0) {
+        const estTotal = Number(body.tong_tien || body.amount || 0);
+        const check = await DoiTacDAO.checkCreditLimit(partner._id, estTotal);
+        if (!check.allowed && !body.allow_over_credit && !isAdminUser(req.user)) {
+          throw ApiError.badRequest(
+            `Khách hàng "${partner.ten}" đã vượt hạn mức công nợ (${Number(check.exceededAmount).toLocaleString("vi-VN")} đ). Cần Giám đốc phê duyệt để tiếp tục tạo đơn.`,
+            "CREDIT_LIMIT_EXCEEDED",
+            check
+          );
+        }
+      }
+    }
+
     const data = await DonHangService.create(body, nguoi_lap_id);
 
     const loai = body.loai_don || "don_hang";
@@ -140,6 +166,42 @@ export class OrderController {
 
     return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
   });
+
+  /* ─── VALIDATE COUPON / VOUCHER ─── */
+  static validateCoupon = asyncHandler(async (req, res) => {
+    const { code = "", orderAmount = 0 } = req.body || {};
+    const cleanCode = String(code).trim().toUpperCase();
+    const amount = Number(orderAmount || 0);
+
+    let discount = 0;
+    let message = "";
+
+    if (cleanCode === "SME5") {
+      discount = Math.round(amount * 0.05);
+      message = "Áp dụng giảm 5% giá trị đơn hàng";
+    } else if (cleanCode === "SME10") {
+      if (amount < 10000000) {
+        throw ApiError.badRequest("Mã SME10 chỉ áp dụng cho đơn hàng từ 10.000.000 đ");
+      }
+      discount = Math.round(amount * 0.10);
+      message = "Áp dụng giảm 10% giá trị đơn hàng (Ưu đãi B2B)";
+    } else if (cleanCode === "VIP50K") {
+      discount = Math.min(amount, 50000);
+      message = "Áp dụng voucher giảm ngay 50.000 đ";
+    } else if (cleanCode === "FREESHIP") {
+      discount = 30000;
+      message = "Hỗ trợ phí vận chuyển 30.000 đ";
+    } else {
+      throw ApiError.badRequest("Mã ưu đãi không hợp lệ hoặc đã hết hạn", "INVALID_COUPON");
+    }
+
+    return sendSuccess(res, {
+      code: cleanCode,
+      discountAmount: discount,
+      message,
+    }, "Áp dụng mã ưu đãi thành công");
+  });
+
 
   /* ─── GET BY ID ─── */
   static getById = asyncHandler(async (req, res) => {

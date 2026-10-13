@@ -29,6 +29,7 @@ function filterProdReceipt(req, _res, next)     { req.query = { ...(req.query ||
  */
 router.post("/sales",               verifyToken, setLoaiSale,             DonHangController.create);
 router.post("/pos",                 verifyToken, setLoaiSale,             DonHangController.createPOS);
+router.post("/validate-coupon",     verifyToken,                          DonHangController.validateCoupon);
 router.post("/receipts/production", verifyToken, verifyProductionManager, setLoaiProdReceipt,      DonHangController.create);
 router.post("/receipts/purchase",   verifyToken, verifyApprover,          setLoaiPurchaseReceipt,   DonHangController.create);
 

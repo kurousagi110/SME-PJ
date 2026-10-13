@@ -14,7 +14,12 @@ router.get("/product-profitability", FinancialController.getProductProfitability
 router.get("/aging-debt",            FinancialController.getAgingDebt);
 router.get("/credit-limit/:partnerId", FinancialController.checkCreditLimit);
 
-/* ─── 3. Quản trị giá vốn & Đồng bộ lại ─── */
+/* ─── 3. Dự Báo Dòng Tiền (Cashflow) & Đối Soát Ngân Hàng ─── */
+router.get("/cashflow-forecast", FinancialController.getCashFlowForecast);
+router.post("/bank-reconcile",   FinancialController.reconcileBank);
+
+/* ─── 4. Quản trị giá vốn & Đồng bộ lại ─── */
 router.post("/recalculate-cogs", verifyAdmin, FinancialController.recalculateCOGS);
 
 export default router;
+

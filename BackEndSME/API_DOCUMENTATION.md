@@ -1719,3 +1719,120 @@ All endpoints return one of the following shapes:
 **Description:** Khởi chạy tính toán lại và snapshot giá vốn lịch sử cho toàn bộ đơn hàng xuất kho (Hỗ trợ migration dữ liệu cũ).  
 **Auth required:** Yes (Admin)
 
+---
+
+## 23. Báo Cáo Dòng Tiền & Đối Soát Sao Kê Ngân Hàng (Cash Flow & Bank Reconcile)
+
+### GET /api/v1/financial/cashflow-forecast
+**Description:** Dự phóng dòng tiền 12 tuần (Inflows từ đơn bán & công nợ phải thu, Outflows từ đơn mua, lương & chi phí OPEX), tính Monthly Burn Rate và Runway Months.  
+**Auth required:** Yes (Giám đốc, Kế toán)  
+**Query Params:** `days` (mặc định 90 ngày)
+
+### POST /api/v1/financial/bank-reconcile
+**Description:** Tự động đối soát danh sách giao dịch sao kê ngân hàng với Sổ Quỹ SME dựa trên số tiền và mã chứng từ.  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "transactions": [
+    { "transId": "TX123", "date": "2026-10-13", "amount": 15000000, "description": "CK HD-2026-001" }
+  ]
+}
+```
+
+---
+
+## 24. Bảng Kanban Sản Xuất & Quản Lý Hao Hụt (Production Kanban & Scrap)
+
+### GET /api/v1/production/kanban
+**Description:** Lấy bảng Kanban tiến độ xưởng phân bổ qua 6 công đoạn: Chuẩn bị vật tư (`raw_material_prep`), Gia công cắt/CNC (`machining`), Xử lý bề mặt (`finishing`), Lắp ráp & KCS (`assembly_qc`), Hoàn thành (`completed`).  
+**Auth required:** Yes
+
+### PUT /api/v1/production/:orderId/stage
+**Description:** Kéo thả chuyển công đoạn sản xuất, ghi nhận phế phẩm/hao hụt phát sinh và bắn realtime Socket.io (`PRODUCTION_STAGE_CHANGED`).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "stage": "machining",
+  "scrap_qty": 2,
+  "scrap_reason": "Lỗi mũi phay mẻ phôi",
+  "notes": "Chuyển sang hoàn thiện"
+}
+```
+
+### GET /api/v1/production/scrap-report
+**Description:** Báo cáo tỷ lệ đạt chuẩn Yield Rate (%), tỷ lệ phế phẩm Scrap Rate (%) và phân bổ hao hụt theo từng công đoạn xưởng.  
+**Auth required:** Yes
+
+---
+
+## 25. Ưu Đãi B2B & Quản Lý Hạn Mức Tín Dụng (Tiered Pricing & Coupons)
+
+### POST /api/v1/orders/validate-coupon
+**Description:** Xác thực và áp dụng mã giảm giá / voucher khuyến mãi (SME5, SME10, VIP50K, FREESHIP).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "code": "SME10",
+  "orderAmount": 25000000
+}
+```
+
+---
+
+## 26. Tự Động Hóa Telegram Bot & Báo Cáo Sáng (Telegram Bot Automation)
+
+### GET /api/v1/bot/telegram/status
+**Description:** Kiểm tra trạng thái kích hoạt và cấu hình Telegram Bot.  
+**Auth required:** Yes
+
+### POST /api/v1/bot/telegram/config
+**Description:** Cập nhật Bot Token và Chat ID.  
+**Auth required:** Yes (Admin)
+
+### POST /api/v1/bot/telegram/test
+**Description:** Gửi tin nhắn test kiểm tra kết nối Telegram.  
+**Auth required:** Yes (Admin)
+
+### POST /api/v1/bot/telegram/morning-briefing
+**Description:** Gửi báo cáo tóm tắt đầu ngày (Doanh thu hôm qua, Số dư ngân quỹ thực tế, Số đơn hàng chờ duyệt ký) vào nhóm Telegram Ban Giám Đốc.  
+**Auth required:** Yes (Admin)
+
+---
+
+## 27. Quản Lý Hợp Đồng B2B & Vòng Đời Bảo Hành (Contracts & Warranty)
+
+### GET /api/v1/contracts
+**Description:** Danh sách hợp đồng kinh tế B2B kèm tiến độ nghiệm thu và thanh toán từng đợt.  
+**Auth required:** Yes
+
+### POST /api/v1/contracts
+**Description:** Tạo mới hợp đồng kinh tế và thiết lập các đợt thanh toán (Milestones).  
+**Auth required:** Yes
+
+### POST /api/v1/contracts/:id/pay-milestone
+**Description:** Ghi nhận thanh toán một đợt hợp đồng, tự động xuất Phiếu Thu vào Sổ Quỹ SME.  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "milestoneIndex": 0,
+  "paymentMethod": "chuyen_khoan"
+}
+```
+
+### GET /api/v1/warranty
+**Description:** Danh sách thẻ bảo hành và tra cứu theo số điện thoại hoặc mã serial (`/api/v1/warranty/lookup?keyword=...`).  
+**Auth required:** Yes
+
+### POST /api/v1/warranty
+**Description:** Cấp thẻ bảo hành điện tử mới kèm mã serial và thời hạn.  
+**Auth required:** Yes
+
+### POST /api/v1/warranty/:id/maintenance
+**Description:** Ghi nhận nhật ký sửa chữa, bảo dưỡng định kỳ và chi phí.  
+**Auth required:** Yes
+
+

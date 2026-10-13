@@ -82,4 +82,31 @@ export default class FinancialController {
     const result = await FinancialReportDAO.recalculateHistoricalCOGS();
     return sendSuccess(res, result, "Đã tính toán lại giá vốn cho các đơn hàng");
   });
+
+  /**
+   * Dự Báo Dòng Tiền & Runway (Cashflow Forecast)
+   * GET /api/v1/financial/cashflow-forecast?days=90
+   */
+  static getCashFlowForecast = asyncHandler(async (req, res) => {
+    const { days = 90 } = req.query;
+    const result = await FinancialReportDAO.getCashFlowForecast({ days: Number(days) });
+    if (result?.error) {
+      throw ApiError.badRequest(result.error);
+    }
+    return sendSuccess(res, result, "Lấy dự báo dòng tiền và ngân quỹ thành công");
+  });
+
+  /**
+   * Đối Soát Sao Kê Ngân Hàng (Bank Statement Reconciliation)
+   * POST /api/v1/financial/bank-reconcile
+   */
+  static reconcileBank = asyncHandler(async (req, res) => {
+    const { transactions = [] } = req.body;
+    const result = await FinancialReportDAO.reconcileBankStatement({ transactions });
+    if (result?.error) {
+      throw ApiError.badRequest(result.error);
+    }
+    return sendSuccess(res, result, "Đối soát sao kê ngân hàng thành công");
+  });
 }
+

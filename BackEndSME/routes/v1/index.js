@@ -28,6 +28,9 @@ import quotationRoute         from "./quotation.route.js";
 import paymentRoute           from "./payment.route.js";
 import batchRoute             from "./batch.route.js";
 import financialRoute         from "./financial.route.js";
+import botRoute               from "./bot.route.js";
+import contractRoute          from "./contract.route.js";
+import warrantyRoute          from "./warranty.route.js";
 
 const v1Router = Router();
 
@@ -58,6 +61,11 @@ v1Router.use("/quotations",         quotationRoute);
 v1Router.use("/payments",           paymentRoute);
 v1Router.use("/batches",            batchRoute);
 v1Router.use("/financial",          financialRoute);
+v1Router.use("/bot",                botRoute);
+v1Router.use("/contracts",          contractRoute);
+v1Router.use("/warranty",           warrantyRoute);
+
+
 
 /* ─── 2. Backward-Compatible Aliases ─── */
 v1Router.use("/tai-chinh",          financialRoute);

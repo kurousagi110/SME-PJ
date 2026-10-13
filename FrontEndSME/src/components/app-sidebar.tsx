@@ -29,6 +29,7 @@ import {
   IconReportAnalytics,
   IconFileInvoice,
   IconChartBar,
+  IconFileText,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -49,17 +50,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: profile } = useMyProfile();
 
   const deptName = (profile?.phong_ban?.ten || "").trim();
+  const chucVuName = (profile?.chuc_vu?.ten || "").trim();
+  const roleName = ((profile as any)?.role || "").trim().toLowerCase();
+
+  const isDirector =
+    roleName === "admin" ||
+    deptName.toLowerCase().includes("giám đốc") ||
+    chucVuName.toLowerCase().includes("giám đốc");
 
   const canSeeSalesMenu = React.useMemo(() => {
-    return ["Phòng Kế Toán", "Phòng Nhân Sự", "Phòng giám đốc", "Phòng kinh doanh"].includes(
-      deptName
+    const d = deptName.toLowerCase();
+    return (
+      isDirector ||
+      d.includes("kế toán") ||
+      d.includes("nhân sự") ||
+      d.includes("kinh doanh")
     );
-  }, [deptName]);
+  }, [deptName, isDirector]);
 
-  const isDirectorDepartment = deptName === "Phòng giám đốc";
-  const chucVuName = (profile?.chuc_vu?.ten || "").trim();
-  const canSeeAuditLog =
-    isDirectorDepartment || chucVuName === "Giám đốc";
+  const canSeeFinancialMenu = React.useMemo(() => {
+    const d = deptName.toLowerCase();
+    const c = chucVuName.toLowerCase();
+    return (
+      isDirector ||
+      d.includes("kế toán") ||
+      c.includes("kế toán")
+    );
+  }, [deptName, chucVuName, isDirector]);
+
+  const isDirectorDepartment = deptName.toLowerCase().includes("giám đốc");
+  const canSeeAuditLog = isDirector;
 
   // Nhóm các tính năng khoa học theo luồng nghiệp vụ thực tế
   const navGroups: NavGroup[] = React.useMemo(() => {
@@ -118,6 +138,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Đơn Bán Hàng",
                 url: "/sales",
                 icon: IconListDetails,
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
+                title: "Hợp Đồng & Bảo Hành",
+                url: "/contracts",
+                icon: IconFileText,
+                badge: "B2B",
               }
             : null,
           canSeeSalesMenu
@@ -196,12 +224,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {
         label: "Tài Chính & Nhân Sự",
         items: [
-          {
-            title: "Báo Cáo Tài Chính (P&L)",
-            url: "/financial-reports",
-            icon: IconChartBar,
-            badge: "Mới",
-          },
+          canSeeFinancialMenu
+            ? {
+                title: "Báo Cáo Tài Chính (P&L)",
+                url: "/financial-reports",
+                icon: IconChartBar,
+                badge: "Mới",
+              }
+            : null,
           {
             title: "Sổ Quỹ & Công Nợ",
             url: "/cashbook",
@@ -251,7 +281,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ].filter(Boolean) as any[],
       },
     ];
-  }, [canSeeSalesMenu, isDirectorDepartment, canSeeAuditLog]);
+  }, [canSeeSalesMenu, canSeeFinancialMenu, isDirectorDepartment, canSeeAuditLog]);
 
   const data = {
     user: {
