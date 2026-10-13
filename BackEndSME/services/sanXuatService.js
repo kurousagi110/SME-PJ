@@ -97,10 +97,22 @@ export default class SanXuatService {
         throw new Error(`bulkWrite NL không đủ (modified=${nlResult.modifiedCount}, expected=${need.length})`);
       }
 
-      // Step 2: cộng tồn thành phẩm
+      // Step 2: cộng tồn thành phẩm & cập nhật giá vốn bình quân (Moving Weighted Average)
+      const curStock = Math.max(0, Number(sp.so_luong || 0));
+      const curCost = Number(sp.gia_von || unitCost);
+      const newMovingCost = (curStock + qty > 0)
+        ? Math.round((curStock * curCost + qty * unitCost) / (curStock + qty))
+        : unitCost;
+
       await san_pham.updateOne(
         { _id: new ObjectId(san_pham_id) },
-        { $inc: { so_luong: qty }, $set: { updateAt: new Date() } },
+        {
+          $inc: { so_luong: qty },
+          $set: {
+            gia_von: newMovingCost,
+            updateAt: new Date(),
+          },
+        },
         { session }
       );
 

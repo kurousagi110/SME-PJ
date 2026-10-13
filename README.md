@@ -64,6 +64,11 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 - **Kiểm Kê & Điều Chỉnh Kho (`/stock-adjustments`)**: Phiếu cân bằng tồn kho thực tế sau kiểm kê kèm quy trình duyệt an toàn chống trừ kho trùng lặp.
 
 ### 4. 💰 Tài Chính & Nhân Sự
+- **Báo Cáo Tài Chính & Giá Vốn P&L (`/financial-reports`)**:
+  - *Báo cáo P&L (VAS)*: Doanh thu thuần, Giá vốn hàng bán (COGS Moving Average), Lợi nhuận gộp, Chi phí hoạt động OPEX (Lương, Vận chuyển, Chi phí thuê & quản lý), Lợi nhuận ròng.
+  - *Hiệu quả sinh lời sản phẩm*: Phân tích biên lợi nhuận từng mã hàng, tự động gắn nhãn Ngôi sao / Cash Cow / Biên lợi nhuận thấp.
+  - *Quản lý Tuổi nợ (Aging Debt)*: Phân tầng công nợ 0-30 ngày, 31-60 ngày, 61-90 ngày và cảnh báo nợ xấu >90 ngày, thiết lập hạn mức tín dụng (`Credit Limit`) chống bán vượt hạn mức.
+  - *Xuất Excel (UTF-8 BOM) & In Báo Cáo P&L*: Xuất báo cáo tài chính chuẩn kế toán.
 - **Sổ Quỹ & Công Nợ (`/cashbook`)**: Quản lý dòng tiền Thu - Chi, quỹ tiền mặt và tài khoản ngân hàng, sinh mã tự động `PT-...` / `PC-...`, đối soát công nợ 2 chiều, in Phiếu Thu/Chi A5 chuẩn kế toán.
 - **Khóa Sổ Kỳ Kế Toán (`/cashbook` tab Kỳ Kế Toán)**: Chốt sổ định kỳ (tháng/quý/năm), phong tỏa dữ liệu ngăn chặn sửa đổi chứng từ quá khứ để bảo vệ số liệu báo cáo tài chính.
 - **Trung Tâm Duyệt Việc (`/approvals`)**: Hàng đợi phê duyệt tập trung cho Ban Giám Đốc và Quản lý cấp phòng ban.

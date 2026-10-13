@@ -10,6 +10,7 @@ import { logAction } from "../utils/auditLogger.js";
 import { state } from "../models/donHangState.js";
 import { ObjectId } from "mongodb";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { getDB } from "../config/database.js";
 
 export default class PaymentController {
   /**
@@ -49,8 +50,22 @@ export default class PaymentController {
    * POST /api/v1/payments/webhook
    */
   static handleWebhook = asyncHandler(async (req, res) => {
-    const payload = req.body;
+    const payload = req.body || {};
     logger.info("[Payment Webhook] Nhận thông báo giao dịch", { payload });
+
+    // 1. Xác thực Webhook Secret (nếu cấu hình PAYMENT_WEBHOOK_SECRET)
+    const configuredSecret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (configuredSecret) {
+      const incomingSecret =
+        req.headers["x-api-key"] ||
+        req.headers["authorization"]?.replace(/^Bearer\s+|^Apikey\s+/i, "") ||
+        req.query?.secret;
+
+      if (!incomingSecret || incomingSecret !== configuredSecret) {
+        logger.warn("[Payment Webhook] Từ chối truy cập do sai secret/token");
+        throw ApiError.unauthorized("Chữ ký hoặc mã khóa webhook không hợp lệ", "INVALID_WEBHOOK_SECRET");
+      }
+    }
 
     // Hỗ trợ cả payload của SePAY (content, transferAmount) và Casso (description, amount)
     const content = payload.content || payload.description || payload.orderCode || "";
@@ -60,6 +75,22 @@ export default class PaymentController {
 
     if (!amount || amount <= 0) {
       return sendSuccess(res, { processed: false, reason: "Số tiền không hợp lệ" });
+    }
+
+    // 2. Chống xử lý trùng lặp giao dịch (Idempotency Guard)
+    const db = getDB();
+    const webhookCol = db ? db.collection("payment_webhooks") : null;
+    if (webhookCol && transId) {
+      const existingTx = await webhookCol.findOne({ trans_id: String(transId) });
+      if (existingTx) {
+        logger.info(`[Payment Webhook] Giao dịch ${transId} đã được xử lý trước đó (Idempotent)`);
+        return sendSuccess(res, {
+          processed: true,
+          idempotent: true,
+          message: "Giao dịch đã được ghi nhận trước đó",
+          orderCode: existingTx.order_code,
+        });
+      }
     }
 
     // Trích xuất mã đơn hàng từ nội dung chuyển khoản
@@ -73,9 +104,22 @@ export default class PaymentController {
         $or: [
           { ma_dh: matchedOrderCode },
           { ma_dh: `DH-${matchedOrderCode}` },
+          { ma_dh: new RegExp(`^${safeCode}$`, "i") },
           { ma_dh: new RegExp(safeCode, "i") },
         ],
       });
+    }
+
+    // Fallback: Quét tìm mã đơn hàng tồn tại có xuất hiện trong chuỗi content
+    if (!order && content) {
+      const cleanTokens = content.toUpperCase().split(/[^A-Z0-9-]/).filter((t) => t.length >= 6);
+      for (const token of cleanTokens) {
+        const found = await state.don_hang.findOne({ ma_dh: new RegExp(escapeRegex(token), "i") });
+        if (found) {
+          order = found;
+          break;
+        }
+      }
     }
 
 
@@ -157,7 +201,24 @@ export default class PaymentController {
       logger.warn("[Payment Webhook] Không thể gửi socket notification", { error: e.message });
     }
 
-    // 4. Ghi Audit Log
+    // 4. Lưu vết giao dịch để chống Replay Attack
+    try {
+      if (webhookCol && transId) {
+        await webhookCol.insertOne({
+          trans_id: String(transId),
+          order_id: String(order._id),
+          order_code: order.ma_dh,
+          amount,
+          gateway,
+          content,
+          created_at: new Date(),
+        });
+      }
+    } catch (saveErr) {
+      logger.warn("[Payment Webhook] Không thể lưu lịch sử webhook", { error: saveErr.message });
+    }
+
+    // 5. Ghi Audit Log
     logAction({
       req,
       action: "PAYMENT_WEBHOOK_RECEIVED",

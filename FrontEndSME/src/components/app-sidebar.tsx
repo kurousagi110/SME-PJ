@@ -28,6 +28,7 @@ import {
   IconScan,
   IconReportAnalytics,
   IconFileInvoice,
+  IconChartBar,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -195,6 +196,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       {
         label: "Tài Chính & Nhân Sự",
         items: [
+          {
+            title: "Báo Cáo Tài Chính (P&L)",
+            url: "/financial-reports",
+            icon: IconChartBar,
+            badge: "Mới",
+          },
           {
             title: "Sổ Quỹ & Công Nợ",
             url: "/cashbook",

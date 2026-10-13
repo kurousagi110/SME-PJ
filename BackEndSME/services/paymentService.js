@@ -60,13 +60,13 @@ export class PaymentService {
    */
   static extractOrderCode(description = "") {
     if (!description) return null;
-    const cleaned = description.toUpperCase().replace(/\s+/g, "");
+    const cleaned = description.toUpperCase().trim();
 
-    // Regex tìm mã đơn hàng
-    const regex = /(DH[-_]?[A-Z0-9]+|HD[-_]?[A-Z0-9]+|ORD[-_]?[A-Z0-9]+|POS[-_]?[A-Z0-9]+)/i;
+    // Regex tìm mã đơn hàng đầy đủ (hỗ trợ DH-20261008-XXXX, POS-XXXX, ORD-XXXX)
+    const regex = /(DH[-_A-Z0-9]+|HD[-_A-Z0-9]+|ORD[-_A-Z0-9]+|POS[-_A-Z0-9]+)/i;
     const match = cleaned.match(regex);
     if (match) {
-      return match[1].replace(/[-_]/g, ""); // Chuẩn hóa mã
+      return match[1].trim();
     }
     return null;
   }

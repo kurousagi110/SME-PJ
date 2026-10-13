@@ -10,6 +10,7 @@ import logger from "../utils/logger.js";
 import { state } from "./donHangState.js";
 import { STATUS, ORDER_TYPE, ITEM_TYPE, toObjectId } from "./donHangConstants.js";
 import { ensureOrderType, bomFromSanPhamDoc } from "./donHangHelpers.js";
+import COGSService from "../services/cogsService.js";
 
 /* ══════════════ Batch-fetch helpers (eliminate N+1) ══════════════ */
 export async function batchFetchSanPham(lines, { session } = {}) {
@@ -117,20 +118,52 @@ export async function applyInventoryOnCompleted(doc, { session } = {}) {
       }
     }
 
-    for (const ln of spLines) {
+    let orderTotalCogs = 0;
+    const updatedLines = [...lines];
+
+    for (let i = 0; i < updatedLines.length; i++) {
+      const ln = updatedLines[i];
+      if (ln.loai_hang !== ITEM_TYPE.SAN_PHAM || Number(ln.so_luong) <= 0) continue;
       const qty = Number(ln.so_luong);
       const sp = lookupSanPham(spMap, ln);
+
       const res = await state.san_pham_col.updateOne(
         { _id: sp._id, so_luong: { $gte: qty } },
         { $inc: { so_luong: -qty } },
         { session }
       );
       if (res.matchedCount === 0) throw new Error(`Không đủ tồn sản phẩm: ${sp.ma_sp || sp.ten_sp}`);
+
+      // Ghi nhận snapshot giá vốn (COGS) chuẩn cho từng mặt hàng xuất bán
+      const unitCost = Number(sp.gia_von || 0) > 0
+        ? Number(sp.gia_von)
+        : await COGSService.calculateBOMCost(sp, { session });
+      const lineCost = Math.round(unitCost * qty);
+      ln.gia_von = unitCost;
+      ln.thanh_tien_gia_von = lineCost;
+      ln.loi_nhuan_gop = Math.round((Number(ln.thanh_tien) || 0) - lineCost);
+      orderTotalCogs += lineCost;
     }
+
+    // Lưu vĩnh viễn giá vốn và lợi nhuận gộp lên chứng từ đơn bán
+    const orderNetRevenue = Math.max(0, (Number(doc.tong_tien) || 0) - (Number(doc.phi_vc) || 0));
+    const orderGrossProfit = Math.max(0, orderNetRevenue - orderTotalCogs);
+    await state.don_hang.updateOne(
+      { _id: doc._id },
+      {
+        $set: {
+          san_pham: updatedLines,
+          tong_gia_von: orderTotalCogs,
+          loi_nhuan_gop: orderGrossProfit,
+          cogs_calculated_at: new Date(),
+        },
+      },
+      { session }
+    );
     return;
   }
 
-  // (2) PURCHASE_RECEIPT: cộng tồn NL/SP
+  // (2) PURCHASE_RECEIPT: cộng tồn NL/SP & cập nhật giá vốn bình quân (Moving Weighted Average)
   if (loai_don === ORDER_TYPE.PURCHASE_RECEIPT) {
     const nlLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.NGUYEN_LIEU && Number(ln.so_luong) > 0);
     const spLines = lines.filter(ln => ln.loai_hang === ITEM_TYPE.SAN_PHAM && Number(ln.so_luong) > 0);
@@ -144,6 +177,15 @@ export async function applyInventoryOnCompleted(doc, { session } = {}) {
       if (!nl) throw new Error(`Không tìm thấy nguyên liệu để nhập kho: ${ln.ma_nl || ln.ten_nl}`);
       await state.nguyen_lieu_col.updateOne({ _id: nl._id }, { $inc: { so_luong: qty } }, { session });
       logger.info("[donHangInventory] Cộng kho NL", { ma_nl: nl.ma_nl || ln.ma_nl, qty });
+
+      // Cập nhật giá vốn bình quân liên hoàn cho nguyên liệu
+      await COGSService.updateMovingAverageCost({
+        itemId: nl._id,
+        itemType: "nguyen_lieu",
+        incomingQty: qty,
+        incomingPrice: Number(ln.don_gia || 0),
+        session,
+      });
     }
 
     for (const ln of spLines) {
@@ -152,6 +194,15 @@ export async function applyInventoryOnCompleted(doc, { session } = {}) {
       if (!sp) throw new Error(`Không tìm thấy sản phẩm để nhập kho: ${ln.ma_sp || ln.ten_sp}`);
       await state.san_pham_col.updateOne({ _id: sp._id }, { $inc: { so_luong: qty } }, { session });
       logger.info("[donHangInventory] Cộng kho SP", { ma_sp: sp.ma_sp || ln.ma_sp, qty });
+
+      // Cập nhật giá vốn bình quân liên hoàn cho thành phẩm
+      await COGSService.updateMovingAverageCost({
+        itemId: sp._id,
+        itemType: "san_pham",
+        incomingQty: qty,
+        incomingPrice: Number(ln.don_gia || 0),
+        session,
+      });
     }
     return;
   }

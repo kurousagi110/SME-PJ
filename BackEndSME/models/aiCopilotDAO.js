@@ -1,6 +1,7 @@
 import logger from "../utils/logger.js";
 import { EcommercePolicyDAO, DEFAULT_ECOMMERCE_POLICIES } from "./ecommercePolicyDAO.js";
 import AiConfigDAO from "./aiConfigDAO.js";
+import FinancialReportDAO from "./financialReportDAO.js";
 
 let dbInstance = null;
 let donHangCol = null;
@@ -244,6 +245,29 @@ ${context}
   }
 
   static async processInternalQuery(q, originalQuery) {
+    // 0. BÁO CÁO TÀI CHÍNH / LÃI LỖ / P&L / GIÁ VỐN COGS
+    if (
+      q.includes("pnl") ||
+      q.includes("p&l") ||
+      q.includes("lai lo") ||
+      q.includes("gia von") ||
+      q.includes("cogs") ||
+      q.includes("tai chinh") ||
+      q.includes("bien loi nhuan")
+    ) {
+      return await this.handleFinancialPNLQuery(q, originalQuery);
+    }
+
+    // TUỔI NỢ / NỢ QUÁ HẠN / NỢ XẤU
+    if (
+      q.includes("tuoi no") ||
+      q.includes("no xau") ||
+      q.includes("qua han") ||
+      q.includes("han muc")
+    ) {
+      return await this.handleAgingDebtQuery(q, originalQuery);
+    }
+
     // 1. TỒN KHO / NGUYÊN LIỆU / CẢNH BÁO
     if (
       q.includes("ton kho") ||
@@ -664,6 +688,84 @@ ${context}
     return {
       answer,
       suggestions: await this.getSuggestions(),
+    };
+  }
+
+  /* ─── 8. Báo cáo Tài Chính & P&L ─── */
+  static async handleFinancialPNLQuery(q, originalQuery) {
+    const report = await FinancialReportDAO.getProfitAndLoss();
+    if (report?.error || !report?.summary) {
+      return {
+        answer: "Hệ thống đang tổng hợp dữ liệu tài chính, bạn vui lòng thử lại sau giây lát.",
+        action: { title: "Xem Báo Cáo P&L", url: "/financial-reports" },
+      };
+    }
+
+    const s = report.summary;
+    let answer = `### 📊 Báo Cáo Kết Quả Kinh Doanh & Lãi - Lỗ (P&L)\n\n`;
+    answer += `Dưới đây là bức tranh tài chính tổng thể của doanh nghiệp trong năm nay:\n\n`;
+    answer += `1. **Doanh thu thuần:** **${fmtVND(s.netRevenue)}** (từ ${s.totalOrders} đơn bán hàng completed, sau khi trừ chiết khấu ${fmtVND(s.totalDiscounts)}).\n`;
+    answer += `2. **Giá vốn hàng bán (COGS):** **${fmtVND(s.totalCogs)}** (tính theo chuẩn bình quân gia quyền liên hoàn).\n`;
+    answer += `3. **Lợi nhuận gộp:** **${fmtVND(s.grossProfit)}** (Biên lợi nhuận gộp đạt **${s.grossMarginPct}%**).\n`;
+    answer += `4. **Chi phí hoạt động (OPEX):** **${fmtVND(s.opex.total)}** bao gồm:\n`;
+    answer += `   - Chi phí lương nhân sự: **${fmtVND(s.opex.payroll)}**\n`;
+    answer += `   - Chi phí vận chuyển/logistics: **${fmtVND(s.opex.shipping)}**\n`;
+    answer += `   - Chi phí mặt bằng & xưởng: **${fmtVND(s.opex.rentAndUtilities)}**\n`;
+    answer += `   - Chi phí vận hành khác: **${fmtVND(s.opex.other)}**\n`;
+    answer += `5. **Lợi nhuận thuần ròng (Net Profit):** **${fmtVND(s.netOperatingProfit)}** (Biên ròng: **${s.netMarginPct}%**).\n\n`;
+
+    if (s.netOperatingProfit > 0) {
+      answer += `✅ **Đánh giá sức khỏe tài chính:** Doanh nghiệp đang vận hành có lãi với biên lợi nhuận ròng khỏe mạnh (${s.netMarginPct}%).`;
+    } else {
+      answer += `⚠️ **Cảnh báo chi phí:** Lợi nhuận ròng đang chịu áp lực lớn từ chi phí vận hành (${fmtVND(s.opex.total)}). Nên xem xét tối ưu chi phí mặt bằng hoặc đàm phán lại giá mua nguyên vật liệu.`;
+    }
+
+    return {
+      answer,
+      action: { title: "Mở Chi Tiết Báo Cáo P&L", url: "/financial-reports" },
+      suggestions: [
+        { text: "Khách hàng nào đang có nợ quá hạn lâu nhất?", category: "debt" },
+        { text: "Mặt hàng nào mang lại lợi nhuận cao nhất?", category: "finance" },
+      ],
+    };
+  }
+
+  /* ─── 9. Phân Tích Tuổi Nợ (Aging Debt) ─── */
+  static async handleAgingDebtQuery(q, originalQuery) {
+    const report = await FinancialReportDAO.getAgingDebtReport({ type: "customer" });
+    if (report?.error || !report?.summary) {
+      return {
+        answer: "Hệ thống đang phân tích số liệu công nợ, bạn vui lòng thử lại sau.",
+        action: { title: "Quản Lý Đối Tác & Công Nợ", url: "/partners" },
+      };
+    }
+
+    const s = report.summary;
+    let answer = `### ⚠️ Báo Cáo Phân Tích Tuổi Nợ Khách Hàng (Aging Debt)\n\n`;
+    answer += `- **Tổng công nợ phải thu:** **${fmtVND(s.totalDebt)}** (từ **${s.totalDebtors} khách hàng**).\n`;
+    answer += `- 🟢 **Nợ trong hạn (0 - 30 ngày):** **${fmtVND(s.current)}**\n`;
+    answer += `- 🟡 **Quá hạn 31 - 60 ngày:** **${fmtVND(s.days_31_60)}**\n`;
+    answer += `- 🟠 **Quá hạn 61 - 90 ngày:** **${fmtVND(s.days_61_90)}** (Cần gửi thông báo nhắc nợ)\n`;
+    answer += `- 🔴 **Nợ xấu (> 90 ngày):** **${fmtVND(s.days_over_90)}** (Chiếm **${s.badDebtPercentage}%** tổng nợ).\n\n`;
+
+    const topDebtors = (report.items || []).slice(0, 3);
+    if (topDebtors.length > 0) {
+      answer += `**Top 3 khách hàng nợ lớn nhất:**\n`;
+      topDebtors.forEach((d, idx) => {
+        answer += `${idx + 1}. **${d.name}**: nợ **${fmtVND(d.totalDebt)}** (quá hạn cao nhất: **${d.maxDaysOverdue} ngày**)\n`;
+      });
+      answer += `\n`;
+    }
+
+    answer += `👉 *Khuyến nghị: Bạn có thể thiết lập Hạn mức công nợ tối đa trong hồ sơ đối tác để tự động cảnh báo khi nhân viên kinh doanh tạo đơn mới!*`;
+
+    return {
+      answer,
+      action: { title: "Xem Báo Cáo Tuổi Nợ", url: "/financial-reports?tab=debt" },
+      suggestions: [
+        { text: "Báo cáo lãi lỗ P&L năm nay thế nào?", category: "finance" },
+        { text: "Tồn quỹ tiền mặt và tài khoản ngân hàng?", category: "debt" },
+      ],
     };
   }
 }

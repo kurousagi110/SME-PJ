@@ -14,6 +14,8 @@ export interface DoiTacItem {
   nhom: "vip" | "khach_buon" | "khach_le" | "chinh" | "phu";
   ghi_chu: string;
   trang_thai: "active" | "inactive";
+  han_muc_cong_no?: number;
+  han_thanh_toan_ngay?: number;
   tong_don?: number;
   tong_gia_tri?: number;
   da_thanh_toan?: number;

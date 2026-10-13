@@ -1684,3 +1684,38 @@ All endpoints return one of the following shapes:
 **Description:** Tra cứu nguồn gốc xuất xứ lô sản xuất theo mã lô  
 **Auth required:** Yes  
 
+---
+
+## 19. Tài Chính, Giá Vốn & Báo Cáo P&L (Financial & COGS)
+
+**Base Route:** `/api/v1/financial` *(Alias: `/api/v1/tai-chinh`)*
+
+### GET /api/v1/financial/pnl
+**Description:** Báo cáo Kết quả Hoạt động Kinh doanh (P&L) theo chuẩn VAS. Tính toán Doanh thu gộp, Giảm trừ & Đổi trả (RMA), Doanh thu thuần, Giá vốn hàng bán (COGS theo Bình Quân Gia Quyền Di Động), Lợi nhuận gộp, Chi phí hoạt động OPEX (Lương, Vận chuyển, Thuê mướn, Quản lý) và Lợi nhuận ròng.  
+**Auth required:** Yes  
+**Query Params:**
+- `fromDate` (YYYY-MM-DD): Ngày bắt đầu
+- `toDate` (YYYY-MM-DD): Ngày kết thúc
+- `period` (this_month | last_month | this_quarter | this_year | custom)
+
+### GET /api/v1/financial/product-profitability
+**Description:** Phân tích hiệu quả sinh lời chi tiết từng sản phẩm (Doanh thu, Giá vốn, Lợi nhuận gộp, Biên lợi nhuận gộp %, Phân loại: Ngôi sao / Cash Cow / Biên lợi nhuận thấp / Lỗ).  
+**Auth required:** Yes  
+**Query Params:** `fromDate`, `toDate`, `limit`, `sortBy`
+
+### GET /api/v1/financial/aging-debt
+**Description:** Báo cáo Tuổi nợ và Quản lý Công nợ Phải thu / Phải trả (Aging Debt Analysis). Phân nhóm 4 kỳ hạn (0-30 ngày hiện tại, 31-60 ngày quá hạn nhẹ, 61-90 ngày quá hạn vừa, >90 ngày nợ xấu) cùng cảnh báo vượt hạn mức tín dụng (`han_muc_cong_no`).  
+**Auth required:** Yes  
+**Query Params:**
+- `type`: `customer` (Khách hàng) hoặc `supplier` (Nhà cung cấp)
+- `minDays`: Lọc theo số ngày tối thiểu
+
+### GET /api/v1/financial/credit-limit/:partnerId
+**Description:** Kiểm tra hạn mức công nợ và trạng thái nợ của đối tác trước khi tạo đơn hàng mới.  
+**Auth required:** Yes  
+**Query Params:** `newOrderAmount` (Số tiền đơn hàng dự kiến)
+
+### POST /api/v1/financial/recalculate-cogs
+**Description:** Khởi chạy tính toán lại và snapshot giá vốn lịch sử cho toàn bộ đơn hàng xuất kho (Hỗ trợ migration dữ liệu cũ).  
+**Auth required:** Yes (Admin)
+

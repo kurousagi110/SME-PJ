@@ -25,6 +25,7 @@ import {
   IconUser,
   IconUsers,
   IconUsersGroup,
+  IconClockHour4,
 } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,8 @@ export default function PartnersPage() {
     dia_chi: "",
     ma_so_thue: "",
     nhom: "khach_le",
+    han_muc_cong_no: 0,
+    han_thanh_toan_ngay: 30,
     ghi_chu: "",
   });
 
@@ -151,6 +154,8 @@ export default function PartnersPage() {
       dia_chi: "",
       ma_so_thue: "",
       nhom: loai === "khach_hang" ? "khach_le" : "chinh",
+      han_muc_cong_no: 0,
+      han_thanh_toan_ngay: 30,
       ghi_chu: "",
     });
     setOpenForm(true);
@@ -167,6 +172,8 @@ export default function PartnersPage() {
       dia_chi: item.dia_chi || "",
       ma_so_thue: item.ma_so_thue || "",
       nhom: item.nhom || (item.loai_doi_tac === "nha_cung_cap" ? "chinh" : "khach_le"),
+      han_muc_cong_no: item.han_muc_cong_no || 0,
+      han_thanh_toan_ngay: item.han_thanh_toan_ngay || 30,
       ghi_chu: item.ghi_chu || "",
     });
     setOpenForm(true);
@@ -281,6 +288,18 @@ export default function PartnersPage() {
           >
             <IconDownload className="w-4 h-4 text-emerald-600" />
             Xuất Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="flex items-center gap-1 text-blue-700 bg-blue-50/50 border-blue-200 hover:bg-blue-100"
+          >
+            <Link href="/financial-reports">
+              <IconClockHour4 className="w-4 h-4 text-blue-600" />
+              Báo Cáo Tuổi Nợ
+            </Link>
           </Button>
 
           <Button
@@ -793,6 +812,30 @@ export default function PartnersPage() {
                   placeholder={formData.loai_doi_tac === "khach_hang" ? "Tự động sinh (KH-...)" : "Tự động sinh (NCC-...)"}
                   value={formData.ma_doi_tac}
                   onChange={(e) => setFormData((prev) => ({ ...prev, ma_doi_tac: e.target.value }))}
+                  className="bg-slate-50 font-mono text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Hạn mức nợ (VND)</Label>
+                <Input
+                  type="number"
+                  placeholder="0 = Không giới hạn"
+                  value={formData.han_muc_cong_no || ""}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, han_muc_cong_no: Number(e.target.value) || 0 }))}
+                  className="bg-slate-50 font-mono text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold">Hạn thanh toán (Ngày)</Label>
+                <Input
+                  type="number"
+                  placeholder="30"
+                  value={formData.han_thanh_toan_ngay || 30}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, han_thanh_toan_ngay: Number(e.target.value) || 30 }))}
                   className="bg-slate-50 font-mono text-xs"
                 />
               </div>

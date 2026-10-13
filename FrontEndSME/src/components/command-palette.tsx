@@ -257,6 +257,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
         {/* 5. TÀI CHÍNH & NHÂN SỰ */}
         <CommandGroup heading="💰 Tài chính & Nhân sự">
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/financial-reports"))}
+            className="cursor-pointer"
+          >
+            <IconReportMoney className="mr-2 h-4 w-4 text-emerald-600" />
+            <span>Báo Cáo Tài Chính & Lãi - Lỗ (P&L, COGS, Tuổi Nợ)</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/cashbook"))}
             className="cursor-pointer"
           >

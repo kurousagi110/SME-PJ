@@ -51,6 +51,9 @@ export default class DoiTacDAO {
     dia_chi = "",
     ma_so_thue = "",
     nhom = "khach_le",
+    han_muc_cong_no = 0,
+    han_thanh_toan_ngay = 30,
+    khoa_no_khi_qua_han = false,
     ghi_chu = "",
     user = {},
   }) {
@@ -67,6 +70,9 @@ export default class DoiTacDAO {
         dia_chi: (dia_chi || "").trim(),
         ma_so_thue: (ma_so_thue || "").trim(),
         nhom: nhom || (loai_doi_tac === LOAI_DOI_TAC.NHA_CUNG_CAP ? "chinh" : "khach_le"),
+        han_muc_cong_no: Math.max(0, Number(han_muc_cong_no) || 0),
+        han_thanh_toan_ngay: Math.max(0, Number(han_thanh_toan_ngay) || 30),
+        khoa_no_khi_qua_han: Boolean(khoa_no_khi_qua_han),
         ghi_chu: (ghi_chu || "").trim(),
         trang_thai: STATUS.ACTIVE,
         created_by: {
@@ -296,6 +302,9 @@ export default class DoiTacDAO {
       if (data.dia_chi !== undefined) updateFields.dia_chi = String(data.dia_chi).trim();
       if (data.ma_so_thue !== undefined) updateFields.ma_so_thue = String(data.ma_so_thue).trim();
       if (data.nhom !== undefined) updateFields.nhom = data.nhom;
+      if (data.han_muc_cong_no !== undefined) updateFields.han_muc_cong_no = Math.max(0, Number(data.han_muc_cong_no) || 0);
+      if (data.han_thanh_toan_ngay !== undefined) updateFields.han_thanh_toan_ngay = Math.max(0, Number(data.han_thanh_toan_ngay) || 30);
+      if (data.khoa_no_khi_qua_han !== undefined) updateFields.khoa_no_khi_qua_han = Boolean(data.khoa_no_khi_qua_han);
       if (data.ghi_chu !== undefined) updateFields.ghi_chu = String(data.ghi_chu).trim();
       if (data.trang_thai !== undefined) updateFields.trang_thai = data.trang_thai;
       updateFields.updated_at = new Date();
@@ -305,6 +314,80 @@ export default class DoiTacDAO {
     } catch (e) {
       logger.error("DoiTacDAO.capNhatDoiTac error", { error: e.message });
       return { error: e };
+    }
+  }
+
+  /**
+   * Kiểm tra hạn mức công nợ trước khi xuất bán đơn hàng mới
+   */
+  static async checkCreditLimit(partnerIdentifier, newOrderAmount = 0) {
+    try {
+      if (!partnerIdentifier) return { allowed: true, reason: "NO_PARTNER" };
+      let filter;
+      if (ObjectId.isValid(partnerIdentifier)) {
+        filter = { _id: new ObjectId(String(partnerIdentifier)) };
+      } else {
+        filter = { $or: [{ ma_doi_tac: String(partnerIdentifier) }, { ten: String(partnerIdentifier) }] };
+      }
+
+      const partner = await doiTacCol.findOne(filter);
+      if (!partner) return { allowed: true, reason: "PARTNER_NOT_FOUND" };
+
+      const creditLimit = Number(partner.han_muc_cong_no || 0);
+      // Nếu không thiết lập hạn mức (0) thì cho phép
+      if (creditLimit <= 0) {
+        return {
+          allowed: true,
+          partnerName: partner.ten,
+          creditLimit: 0,
+          currentDebt: 0,
+          isUnlimited: true,
+        };
+      }
+
+      // Tính tổng công nợ hiện tại
+      const orders = await donHangCol
+        .find({
+          loai_don: "sale",
+          $or: [{ khach_hang_ten: partner.ten }, { "khach_hang.ten": partner.ten }],
+          trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+        })
+        .toArray();
+
+      const orderCodes = orders.map((o) => o.ma_dh).filter(Boolean);
+      const receipts = orderCodes.length
+        ? await soQuyCol.find({ ma_chung_tu: { $in: orderCodes }, trang_thai: "active" }).toArray()
+        : [];
+
+      const receiptSum = new Map();
+      for (const r of receipts) {
+        const cur = receiptSum.get(r.ma_chung_tu) || 0;
+        receiptSum.set(r.ma_chung_tu, cur + Number(r.so_tien || 0));
+      }
+
+      let totalDebt = 0;
+      for (const o of orders) {
+        const paid = receiptSum.get(o.ma_dh) || (o.trang_thai === "paid" ? Number(o.tong_tien || 0) : 0);
+        totalDebt += Math.max(0, Number(o.tong_tien || 0) - paid);
+      }
+
+      const projectedDebt = totalDebt + Number(newOrderAmount || 0);
+      const isOverLimit = projectedDebt > creditLimit;
+
+      return {
+        allowed: !isOverLimit,
+        isOverLimit,
+        partnerName: partner.ten,
+        creditLimit,
+        currentDebt: totalDebt,
+        newOrderAmount: Number(newOrderAmount || 0),
+        projectedDebt,
+        excessAmount: isOverLimit ? projectedDebt - creditLimit : 0,
+        khoa_no_khi_qua_han: partner.khoa_no_khi_qua_han || false,
+      };
+    } catch (err) {
+      logger.error("[DoiTacDAO.checkCreditLimit] Error", { error: err.message });
+      return { allowed: true, error: err.message };
     }
   }
 

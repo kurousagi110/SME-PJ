@@ -37,6 +37,7 @@ import ReturnOrderDAO        from "./models/returnOrderDAO.js";
 import StockLedgerDAO        from "./models/stockLedgerDAO.js";
 import QuotationDAO          from "./models/quotationDAO.js";
 import BatchDAO              from "./models/batchDAO.js";
+import FinancialReportDAO    from "./models/financialReportDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -117,6 +118,7 @@ async function main() {
       StockLedgerDAO.injectDB(client),
       QuotationDAO.injectDB(client),
       BatchDAO.injectDB(client),
+      FinancialReportDAO.injectDB(client),
     ]);
 
     logger.info("All DAOs initialised");
