@@ -7,11 +7,17 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 ## 🌟 Điểm Nổi Bật Của Hệ Thống
 
 - 🚀 **Kiến trúc Full-stack Hiện đại & Chuẩn Hóa**: Next.js 16 (App Router, Turbopack, Server Actions), Express 5 ESM, MongoDB 7 Native Aggregation, Nginx Reverse Proxy. Hệ thống mã nguồn và API được chuẩn hóa 100% tiếng Anh đồng bộ, hỗ trợ backward compatibility cho các định danh legacy.
+- 💰 **Dự Báo Dòng Tiền & Đối Soát Sao Kê Ngân Hàng (Cash Flow Forecasting & Bank Reconciliation)**: Dự báo dòng tiền 12 tuần (Inflows từ đơn bán & công nợ phải thu, Outflows từ đơn mua, tiền lương, OPEX), tính Monthly Burn Rate và Runway Months. Tự động so khớp đối soát các dòng giao dịch sao kê ngân hàng với Sổ Quỹ SME.
+- 🏭 **Bảng Kanban Sản Xuất & Quản Lý Hao Hụt (Production Kanban & Scrap Tracking)**: Giám sát tiến độ xưởng trực quan qua 6 công đoạn (`raw_material_prep` $\to$ `machining` $\to$ `finishing` $\to$ `assembly_qc` $\to$ `completed`), hỗ trợ quét mã vạch Barcode, bắn realtime Socket.io và xuất báo cáo tỷ lệ đạt chuẩn Yield Rate (%) cùng tỷ lệ phế phẩm Scrap Rate (%).
+- 📑 **Hợp Đồng Kinh Tế B2B & Vòng Đời Bảo Hành (Contracts & Warranty Lifecycle)**: Quản lý hợp đồng B2B với thanh toán theo đợt (Milestone billing) — 1-click "Thu Tiền Đợt Này" tự động sinh ngay Phiếu Thu vào Sổ Quỹ. Cấp thẻ bảo hành điện tử theo Serial/SĐT, hỗ trợ tra cứu tức thì và ghi nhận nhật ký bảo dưỡng định kỳ.
+- 🤖 **Tự Động Hóa Telegram Bot & Báo Cáo Sáng (Telegram Bot Automation & Morning Briefing)**: Tự động gửi báo cáo tóm tắt đầu ngày (Doanh thu hôm qua, Số dư ngân quỹ thực tế, Số đơn hàng chờ duyệt ký) vào nhóm Telegram Ban Giám Đốc; gửi cảnh báo duyệt việc tức thời kèm nút bấm phê duyệt 1-click.
+- 🏷️ **Phân Hạng Giá B2B, Voucher & Chặn Nợ Quá Hạn (Tiered Pricing & Credit Limits)**: Phân tầng nhóm giá khách hàng (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), xác thực mã ưu đãi B2B (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), và cơ chế chặn nhân viên tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`).
 - 📋 **Báo Giá B2B & Chuyển Đổi Đơn Hàng 1-Click (Quote-to-Order)**: Lập báo giá chuyên nghiệp, tính thuế VAT & chiết khấu thương mại, theo dõi trạng thái vòng đời (`draft` $\to$ `sent` $\to$ `accepted` $\to$ `converted`) và tự động chuyển hóa thành Đơn Bán Hàng chỉ với 1 click.
 - 📦 **Thẻ Kho & Báo Cáo Xuất - Nhập - Tồn (Stock Movement Ledger)**: Báo cáo biến động kho chi tiết từng mặt hàng và tổng hợp XNT theo khoảng thời gian thực tế, phân tách rõ ràng nguồn gốc chứng từ (Đơn bán, Đơn mua, Sản xuất, Bàn giao kho, Điều chỉnh kiểm kê, Đổi trả RMA).
 - 🔄 **Luồng Nghiệp Vụ Khép Kín (Closed-Loop Integrity)**:
   - Bán lẻ tại quầy POS tự động sinh Phiếu Thu trong Sổ Quỹ.
   - Phê duyệt chi lương tự động sinh Phiếu Chi trong Sổ Quỹ.
+  - Hợp đồng B2B thu tiền từng đợt tự động sinh Phiếu Thu trong Sổ Quỹ.
   - Quy trình Đổi Trả Hàng (RMA): Trình duyệt $\to$ Kiểm định QC nghiệm thu $\to$ Nhập hoàn kho $\to$ Tự động sinh Phiếu Chi hoàn tiền.
   - Niêm phong & Khóa sổ kỳ kế toán (`Period Closing`): Chặn hoàn toàn hành vi ghi nhận, sửa đổi hoặc hủy chứng từ tài chính trong kỳ đã chốt sổ.
 - 🤝 **Trung Tâm Phê Duyệt Thống Nhất & Bàn Giao 1-Click (Handover Hub)**:
@@ -50,7 +56,10 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 ### 2. 🛒 Kinh Doanh & Bán Hàng
 - **Quầy Thu Ngân POS (`/pos`)**: Giao diện bán hàng tại quầy cảm ứng, hỗ trợ máy quét mã vạch, thanh toán tiền mặt/chuyển khoản, tự động đồng bộ sinh phiếu thu sổ quỹ và in hóa đơn nhiệt tức thì.
 - **Báo Giá B2B (`/quotations`)**: Lập và quản lý báo giá đối tác, tính thuế VAT & chiết khấu, theo dõi trạng thái gửi duyệt, và chuyển đổi 1-click thành Đơn Bán Hàng.
-- **Đơn Bán Hàng (`/sales`)**: Lập và theo dõi đơn xuất bán, chọn nhanh đối tác từ CRM, xuất Excel UTF-8 BOM, in hóa đơn A4 chuẩn đẹp, bàn giao 1-click sang xưởng sản xuất hoặc giao nhận logistics.
+- **Hợp Đồng B2B & Bảo Hành (`/contracts`)**:
+  - *Quản lý Hợp Đồng Kinh Tế*: Quản lý tiến độ nghiệm thu và thanh toán chia đợt (Milestone billing). Thao tác 1-click "Thu Tiền Đợt Này" tự động sinh ngay **Phiếu Thu** vào Sổ Quỹ SME với mã chứng từ tương ứng.
+  - *Vòng Đời Bảo Hành Điện Tử*: Cấp thẻ bảo hành điện tử theo Serial / IMEI, tra cứu nhanh trạng thái và thời hạn bảo hành theo SĐT khách hàng hoặc mã serial, ghi nhận nhật ký kỹ thuật & bảo dưỡng định kỳ kèm chi phí phát sinh.
+- **Đơn Bán Hàng (`/sales`)**: Lập và theo dõi đơn xuất bán, chọn nhanh đối tác từ CRM, tích hợp phân nhóm giá B2B (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), áp dụng mã ưu đãi voucher (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), cơ chế kiểm soát và chặn tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`), xuất Excel UTF-8 BOM, in hóa đơn A4 chuẩn đẹp, bàn giao 1-click sang xưởng sản xuất hoặc giao nhận logistics.
 - **Đổi Trả Hàng RMA (`/rma`)**: Quản lý yêu cầu bảo hành/đổi trả hàng, kiểm soát số lượng đổi trả so với đơn gốc, nghiệm thu QC và tự sinh phiếu chi hoàn tiền.
 - **Vận Chuyển & Giao Hàng (`/shipping`)**: Quản lý vòng đời đơn giao hàng qua các đơn vị vận chuyển (GHN, GHTK, Viettel Post, J&T Express), theo dõi trạng thái, tiền thu hộ COD và **in phiếu vận đơn chuẩn logistics A6 / 75x100mm**.
 - **Khách Hàng & Nhà Cung Cấp (`/partners`)**: Mini CRM quản lý đối tác 360°, phân loại khách VIP/khách buôn, tự động tổng hợp doanh số LTV, lịch sử mua hàng và công nợ 2 chiều.
@@ -58,7 +67,10 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 
 ### 3. 📦 Kho & Sản Xuất
 - **Thẻ Kho & Báo Cáo XNT (`/stock-ledger`)**: Thẻ kho chi tiết theo từng sản phẩm/nguyên vật liệu và bảng cân đối Xuất - Nhập - Tồn theo kỳ với giá trị thành tiền chính xác.
-- **Kho Thành Phẩm (`/product/catalog`, `/product/orders`)**: Danh mục sản phẩm, cấu hình định mức nguyên liệu (BOM) và tạo lệnh sản xuất.
+- **Kho Thành Phẩm & Xưởng Sản Xuất (`/product/catalog`, `/product/orders`)**:
+  - *Danh Mục & Định Mức BOM*: Cấu hình định mức nguyên vật liệu sản xuất (BOM) và tạo lệnh sản xuất.
+  - *Bảng Kanban Tiến Độ Xưởng (`/product/orders` tab Kanban)*: Giám sát trực quan luồng sản xuất qua 6 công đoạn: Chuẩn bị vật tư (`raw_material_prep`) $\to$ Gia công cắt/CNC (`machining`) $\to$ Xử lý bề mặt (`finishing`) $\to$ Lắp ráp & KCS (`assembly_qc`) $\to$ Hoàn thành (`completed`). Hỗ trợ quét Barcode để chọn nhanh lệnh và đồng bộ realtime Socket.io (`PRODUCTION_STAGE_CHANGED`).
+  - *Theo Dõi Hao Hụt & Báo Cáo Yield Rate*: Ghi nhận số lượng phế phẩm và lý do hao hụt tại từng công đoạn; tự động tính toán tỷ lệ đạt chuẩn **Yield Rate (%)** và tỷ lệ phế phẩm **Scrap Rate (%)**.
 - **Kho Nguyên Vật Liệu (`/material/catalog`, `/material/orders`)**: Danh mục vật tư (gỗ tấm, nẹp, ốc vít, bản lề, sơn...), đơn mua hàng nhập kho và đối soát nhà cung cấp.
 - **Tồn Kho Tổng Hợp (`/warehouse`)**: Báo cáo tổng thể Nhập - Xuất - Tồn và giá trị tồn kho.
 - **Kiểm Kê & Điều Chỉnh Kho (`/stock-adjustments`)**: Phiếu cân bằng tồn kho thực tế sau kiểm kê kèm quy trình duyệt an toàn chống trừ kho trùng lặp.
@@ -66,6 +78,8 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 ### 4. 💰 Tài Chính & Nhân Sự
 - **Báo Cáo Tài Chính & Giá Vốn P&L (`/financial-reports`)**:
   - *Báo cáo P&L (VAS)*: Doanh thu thuần, Giá vốn hàng bán (COGS Moving Average), Lợi nhuận gộp, Chi phí hoạt động OPEX (Lương, Vận chuyển, Chi phí thuê & quản lý), Lợi nhuận ròng.
+  - *Dự Báo Dòng Tiền & Ngân Quỹ (Cash Flow)*: Dự phóng dòng tiền 12 tuần với 4 thẻ KPI động (Số dư tiền mặt, Monthly Burn Rate, Runway Months, Cảnh báo an toàn ngân quỹ), biểu đồ tương tác Inflows vs Outflows (Recharts), Top khoản phải thu/phải trả sắp đến hạn.
+  - *Đối Soát Sao Kê Ngân Hàng*: Hộp thoại tự động so khớp các dòng giao dịch từ ngân hàng với các khoản Thu/Chi trong Sổ Quỹ SME.
   - *Hiệu quả sinh lời sản phẩm*: Phân tích biên lợi nhuận từng mã hàng, tự động gắn nhãn Ngôi sao / Cash Cow / Biên lợi nhuận thấp.
   - *Quản lý Tuổi nợ (Aging Debt)*: Phân tầng công nợ 0-30 ngày, 31-60 ngày, 61-90 ngày và cảnh báo nợ xấu >90 ngày, thiết lập hạn mức tín dụng (`Credit Limit`) chống bán vượt hạn mức.
   - *Xuất Excel (UTF-8 BOM) & In Báo Cáo P&L*: Xuất báo cáo tài chính chuẩn kế toán.
@@ -78,6 +92,7 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 - **Phòng Ban & Chức Vụ (`/department`)**: Thiết lập sơ đồ cơ cấu tổ chức công ty.
 
 ### 5. ⚙️ Hệ Thống & Tiện Ích
+- **Tự Động Hóa Telegram Bot (`/api/v1/bot/telegram`)**: Bot thông báo đa kênh, tự động gửi Báo cáo sáng (Morning Briefing) về doanh thu hôm qua, số dư ngân quỹ thực tế, số đơn hàng chờ duyệt ký vào nhóm Telegram Ban Giám Đốc; gửi cảnh báo duyệt việc tức thời kèm nút bấm 1-click.
 - **Trợ Lý AI SME Copilot (Widget toàn cục)**: Chatbot trí tuệ nhân tạo hỏi đáp số liệu doanh nghiệp tức thời bằng tiếng Việt (Doanh thu, Tồn kho cảnh báo, Công nợ, TMĐT đa kênh).
 - **Nhập Dữ Liệu Excel (`/import`)**: Nhập hàng loạt danh mục hàng hóa, nhân sự từ file Excel.
 - **Nhật Ký Hệ Thống (`/audit-log`)**: Ghi nhận toàn bộ thao tác nghiệp vụ quan trọng phục vụ kiểm toán và truy vết bảo mật.
@@ -153,10 +168,10 @@ SME/
 ├── nginx/
 │   └── default.conf            # Reverse proxy, cân bằng tải, WebSocket, CSP & Gzip
 ├── BackEndSME/                 # RESTful API Backend (Node.js Express 5 ESM)
-│   ├── controllers/            # Controller classes chuẩn hóa tiếng Anh (Order, Product, Cashbook, StockLedger...)
-│   ├── models/                 # Model DAOs chuẩn hóa tiếng Anh (orderDAO, productDAO, cashbookDAO, stockLedgerDAO...)
-│   ├── routes/v1/              # Endpoint RESTful API `/api/v1/*` (hỗ trợ cả route tiếng Anh & alias tiếng Việt)
-│   ├── services/               # Logic nghiệp vụ nâng cao (MRP, Forecast, BOM, Production, Closed-Loop...)
+│   ├── controllers/            # Controller classes (contract, telegramBot, warranty, production, financial, order...)
+│   ├── models/                 # Model DAOs (contractDAO, warrantyDAO, financialReportDAO, soQuyDAO, orderDAO...)
+│   ├── routes/v1/              # Endpoint RESTful API `/api/v1/*` (contracts, warranty, bot, production, financial...)
+│   ├── services/               # Logic nghiệp vụ nâng cao (telegramBotService, MRP, Forecast, Closed-Loop...)
 │   ├── middleware/             # Xác thực JWT, phân quyền vai trò, validate Joi, rate limit
 │   ├── utils/                  # Audit logger, Socket.io manager, Winston structured logs
 │   ├── seed.js                 # Bộ kịch bản tạo dữ liệu thực tế mẫu
@@ -165,9 +180,9 @@ SME/
     ├── src/
     │   ├── app/
     │   │   ├── (auth)/         # Màn hình đăng nhập & bảo vệ phiên làm việc
-    │   │   ├── (modules)/      # Các phân hệ: dashboard, sales, quotations, pos, stock-ledger, cashbook...
-    │   │   └── actions/        # Server Actions gọi an toàn đến Backend API (dashboard, cashbook, product...)
-    │   ├── components/         # UI Components: app-sidebar, nav-main, command-palette, alerts...
+    │   │   ├── (modules)/      # Các phân hệ: contracts, financial-reports, product/orders, sales, dashboard...
+    │   │   └── actions/        # Server Actions (contract, warranty, bot, production, financial, order-sale...)
+    │   ├── components/         # UI Components: app-sidebar, nav-main, command-palette, production-kanban...
     │   ├── hooks/              # Custom hooks: useSocket, useAuth, useProductBOM, useStockAdjustment...
     │   └── lib/                # Tiện ích: format tiền tệ, xuất Excel UTF-8 BOM, in ấn hóa đơn/phiếu/barcode
     └── Dockerfile              # Quy trình đóng gói Multi-stage build tối ưu cho Next.js
@@ -194,7 +209,8 @@ docker cp BackEndSME/. sme_api:/app/ && docker restart sme_api
 docker compose build frontend
 docker compose up -d frontend
 
-# Chạy test suites xác minh toàn bộ luồng nghiệp vụ
+# Chạy test suites xác minh toàn bộ luồng nghiệp vụ & 5 Big Update modules
+node scratch/verify_all_modules.js
 node scratch/test_stock_ledger_and_quotations.js
 node scratch/test_fixes_verification.js
 node scratch/test_inter_department.js

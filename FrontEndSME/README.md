@@ -28,13 +28,15 @@ FrontEndSME/src/
 │   ├── (auth)/                 # Màn hình đăng nhập & bảo vệ phiên làm việc
 │   ├── (modules)/              # Các phân hệ nghiệp vụ ERP:
 │   │   ├── dashboard/          # Bảng điều khiển KPI & so sánh cùng kỳ YoY
+│   │   ├── contracts/          # Hợp đồng kinh tế B2B, tiến độ đợt thanh toán & bảo hành
+│   │   ├── financial-reports/  # Báo cáo P&L, Tuổi nợ, Dự báo dòng tiền 12 tuần & Đối soát sao kê
 │   │   ├── quotations/         # Báo giá B2B & Chuyển đổi Đơn hàng (Quote-to-Order)
-│   │   ├── sales/              # Đơn bán hàng, xuất hóa đơn & bàn giao 1-click
+│   │   ├── sales/              # Đơn bán hàng, nhóm giá B2B, voucher & bàn giao 1-click
 │   │   ├── pos/                # Quầy bán lẻ thu ngân cảm ứng, in hóa đơn nhiệt
 │   │   ├── rma/                # Đổi trả hàng, bảo hành & kiểm định QC
 │   │   ├── stock-ledger/       # Thẻ kho chi tiết & Báo cáo Xuất - Nhập - Tồn (XNT)
 │   │   ├── stock-adjustments/  # Phiếu kiểm kê điều chỉnh cân bằng kho
-│   │   ├── product/            # Danh mục sản phẩm, cấu hình định mức BOM, lệnh SX
+│   │   ├── product/            # Danh mục sản phẩm, BOM & Lệnh SX (kèm tab Kanban tiến độ xưởng)
 │   │   ├── material/           # Danh mục vật tư, đơn mua hàng nhập kho
 │   │   ├── cashbook/           # Sổ quỹ Thu - Chi, quản lý công nợ & Chốt sổ kỳ kế toán
 │   │   ├── approvals/          # Trung tâm phê duyệt việc thống nhất (Unified Approval Hub)
@@ -49,7 +51,11 @@ FrontEndSME/src/
 │   │   ├── import/             # Nhập dữ liệu hàng loạt từ file Excel
 │   │   └── audit-log/          # Nhật ký kiểm toán thao tác hệ thống (Admin)
 │   └── actions/                # Next.js Server Actions (Standard English Naming):
+│       ├── bot.ts              # Thao tác cấu hình & kiểm tra Telegram bot
+│       ├── contract.ts         # Nghiệp vụ hợp đồng B2B & thanh toán đợt
 │       ├── dashboard.ts        # Lấy số liệu KPI, biểu đồ & YoY compare
+│       ├── financial.ts        # P&L, aging debt, cashflow forecast & bank reconcile
+│       ├── production.ts       # Kanban xưởng, chuyển công đoạn & báo cáo hao hụt
 │       ├── quotation.ts        # Nghiệp vụ báo giá B2B & convert-to-order
 │       ├── stock-ledger.ts     # Thẻ kho chi tiết & Báo cáo tổng hợp XNT
 │       ├── stock-adjustment.ts # Phiếu kiểm kê điều chỉnh kho
@@ -58,10 +64,11 @@ FrontEndSME/src/
 │       ├── partner.ts          # Thao tác đối tác CRM
 │       ├── product.ts          # Thao tác sản phẩm & danh mục BOM
 │       ├── material.ts         # Thao tác nguyên vật liệu & đơn mua
-│       ├── order-sale.ts       # Đơn bán hàng & chiết khấu
+│       ├── order-sale.ts       # Đơn bán hàng, voucher & chiết khấu
 │       ├── handover.ts         # Bàn giao liên ban bộ 1-click & comments
 │       ├── rma.ts              # Quản lý đổi trả hàng & nghiệm thu QC
 │       ├── shipping.ts         # Vận chuyển logistics & cập nhật trạng thái
+│       ├── warranty.ts         # Thẻ bảo hành, tra cứu & nhật ký bảo trì
 │       └── payroll.ts          # Tính lương, chi trả & trạng thái lương
 ├── components/                 # Các UI Components tái sử dụng:
 │   ├── app-sidebar.tsx         # Thanh điều hướng phân tầng 5 khối nghiệp vụ
