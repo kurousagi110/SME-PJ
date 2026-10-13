@@ -97,10 +97,11 @@ export default class QuotationDAO {
         tong_tien_truoc_ck += subtotal;
         tong_chiet_khau += discountVal;
 
+        const itemCode = it.ma_sp || `SP-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
         return {
           san_pham_id: it.san_pham_id ? String(it.san_pham_id) : null,
-          ma_sp: it.ma_sp || "",
-          ten_sp: it.ten_sp || "",
+          ma_sp: itemCode,
+          ten_sp: it.ten_sp || "Sản phẩm B2B",
           don_vi: it.don_vi || "Cái",
           so_luong: qty,
           don_gia: price,
@@ -192,11 +193,11 @@ export default class QuotationDAO {
         loai_don: "sale",
         khach_hang_ten: q.khach_hang?.ten || "Khách hàng B2B",
         nguoi_lap_id: ObjectId.isValid(userId) ? new ObjectId(userId) : new ObjectId(),
-        san_pham: q.items.map((it) => ({
-          san_pham_id: it.san_pham_id,
-          ma_sp: it.ma_sp,
-          ten_sp: it.ten_sp,
-          don_vi: it.don_vi,
+        san_pham: q.items.map((it, idx) => ({
+          san_pham_id: it.san_pham_id || undefined,
+          ma_sp: it.ma_sp || `SP-B2B-${idx + 1}`,
+          ten_sp: it.ten_sp || "Sản phẩm B2B",
+          don_vi: it.don_vi || "Cái",
           so_luong: it.so_luong,
           don_gia: it.don_gia,
           thanh_tien: it.thanh_tien,
