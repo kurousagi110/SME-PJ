@@ -1,0 +1,15 @@
+{
+  "name": "sme-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SME ERP Full-stack Monorepo",
+  "scripts": {
+    "prepare": "husky",
+    "test": "cd BackEndSME && npm test",
+    "test:backend": "cd BackEndSME && npm test",
+    "test:e2e": "node scratch/gstack_deep_qa_tester.js"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

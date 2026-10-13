@@ -1,0 +1,29 @@
+#!/bin/sh
+
+echo "🔍 [Husky] Running pre-commit validation checks..."
+
+# 1. Enforce AGENTS.md branch rule: Do not commit directly to main or dev
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "dev" ]; then
+  echo "❌ [Husky Error] Theo quy chuẩn AGENTS.md: Không được commit trực tiếp lên nhánh '$current_branch'!"
+  echo "👉 Vui lòng tạo nhánh tính năng: git checkout -b feature/ten-tinh-nang hoặc bugfix/ma-loi"
+  exit 1
+fi
+
+# 2. Syntax Check across BackEndSME
+echo "🔍 [Husky] Checking JavaScript syntax across BackEndSME..."
+find BackEndSME -name "*.js" -not -path "*/node_modules/*" -exec node --check {} +
+if [ $? -ne 0 ]; then
+  echo "❌ [Husky Error] Phát hiện lỗi cú pháp JavaScript trong BackEndSME!"
+  exit 1
+fi
+
+# 3. Run Backend Unit Tests
+echo "🧪 [Husky] Running Backend Unit Tests..."
+npm run test:backend
+if [ $? -ne 0 ]; then
+  echo "❌ [Husky Error] Unit test thất bại! Vui lòng sửa lỗi trước khi commit."
+  exit 1
+fi
+
+echo "✅ [Husky] Pre-commit checks passed successfully!"
