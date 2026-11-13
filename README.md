@@ -10,7 +10,11 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 - 💰 **Dự Báo Dòng Tiền & Đối Soát Sao Kê Ngân Hàng (Cash Flow Forecasting & Bank Reconciliation)**: Dự báo dòng tiền 12 tuần (Inflows từ đơn bán & công nợ phải thu, Outflows từ đơn mua, tiền lương, OPEX), tính Monthly Burn Rate và Runway Months. Tự động so khớp đối soát các dòng giao dịch sao kê ngân hàng với Sổ Quỹ SME.
 - 🏭 **Bảng Kanban Sản Xuất & Quản Lý Hao Hụt (Production Kanban & Scrap Tracking)**: Giám sát tiến độ xưởng trực quan qua 6 công đoạn (`raw_material_prep` $\to$ `machining` $\to$ `finishing` $\to$ `assembly_qc` $\to$ `completed`), hỗ trợ quét mã vạch Barcode, bắn realtime Socket.io và xuất báo cáo tỷ lệ đạt chuẩn Yield Rate (%) cùng tỷ lệ phế phẩm Scrap Rate (%).
 - 📑 **Hợp Đồng Kinh Tế B2B & Vòng Đời Bảo Hành (Contracts & Warranty Lifecycle)**: Quản lý hợp đồng B2B với thanh toán theo đợt (Milestone billing) — 1-click "Thu Tiền Đợt Này" tự động sinh ngay Phiếu Thu vào Sổ Quỹ. Cấp thẻ bảo hành điện tử theo Serial/SĐT, hỗ trợ tra cứu tức thì và ghi nhận nhật ký bảo dưỡng định kỳ.
-- 🤖 **Tự Động Hóa Telegram Bot & Báo Cáo Sáng (Telegram Bot Automation & Morning Briefing)**: Tự động gửi báo cáo tóm tắt đầu ngày (Doanh thu hôm qua, Số dư ngân quỹ thực tế, Số đơn hàng chờ duyệt ký) vào nhóm Telegram Ban Giám Đốc; gửi cảnh báo duyệt việc tức thời kèm nút bấm phê duyệt 1-click.
+- 🤖 **Tự Động Hóa Đa Kênh Telegram & Zalo OA/ZNS/Webhook (`/automation`)**: Cấu hình trực quan từ Admin; tự động chạy Cron Scheduler gửi Báo cáo sáng (Morning Briefing), Cảnh báo tồn kho thấp & lô cận hạn FEFO, Nhắc nợ quá hạn/hợp đồng đến hạn, và Cảnh báo tắc nghẽn sản xuất/phế phẩm QC vượt ngưỡng.
+- 🌐 **Cổng Khách Hàng Tự Phục Vụ (`/portal`) & VietQR**: Khách hàng tra cứu tiến độ đơn hàng, tiến độ sản xuất/vận chuyển, đợt thanh toán hợp đồng B2B kèm mã **VietQR**, và thẻ bảo hành điện tử chỉ với Mã tra cứu + 4 số cuối SĐT (không cần đăng nhập, có bảo vệ rate limit).
+- 🧠 **Agentic AI Copilot & OCR Hóa Đơn + Camera Barcode/QR + PWA**: Trợ lý AI nhận diện ý định hành động 1-click (`CREATE_MRP_PO`, `CHECK_LOW_STOCK`, v.v.), bóc tách dòng hóa đơn nhập hàng (OCR), quét mã vạch/QR bằng Camera thiết bị (`CameraBarcodeScanner`), và hỗ trợ cài đặt ứng dụng PWA (`manifest.json`).
+- 📦 **Quản Lý Lô Hàng FEFO & Kiểm Định Chất Lượng (QC / RMA)**: Quản lý lô sản xuất (`lo_san_xuat`), gợi ý xuất kho chuẩn **FEFO (First-Expired, First-Out)**, theo dõi Yield Rate / Scrap Rate sản xuất, và quy trình đổi trả hàng lỗi RMA phân loại nhập lại kho hay xuất hủy phế phẩm.
+- 🔐 **Phân Quyền RBAC 12 Vai Trò & Bảo Mật Đa Tầng**: Kế thừa quyền động (`Role Defaults` ∪ `Chức vụ` ∪ `User`), Nhật ký kiểm toán trực quan **Visual Diff (`Trước ↔ Sau`)** kèm mức độ nghiêm trọng (`info`/`warning`/`critical`), xác thực Webhook fail-closed (`timingSafeEqualStrings`), chống SSRF (`validateExternalWebhookUrl`), chống ReDoS (`escapeSafeRegexPattern`) và chống XSS (`escapeHtml`).
 - 🏷️ **Phân Hạng Giá B2B, Voucher & Chặn Nợ Quá Hạn (Tiered Pricing & Credit Limits)**: Phân tầng nhóm giá khách hàng (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), xác thực mã ưu đãi B2B (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), và cơ chế chặn nhân viên tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`).
 - 📋 **Báo Giá B2B & Chuyển Đổi Đơn Hàng 1-Click (Quote-to-Order)**: Lập báo giá chuyên nghiệp, tính thuế VAT & chiết khấu thương mại, theo dõi trạng thái vòng đời (`draft` $\to$ `sent` $\to$ `accepted` $\to$ `converted`) và tự động chuyển hóa thành Đơn Bán Hàng chỉ với 1 click.
 - 📦 **Thẻ Kho & Báo Cáo Xuất - Nhập - Tồn (Stock Movement Ledger)**: Báo cáo biến động kho chi tiết từng mặt hàng và tổng hợp XNT theo khoảng thời gian thực tế, phân tách rõ ràng nguồn gốc chứng từ (Đơn bán, Đơn mua, Sản xuất, Bàn giao kho, Điều chỉnh kiểm kê, Đổi trả RMA).
@@ -60,7 +64,8 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
   - *Quản lý Hợp Đồng Kinh Tế*: Quản lý tiến độ nghiệm thu và thanh toán chia đợt (Milestone billing). Thao tác 1-click "Thu Tiền Đợt Này" tự động sinh ngay **Phiếu Thu** vào Sổ Quỹ SME với mã chứng từ tương ứng.
   - *Vòng Đời Bảo Hành Điện Tử*: Cấp thẻ bảo hành điện tử theo Serial / IMEI, tra cứu nhanh trạng thái và thời hạn bảo hành theo SĐT khách hàng hoặc mã serial, ghi nhận nhật ký kỹ thuật & bảo dưỡng định kỳ kèm chi phí phát sinh.
 - **Đơn Bán Hàng (`/sales`)**: Lập và theo dõi đơn xuất bán, chọn nhanh đối tác từ CRM, tích hợp phân nhóm giá B2B (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), áp dụng mã ưu đãi voucher (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), cơ chế kiểm soát và chặn tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`), xuất Excel UTF-8 BOM, in hóa đơn A4 chuẩn đẹp, bàn giao 1-click sang xưởng sản xuất hoặc giao nhận logistics.
-- **Đổi Trả Hàng RMA (`/rma`)**: Quản lý yêu cầu bảo hành/đổi trả hàng, kiểm soát số lượng đổi trả so với đơn gốc, nghiệm thu QC và tự sinh phiếu chi hoàn tiền.
+- **Đổi Trả Hàng RMA (`/returns`)**: Quản lý yêu cầu bảo hành/đổi trả hàng, kiểm soát số lượng đổi trả so với đơn gốc, nghiệm thu QC (`nhap_lai_kho` / `phe_pham` / `can_sua_chua`) và tự sinh phiếu chi hoàn tiền.
+- **Cổng Khách Hàng Tự Phục Vụ (`/portal`)**: Khách hàng tra cứu công khai đơn hàng, hợp đồng B2B (kèm mã VietQR) và bảo hành bằng Mã + 4 số cuối SĐT.
 - **Vận Chuyển & Giao Hàng (`/shipping`)**: Quản lý vòng đời đơn giao hàng qua các đơn vị vận chuyển (GHN, GHTK, Viettel Post, J&T Express), theo dõi trạng thái, tiền thu hộ COD và **in phiếu vận đơn chuẩn logistics A6 / 75x100mm**.
 - **Khách Hàng & Nhà Cung Cấp (`/partners`)**: Mini CRM quản lý đối tác 360°, phân loại khách VIP/khách buôn, tự động tổng hợp doanh số LTV, lịch sử mua hàng và công nợ 2 chiều.
 - **In Mã Vạch (`/barcode`)**: Tạo và in tem nhãn mã vạch (Code 128 / QR) dán lên sản phẩm xuất xưởng.
@@ -86,14 +91,14 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 - **Sổ Quỹ & Công Nợ (`/cashbook`)**: Quản lý dòng tiền Thu - Chi, quỹ tiền mặt và tài khoản ngân hàng, sinh mã tự động `PT-...` / `PC-...`, đối soát công nợ 2 chiều, in Phiếu Thu/Chi A5 chuẩn kế toán.
 - **Khóa Sổ Kỳ Kế Toán (`/cashbook` tab Kỳ Kế Toán)**: Chốt sổ định kỳ (tháng/quý/năm), phong tỏa dữ liệu ngăn chặn sửa đổi chứng từ quá khứ để bảo vệ số liệu báo cáo tài chính.
 - **Trung Tâm Duyệt Việc (`/approvals`)**: Hàng đợi phê duyệt tập trung cho Ban Giám Đốc và Quản lý cấp phòng ban.
-- **Bảng Lương (`/payroll`)**: Tự động tổng hợp dữ liệu chấm công để tính lương toàn bộ nhân viên, phê duyệt chi lương khép kín tự sinh phiếu chi sổ quỹ, in phiếu lương A5 cá nhân và xuất Excel.
+- **Bảng Lương KPI Tự Động (`/payroll`)**: Tự động tổng hợp chấm công, cộng **Hoa hồng KD (2%)** + **Lương khoán SX** - **Phạt đi trễ**, phê duyệt chi lương khép kín tự sinh phiếu chi sổ quỹ, in phiếu lương A5 an toàn XSS (`escapeHtml`) và xuất Excel.
 - **Bảng Chấm Công (`/check-in`)**: Theo dõi lịch sử vào/ra ca làm, tự động tính tổng giờ công và trừ thời gian đi muộn.
 - **Hồ Sơ Nhân Sự (`/staff`)**: Quản lý danh sách nhân viên, mức lương cơ bản, chức danh và thông tin hợp đồng.
 - **Phòng Ban & Chức Vụ (`/department`)**: Thiết lập sơ đồ cơ cấu tổ chức công ty.
 
 ### 5. ⚙️ Hệ Thống & Tiện Ích
-- **Tự Động Hóa Telegram Bot (`/api/v1/bot/telegram`)**: Bot thông báo đa kênh, tự động gửi Báo cáo sáng (Morning Briefing) về doanh thu hôm qua, số dư ngân quỹ thực tế, số đơn hàng chờ duyệt ký vào nhóm Telegram Ban Giám Đốc; gửi cảnh báo duyệt việc tức thời kèm nút bấm 1-click.
-- **Trợ Lý AI SME Copilot (Widget toàn cục)**: Chatbot trí tuệ nhân tạo hỏi đáp số liệu doanh nghiệp tức thời bằng tiếng Việt (Doanh thu, Tồn kho cảnh báo, Công nợ, TMĐT đa kênh).
+- **Tự Động Hóa Đa Kênh Telegram & Zalo (`/automation`, `/api/v1/bot`)**: Cấu hình lịch chạy Cron nền (Morning Briefing, Cảnh báo tồn kho & FEFO, Nhắc nợ/Hợp đồng, Tắc nghẽn sản xuất & QC), hỗ trợ Telegram Bot và Zalo OA/ZNS/Webhook.
+- **Trợ Lý Agentic AI SME Copilot & OCR (Widget toàn cục)**: Chatbot trí tuệ nhân tạo hỏi đáp số liệu, gợi ý 1-click Action Cards (ví dụ tạo PO cho vật tư thiếu MRP) và bóc tách hóa đơn nhập hàng (`POST /api/v1/ai-copilot/ocr-invoice`).
 - **Nhập Dữ Liệu Excel (`/import`)**: Nhập hàng loạt danh mục hàng hóa, nhân sự từ file Excel.
 - **Nhật Ký Hệ Thống (`/audit-log`)**: Ghi nhận toàn bộ thao tác nghiệp vụ quan trọng phục vụ kiểm toán và truy vết bảo mật.
 - **Hộp Lệnh Nhanh (`Ctrl + K`)**: Tìm kiếm tính năng và mở form thao tác tắt chỉ với vài phím gõ.
@@ -209,11 +214,23 @@ docker cp BackEndSME/. sme_api:/app/ && docker restart sme_api
 docker compose build frontend
 docker compose up -d frontend
 
-# Chạy test suites xác minh toàn bộ luồng nghiệp vụ & 5 Big Update modules
-node scratch/verify_all_modules.js
-node scratch/test_stock_ledger_and_quotations.js
-node scratch/test_fixes_verification.js
-node scratch/test_inter_department.js
+# Chạy toàn bộ bộ kiểm thử (63 Unit/Integration tests + Deep QA 7 hành trình người dùng)
+npm test
+
+# Chạy riêng bộ test Backend (12 file test)
+npm run test:backend
+
+# Chạy riêng bộ test Kiểm kê Kho, Lô FEFO, Thẻ kho & Kiểm soát Chất lượng QC/RMA
+npm run test:inventory-qc
+
+# Chạy kiểm thử E2E & Kiến trúc (hỗ trợ --live với gstack Headless Browser $B)
+npm run test:e2e
+node scratch/gstack_deep_qa_tester.js --live
+
+# Husky Git Hooks tự động bảo vệ chất lượng trước mỗi commit / push:
+# - .husky/pre-commit : Chặn commit lên main/dev, check conflict, syntax JS, static security, chạy 12 file unit test
+# - .husky/commit-msg : Kiểm tra chuẩn Conventional Commits (feat:, fix:, test:, refactor:, docs:, chore:)
+# - .husky/pre-push   : Chặn push lên main/dev, chạy full Backend tests + Deep QA verification
 
 # Tạm dừng hệ thống (giữ nguyên dữ liệu)
 docker compose down

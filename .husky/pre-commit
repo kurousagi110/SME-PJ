@@ -10,16 +10,44 @@ if [ "$current_branch" = "main" ] || [ "$current_branch" = "dev" ]; then
   exit 1
 fi
 
-# 2. Syntax Check across BackEndSME
-echo "🔍 [Husky] Checking JavaScript syntax across BackEndSME..."
+# 2. Check for leftover Git merge conflict markers in staged files
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+if [ -n "$staged_files" ]; then
+  conflict_hits=$(echo "$staged_files" | xargs grep -nE "^(<<<<<<<|=======|>>>>>>>)" 2>/dev/null || true)
+  if [ -n "$conflict_hits" ]; then
+    echo "❌ [Husky Error] Phát hiện dấu vết merge conflict còn sót trong các file đã stage:"
+    echo "$conflict_hits"
+    exit 1
+  fi
+fi
+
+# 3. Syntax Check across BackEndSME and scratch QA scripts
+echo "🔍 [Husky] Checking JavaScript syntax across BackEndSME & scratch..."
 find BackEndSME -name "*.js" -not -path "*/node_modules/*" -exec node --check {} +
 if [ $? -ne 0 ]; then
   echo "❌ [Husky Error] Phát hiện lỗi cú pháp JavaScript trong BackEndSME!"
   exit 1
 fi
 
-# 3. Run Backend Unit Tests
-echo "🧪 [Husky] Running Backend Unit Tests..."
+if [ -d "scratch" ]; then
+  find scratch -name "*.js" -exec node --check {} +
+  if [ $? -ne 0 ]; then
+    echo "❌ [Husky Error] Phát hiện lỗi cú pháp JavaScript trong scratch/!"
+    exit 1
+  fi
+fi
+
+# 4. Static Security Check: Ensure no raw $regex interpolation without escapeSafeRegexPattern/escapeRegex
+echo "🛡️  [Husky] Running static security checks..."
+unsafe_regex=$(grep -rnE '\$regex:\s*new RegExp\(' BackEndSME/models BackEndSME/controllers 2>/dev/null | grep -vE 'escapeSafeRegexPattern|escapeRegex' || true)
+if [ -n "$unsafe_regex" ]; then
+  echo "❌ [Husky Error] Phát hiện \$regex chưa được sanitize bằng escapeSafeRegexPattern / escapeRegex:"
+  echo "$unsafe_regex"
+  exit 1
+fi
+
+# 5. Run Full Backend Unit & Integration Tests (including Inventory & QC)
+echo "🧪 [Husky] Running Backend Unit & Quality Tests..."
 npm run test:backend
 if [ $? -ne 0 ]; then
   echo "❌ [Husky Error] Unit test thất bại! Vui lòng sửa lỗi trước khi commit."

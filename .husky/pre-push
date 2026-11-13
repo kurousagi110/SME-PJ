@@ -1,0 +1,30 @@
+#!/bin/sh
+
+echo "🚀 [Husky] Running pre-push validation checks..."
+
+# 1. Enforce AGENTS.md branch rule: Never push directly to main or dev
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch" = "main" ] || [ "$current_branch" = "dev" ]; then
+  echo "❌ [Husky Error] Theo quy chuẩn AGENTS.md: Không được push trực tiếp lên nhánh '$current_branch'! Mọi thay đổi phải qua Pull Request."
+  exit 1
+fi
+
+# 2. Run Full Backend Test Suite
+echo "🧪 [Husky] Running full Backend test suite..."
+npm run test:backend
+if [ $? -ne 0 ]; then
+  echo "❌ [Husky Error] Backend unit tests failed! Push aborted."
+  exit 1
+fi
+
+# 3. Run Deep QA & E2E Architecture Verification
+if [ -f "scratch/gstack_deep_qa_tester.js" ]; then
+  echo "🔎 [Husky] Running Deep QA & E2E verification suite..."
+  npm run test:e2e
+  if [ $? -ne 0 ]; then
+    echo "❌ [Husky Error] Deep QA verification failed! Push aborted."
+    exit 1
+  fi
+fi
+
+echo "✅ [Husky] Pre-push checks passed! Ready to push."

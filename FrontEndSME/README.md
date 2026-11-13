@@ -23,19 +23,26 @@ Giao diện người dùng hiện đại, tinh gọn và tối ưu hóa cao cho 
 ## 🏗️ Cấu Trúc Thư Mục Chuẩn Hóa
 
 ```
-FrontEndSME/src/
-├── app/
-│   ├── (auth)/                 # Màn hình đăng nhập & bảo vệ phiên làm việc
-│   ├── (modules)/              # Các phân hệ nghiệp vụ ERP:
-│   │   ├── dashboard/          # Bảng điều khiển KPI & so sánh cùng kỳ YoY
+FrontEndSME/
+├── public/
+│   └── manifest.json           # Cấu hình PWA (Progressive Web App)
+└── src/
+    ├── app/
+    │   ├── (auth)/             # Màn hình đăng nhập & bảo vệ phiên làm việc
+    │   ├── portal/             # Cổng Khách Hàng Tự Phục Vụ (/portal - Mã + 4 số cuối SĐT + VietQR)
+    │   ├── (modules)/          # Các phân hệ nghiệp vụ ERP:
+    │   │   ├── automation/     # Cấu hình Cron Scheduler & Cảnh báo đa kênh (Telegram / Zalo)
+    │   │   ├── dashboard/      # Bảng điều khiển KPI & so sánh cùng kỳ YoY
 │   │   ├── contracts/          # Hợp đồng kinh tế B2B, tiến độ đợt thanh toán & bảo hành
 │   │   ├── financial-reports/  # Báo cáo P&L, Tuổi nợ, Dự báo dòng tiền 12 tuần & Đối soát sao kê
 │   │   ├── quotations/         # Báo giá B2B & Chuyển đổi Đơn hàng (Quote-to-Order)
 │   │   ├── sales/              # Đơn bán hàng, nhóm giá B2B, voucher & bàn giao 1-click
 │   │   ├── pos/                # Quầy bán lẻ thu ngân cảm ứng, in hóa đơn nhiệt
-│   │   ├── rma/                # Đổi trả hàng, bảo hành & kiểm định QC
+│   │   ├── returns/            # Đổi trả hàng RMA, bảo hành & kiểm định QC
 │   │   ├── stock-ledger/       # Thẻ kho chi tiết & Báo cáo Xuất - Nhập - Tồn (XNT)
-│   │   ├── stock-adjustments/  # Phiếu kiểm kê điều chỉnh cân bằng kho
+│   │   ├── stock-adjustments/  # Phiếu kiểm kê điều chỉnh cân bằng kho (hỗ trợ quét Camera QR/Barcode)
+│   │   ├── traceability/       # Truy xuất nguồn gốc lô sản xuất (lo_san_xuat) & hạn dùng FEFO
+│   │   ├── warehouse/          # Quản lý tồn kho tổng hợp & xuất nhập kho
 │   │   ├── product/            # Danh mục sản phẩm, BOM & Lệnh SX (kèm tab Kanban tiến độ xưởng)
 │   │   ├── material/           # Danh mục vật tư, đơn mua hàng nhập kho
 │   │   ├── cashbook/           # Sổ quỹ Thu - Chi, quản lý công nợ & Chốt sổ kỳ kế toán
@@ -51,7 +58,9 @@ FrontEndSME/src/
 │   │   ├── import/             # Nhập dữ liệu hàng loạt từ file Excel
 │   │   └── audit-log/          # Nhật ký kiểm toán thao tác hệ thống (Admin)
 │   └── actions/                # Next.js Server Actions (Standard English Naming):
+│       ├── automation.ts       # Cấu hình Cron & gửi cảnh báo thử nghiệm Telegram/Zalo
 │       ├── bot.ts              # Thao tác cấu hình & kiểm tra Telegram bot
+│       ├── portal.ts           # Tra cứu cổng khách hàng /portal
 │       ├── contract.ts         # Nghiệp vụ hợp đồng B2B & thanh toán đợt
 │       ├── dashboard.ts        # Lấy số liệu KPI, biểu đồ & YoY compare
 │       ├── financial.ts        # P&L, aging debt, cashflow forecast & bank reconcile
@@ -74,7 +83,9 @@ FrontEndSME/src/
 │   ├── app-sidebar.tsx         # Thanh điều hướng phân tầng 5 khối nghiệp vụ
 │   ├── command-palette.tsx     # Hộp lệnh nhanh Ctrl + K
 │   ├── notifications.tsx       # Chuông thông báo realtime & badge chưa đọc
-│   ├── ai-copilot-widget.tsx   # Trợ lý AI SME Copilot toàn cục
+│   ├── ai-copilot-widget.tsx   # Trợ lý Agentic AI SME Copilot (1-click Action Cards & OCR hóa đơn)
+│   ├── camera-barcode-scanner.tsx # Quét mã vạch/QR trực tiếp qua Camera thiết bị
+│   ├── supplier-atp-tab.tsx    # Tab Cam kết ngày giao ATP & Bảng điểm NCC (S/A/B/C)
 │   └── ui/                     # Bộ component Shadcn UI (Button, Dialog, Table...)
 ├── hooks/                      # Custom React Hooks & TanStack Query Hooks:
 │   ├── use-product-bom.ts      # Hook lấy danh sách sản phẩm kèm cấu hình BOM
@@ -86,6 +97,7 @@ FrontEndSME/src/
 │   └── useSocket.tsx           # Hook kết nối Socket.io realtime
 └── lib/                        # Thư viện tiện ích:
     ├── http.ts                 # HTTP client cấu hình token an toàn
+    ├── permissions.ts          # Ma trận phân quyền RBAC 12 vai trò đồng bộ với Backend
     ├── utils.ts                # Định dạng tiền tệ VNĐ, ngày tháng tiếng Việt
     ├── export.ts               # Xuất file CSV UTF-8 BOM chuẩn Excel tiếng Việt
     └── barcode.ts              # Tiện ích in ấn hóa đơn nhiệt, tem mã vạch & vận đơn

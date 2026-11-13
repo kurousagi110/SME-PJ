@@ -27,7 +27,10 @@ BackEndSME/
 ├── server.js                    # Cấu hình Express app, middleware chuỗi, mount router v1
 ├── seed.js                      # Kịch bản khởi tạo dữ liệu mẫu thực tế
 ├── controllers/                 # Lớp tiếp nhận HTTP Request & trả Response (Standard English Classes)
+│   ├── aiCopilotController.js   # Trợ lý Agentic AI Copilot & OCR Hóa đơn nhập hàng
 │   ├── approvalController.js    # Trung tâm duyệt việc tập trung (Unified Approval Hub)
+│   ├── auditLogController.js    # Nhật ký kiểm toán hệ thống & Visual Diff
+│   ├── batchController.js       # Quản lý lô sản xuất (lo_san_xuat) & gợi ý xuất kho FEFO
 │   ├── cashbookController.js    # Sổ quỹ, dòng tiền & khóa sổ kỳ kế toán (CashbookController)
 │   ├── contractController.js    # Quản lý hợp đồng B2B & đợt thanh toán (ContractController)
 │   ├── dashboardController.js   # Báo cáo tổng quan KPI, tăng trưởng cùng kỳ YoY
@@ -38,7 +41,9 @@ BackEndSME/
 │   ├── orderController.js       # Đơn bán, chiết khấu B2B, voucher, chặn nợ & bàn giao
 │   ├── partnerController.js     # Mini CRM quản lý đối tác 360° (PartnerController)
 │   ├── payrollController.js     # Bảng lương & chấm công nhân viên (PayrollController)
-│   ├── planningController.js    # Dự báo nhu cầu bán hàng, MRP, ABC Pareto, TMĐT
+│   ├── planningController.js    # Dự báo nhu cầu, MRP, ABC Pareto, TMĐT, ATP & Supplier Scorecard
+│   ├── portalController.js      # Cổng tra cứu khách hàng công khai /portal (4 số cuối SĐT + VietQR)
+│   ├── paymentController.js     # Webhook thanh toán SePay/Casso (timingSafeEqualStrings)
 │   ├── productController.js     # Danh mục sản phẩm & định mức BOM (ProductController)
 │   ├── productionController.js  # Lệnh SX, Kanban 6 công đoạn, hao hụt & Yield Rate
 │   ├── quotationController.js   # Báo giá B2B & chuyển đổi Quote-to-Order
@@ -94,8 +99,9 @@ BackEndSME/
 │   ├── stock-adjustment.route.js # (Alias: dieu-chinh-kho.route.js)
 │   ├── stock-ledger.route.js    # (Alias: the-kho.route.js)
 │   └── warranty.route.js        # Thẻ bảo hành, tra cứu & nhật ký bảo trì
-├── middleware/                  # JWT auth, role authorization, asyncHandler, errorHandler
-└── utils/                       # Audit logger, response formatter, socketManager, Winston
+├── middleware/                  # JWT auth, RBAC 12 vai trò, asyncHandler, errorHandler
+├── utils/                       # securityHelpers, permissions, payrollCalculator, auditDiff, planningEngine, aiAgentParser, automationConfig, cronScheduler
+└── tests/                       # 12 file Unit & Integration Tests (63 test cases với node:test)
 ```
 
 ---
@@ -168,20 +174,25 @@ npm run dev
 
 ---
 
-## 🧪 Bộ Kịch Bản Kiểm Thử (Verification Test Suites)
+## 🧪 Bộ Kịch Bản Kiểm Thử (Unit, Integration & E2E QA Suites)
 
-Hệ thống đi kèm 3 bộ test suite tự động kiểm tra toàn bộ luồng nghiệp vụ khép kín:
+Hệ thống sở hữu bộ **12 file Unit & Integration Test** (`63` test cases) chạy bằng `node --test` (không phụ thuộc DB ngoài) và trình kiểm thử **Deep QA E2E** bằng `gstack`:
+
 ```bash
-# 1. Kiểm tra Thẻ Kho, XNT và Báo Giá B2B Quote-to-Order
-node scratch/test_stock_ledger_and_quotations.js
+# 1. Chạy toàn bộ 12 file Unit & Integration Test (63 test cases)
+cd BackEndSME && npm test
 
-# 2. Kiểm tra Phân quyền bảo mật, Khóa sổ kỳ kế toán, RMA & QC, POS Auto-Cashbook
-node scratch/test_fixes_verification.js
+# 2. Chạy riêng bộ test Kiểm kê Kho, Lô FEFO, Thẻ kho & Kiểm soát Chất lượng QC/RMA
+npm run test:inventory-qc
 
-# 3. Kiểm tra Luồng Bàn Giao 1-Click Handover & Thông Báo @Mentions Realtime
-node scratch/test_inter_department.js
-
-# 4. Kiểm tra E2E 5 Big Update Modules (Cashflow, Kanban, Coupons, Telegram Bot, Contracts/Warranty)
-node scratch/verify_all_modules.js
+# 3. Chạy kiểm thử toàn diện 7 Hành trình Người dùng & Bảo mật bằng gstack
+npm run test:e2e
+node scratch/gstack_deep_qa_tester.js --live
 ```
-Tất cả các bộ test đều chạy tự động qua REST API thực tế và xác thực tính toàn vẹn của dữ liệu trong cơ sở dữ liệu.
+
+Danh sách các nhóm kiểm thử chính trong `BackEndSME/tests/`:
+- `stockAdjustmentAndInventory.test.js`: Kiểm kê kho, chênh lệch thừa/thiếu, phê duyệt nguyên tử & cảnh báo tồn tối thiểu.
+- `batchFefoAndStockLedger.test.js`: Thuật toán xuất kho **FEFO**, cảnh báo lô cận hạn & cân bằng **Thẻ kho**.
+- `qcYieldAndRmaReturn.test.js`: Tỷ lệ đạt/phế phẩm QC (`> 5%`), hạn mức đổi trả RMA & phân loại nhập kho/phế phẩm/hoàn tiền Sổ quỹ.
+- `portalAndWebhookSecurity.test.js`: Xác thực `/portal` 4 số cuối SĐT, Webhook Telegram/Zalo SSRF, `computeAuditDiff` & `escapeSafeRegexPattern`.
+- `rbacPermissions.test.js`, `securityHelpers.test.js`, `enterpriseFeatures.test.js`, `orderAndPricing.test.js`, `productionAndKanban.test.js`, `financialAndCashflow.test.js`, `contractsAndWarranty.test.js`, `businessLogic.test.js`.
