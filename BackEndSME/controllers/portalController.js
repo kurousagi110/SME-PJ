@@ -47,17 +47,17 @@ export default class PortalController {
    */
   static lookup = asyncHandler(async (req, res) => {
     if (!donHangCol) {
-      return sendError(res, "Dịch vụ tra cứu chưa sẵn sàng", 503);
+      return sendError(res, "Dịch vụ tra cứu chưa sẵn sàng", "SERVICE_UNAVAILABLE", 503);
     }
 
     const code = String(req.query.code || "").trim();
     const phone = String(req.query.phone || "").trim();
 
     if (!code) {
-      return sendError(res, "Vui lòng nhập mã đơn hàng, hợp đồng hoặc bảo hành", 400);
+      return sendError(res, "Vui lòng nhập mã đơn hàng, hợp đồng hoặc bảo hành", "VALIDATION_ERROR", 400);
     }
     if (last4Digits(phone).length < 4) {
-      return sendError(res, "Vui lòng nhập ít nhất 4 số cuối số điện thoại đặt hàng để xác thực", 400);
+      return sendError(res, "Vui lòng nhập ít nhất 4 số cuối số điện thoại đặt hàng để xác thực", "VALIDATION_ERROR", 400);
     }
 
     const codeRegex = new RegExp(`^${escapeSafeRegexPattern(code)}$`, "i");
@@ -97,7 +97,7 @@ export default class PortalController {
       ].filter(Boolean);
 
       if (candidatePhones.length === 0 || !candidatePhones.some((p) => verifyPhoneLast4(p, phone))) {
-        return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", 404);
+        return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", "PORTAL_NOT_FOUND", 404);
       }
 
       return sendSuccess(
@@ -144,7 +144,7 @@ export default class PortalController {
           contract.so_dien_thoai || contract.khach_hang?.so_dien_thoai || partner?.so_dien_thoai || "";
 
         if (!verifyPhoneLast4(contractPhone, phone)) {
-          return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", 404);
+          return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", "PORTAL_NOT_FOUND", 404);
         }
 
         const rawMilestones = contract.dot_thanh_toan || contract.cac_dot_thanh_toan || [];
@@ -188,7 +188,7 @@ export default class PortalController {
       if (warranty) {
         const wPhone = warranty.so_dien_thoai || warranty.khach_hang?.so_dien_thoai || "";
         if (!verifyPhoneLast4(wPhone, phone)) {
-          return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", 404);
+          return sendError(res, "Mã tra cứu hoặc 4 số cuối SĐT không khớp", "PORTAL_NOT_FOUND", 404);
         }
 
         return sendSuccess(
@@ -209,6 +209,6 @@ export default class PortalController {
       }
     }
 
-    return sendError(res, "Không tìm thấy chứng từ phù hợp với mã và SĐT đã nhập", 404);
+    return sendError(res, "Không tìm thấy chứng từ phù hợp với mã và SĐT đã nhập", "PORTAL_NOT_FOUND", 404);
   });
 }

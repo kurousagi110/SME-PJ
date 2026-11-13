@@ -614,6 +614,7 @@ export function DepartmentManagement() {
                     ten_chuc_vu: true,
                     mo_ta: true,
                     he_so_luong: true,
+                    role_code: true,
                   });
                   positionForm.reset(
                     { ten_chuc_vu: "", mo_ta: "", he_so_luong: 0.1 },

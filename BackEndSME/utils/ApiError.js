@@ -51,6 +51,10 @@ export default class ApiError extends Error {
     return new ApiError(message, 500, errorCode, false);
   }
 
+  static serviceUnavailable(message = "Dịch vụ tạm thời không khả dụng", errorCode = "SERVICE_UNAVAILABLE") {
+    return new ApiError(message, 503, errorCode);
+  }
+
   static validationError(message, errorCode = "VALIDATION_ERROR", data = null) {
     return new ApiError(message, 400, errorCode, true, data);
   }

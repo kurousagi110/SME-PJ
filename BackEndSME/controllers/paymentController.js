@@ -129,10 +129,6 @@ export default class PaymentController {
         }
       }
     }
-        }
-      }
-    }
-
 
     if (!order) {
       logger.warn(`[Payment Webhook] Không tìm thấy đơn hàng khớp với nội dung: "${content}"`);

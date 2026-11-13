@@ -8,7 +8,7 @@ import logger from "./logger.js";
 import { getDB } from "../config/database.js";
 import { BotNotifierService } from "../services/botNotifierService.js";
 import { shouldDailyJobRunNow } from "./automationConfig.js";
-import { emitNotification } from "./socketManager.js";
+import { notifyAdmin, notifyApprover } from "./socketManager.js";
 
 let tickTimer = null;
 const lastRunDateMap = new Map(); // jobName -> "YYYY-MM-DD"
@@ -208,11 +208,13 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
 
     // 2. Phát realtime Socket notification trong app
     try {
-      emitNotification("all", {
+      const socketPayload = {
         tieu_de: title,
         noi_dung: summary,
         loai: "automation_alert",
-      });
+      };
+      notifyAdmin(socketPayload);
+      notifyApprover(socketPayload);
     } catch {
       // socket optional
     }
