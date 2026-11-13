@@ -26,7 +26,7 @@ export default class FinancialReportDAO {
     soQuyCol = db.collection("so_quy");
     sanPhamCol = db.collection("san_pham");
     nguyenLieuCol = db.collection("nguyen_lieu");
-    returnCol = db.collection("doi_tra");
+    returnCol = db.collection("doi_tra_hang");
     doiTacCol = db.collection("doi_tac");
     luongCol = db.collection("luong");
     bangLuongChotCol = db.collection("bang_luong_chot");

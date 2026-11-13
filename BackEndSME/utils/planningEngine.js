@@ -103,7 +103,11 @@ export function computeSupplierScorecard(suppliers = [], purchaseOrders = []) {
 
   for (const po of purchaseOrders) {
     const supplierId = String(po.doi_tac_id || po.nha_cung_cap_id || "");
-    const supplierName = String(po.doi_tac?.ten || po.nha_cung_cap?.ten || "").trim().toLowerCase();
+    const supplierName = String(
+      po.nha_cung_cap_ten || po.doi_tac?.ten || po.nha_cung_cap?.ten || ""
+    )
+      .trim()
+      .toLowerCase();
     const key = supplierId || supplierName;
     if (!key) continue;
 

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { sanitizeNumber } from "../utils/number.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let san_pham;
 let nguyen_lieu;
@@ -223,7 +224,7 @@ export default class SanXuatService {
     const filter = {};
     if (san_pham_id) filter.san_pham_id = new ObjectId(san_pham_id);
     if (search) {
-      const q = String(search).trim();
+      const q = escapeSafeRegexPattern(search);
       filter.$or = [
         { ma_lo: { $regex: q, $options: "i" } },
         { ten_sp: { $regex: q, $options: "i" } },

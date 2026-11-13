@@ -20,7 +20,6 @@ let san_pham_col = null;
 let nguyen_lieu_col = null;
 let bom_col = null;
 let doi_tac_col = null;
-let lenh_san_xuat_col = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +66,6 @@ export class PlanningDAO {
       nguyen_lieu_col = db.collection("nguyen_lieu");
       bom_col = db.collection("bom_san_pham");
       doi_tac_col = db.collection("doi_tac");
-      lenh_san_xuat_col = db.collection("lenh_san_xuat");
     } catch (e) {
       logger.error("PlanningDAO injectDB error", { error: e.message });
     }
@@ -694,8 +692,11 @@ export class PlanningDAO {
       san_pham_col.find({ trang_thai: { $ne: "deleted" } }).toArray(),
       bom_col ? bom_col.find({}).toArray() : [],
       nguyen_lieu_col.find({ trang_thai: { $ne: "deleted" } }).toArray(),
-      lenh_san_xuat_col
-        ? lenh_san_xuat_col.countDocuments({ trang_thai: { $in: ["pending", "in_progress"] } })
+      don_hang_col
+        ? don_hang_col.countDocuments({
+            loai_don: { $in: ["prod_receipt", "production_receipt"] },
+            trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
+          })
         : 0,
     ]);
 
@@ -723,7 +724,7 @@ export class PlanningDAO {
         .toArray(),
       don_hang_col
         .find({ loai_don: ORDER_TYPE.PURCHASE_RECEIPT, trang_thai: { $ne: "deleted" } })
-        .project({ doi_tac_id: 1, nha_cung_cap_id: 1, doi_tac: 1, nha_cung_cap: 1, trang_thai: 1, tong_tien: 1, ngay_giao_du_kien: 1, updated_at: 1 })
+        .project({ doi_tac_id: 1, nha_cung_cap_id: 1, nha_cung_cap_ten: 1, doi_tac: 1, nha_cung_cap: 1, trang_thai: 1, tong_tien: 1, ngay_giao_du_kien: 1, updated_at: 1 })
         .toArray(),
     ]);
     return computeSupplierScorecard(suppliers, purchaseOrders);

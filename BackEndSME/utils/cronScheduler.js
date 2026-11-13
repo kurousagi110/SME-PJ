@@ -60,15 +60,20 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
       const endOfYesterday = new Date(startOfYesterday);
       endOfYesterday.setDate(endOfYesterday.getDate() + 1);
 
-      const [ordersCount, pendingApprovals, cashEntries] = await Promise.all([
-        db.collection("hoa_don").countDocuments({
-          loai_phieu: "sale",
-          trang_thai: "completed",
-          ngay_lap: { $gte: startOfYesterday, $lt: endOfYesterday },
+      const [ordersCount, pendingOrders, pendingAdjustments, cashEntries] = await Promise.all([
+        db.collection("don_hang").countDocuments({
+          loai_don: "sale",
+          trang_thai: { $in: ["completed", "paid"] },
+          $or: [
+            { ngay_dat: { $gte: startOfYesterday, $lt: endOfYesterday } },
+            { created_at: { $gte: startOfYesterday, $lt: endOfYesterday } },
+          ],
         }),
-        db.collection("don_hang").countDocuments({ trang_thai: "pending" }),
+        db.collection("don_hang").countDocuments({ trang_thai: "draft" }),
+        db.collection("dieu_chinh_kho").countDocuments({ trang_thai: "pending" }),
         db.collection("so_quy").find({ trang_thai: "active" }).project({ loai_phieu: 1, so_tien: 1 }).toArray(),
       ]);
+      const pendingApprovals = pendingOrders + pendingAdjustments;
 
       const cashBalance = cashEntries.reduce(
         (sum, e) => sum + (e.loai_phieu === "thu" ? Number(e.so_tien || 0) : -Number(e.so_tien || 0)),
@@ -105,10 +110,10 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
           .limit(10)
           .toArray(),
         db
-          .collection("lo_hang")
+          .collection("lo_san_xuat")
           .find({
-            trang_thai: { $ne: "deleted" },
-            so_luong_con: { $gt: 0 },
+            trang_thai: "active",
+            so_luong_ton: { $gt: 0 },
             han_su_dung: { $lte: cutoffDate, $gte: new Date() },
           })
           .limit(10)
@@ -129,25 +134,19 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
         `⏳ Lô hàng sắp hết hạn (≤ ${fefoDays} ngày): <b>${expiringBatches.length}</b>\n` +
         `👉 Vui lòng kiểm tra phân hệ Kho & Hoạch định MRP.`;
     } else if (jobKey === "overdue_debt_contract_alert") {
-      const now = new Date();
       const [overdueContracts, unpaidOrders] = await Promise.all([
         db
-          .collection("hop_dong_kinh_te")
+          .collection("hop_dong")
           .find({
             trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
-            "cac_dot_thanh_toan": {
-              $elemMatch: {
-                trang_thai: { $ne: "da_thanh_toan" },
-                han_thanh_toan: { $lt: now },
-              },
-            },
+            "dot_thanh_toan.trang_thai": "pending",
           })
           .limit(10)
           .toArray(),
         db
-          .collection("hoa_don")
+          .collection("don_hang")
           .find({
-            loai_phieu: "sale",
+            loai_don: "sale",
             trang_thai: { $nin: ["cancelled", "deleted"] },
             "thanh_toan.status": { $in: ["unpaid", "partial"] },
           })
@@ -156,7 +155,7 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
       ]);
 
       title = "Cảnh Báo Công Nợ & Hợp Đồng B2B Quá Hạn";
-      summary = `${overdueContracts.length} hợp đồng trễ đợt · ${unpaidOrders.length} hóa đơn chưa thu đủ`;
+      summary = `${overdueContracts.length} hợp đồng còn đợt chờ thu · ${unpaidOrders.length} đơn hàng chưa thu đủ`;
 
       if (trigger === "cron" && overdueContracts.length === 0 && unpaidOrders.length === 0) {
         return { ok: true, skipped: true, summary: "Không có công nợ quá hạn" };
@@ -164,17 +163,18 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
 
       message =
         `💳 <b>[CẢNH BÁO CÔNG NỢ & HỢP ĐỒNG]</b>\n` +
-        `📄 Hợp đồng B2B có đợt thanh toán trễ hạn: <b>${overdueContracts.length}</b>\n` +
-        `🧾 Hóa đơn bán hàng chưa thu đủ tiền: <b>${unpaidOrders.length}</b>\n` +
+        `📄 Hợp đồng B2B còn đợt thanh toán chờ thu: <b>${overdueContracts.length}</b>\n` +
+        `🧾 Đơn bán hàng chưa thu đủ tiền: <b>${unpaidOrders.length}</b>\n` +
         `👉 Bộ phận Kế toán & Kinh doanh vui lòng đôn đốc thu hồi công nợ.`;
     } else if (jobKey === "production_bottleneck_alert") {
       const thresholdHours = Number(jobCfg.threshold_hours || 48);
       const cutoff = new Date(Date.now() - thresholdHours * 3600_000);
 
       const stuckOrders = await db
-        .collection("lenh_san_xuat")
+        .collection("don_hang")
         .find({
-          trang_thai: { $in: ["pending", "in_progress"] },
+          loai_don: { $in: ["prod_receipt", "production_receipt"] },
+          trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
           updated_at: { $lt: cutoff },
         })
         .limit(10)
@@ -191,7 +191,7 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
         `🏭 <b>[CẢNH BÁO NGHẼN SẢN XUẤT]</b>\n` +
         `⏱️ Số lệnh sản xuất chưa chuyển công đoạn quá <b>${thresholdHours} giờ</b>: <b>${stuckOrders.length}</b>\n` +
         (stuckOrders.length > 0
-          ? `📌 Mã lệnh tiêu biểu: ${stuckOrders.slice(0, 3).map((o) => o.ma_lenh || o._id).join(", ")}\n`
+          ? `📌 Mã lệnh tiêu biểu: ${stuckOrders.slice(0, 3).map((o) => o.ma_dh || o._id).join(", ")}\n`
           : "") +
         `👉 Quản đốc xưởng vui lòng kiểm tra bảng Kanban sản xuất.`;
     } else {

@@ -42,7 +42,7 @@ export default class AiCopilotDAO {
     soQuyCol = db.collection("so_quy");
     doiTacCol = db.collection("doi_tac");
     usersCol = db.collection("users");
-    luongCol = db.collection("bang_luong");
+    luongCol = db.collection("luong");
     vanChuyenCol = db.collection("van_chuyen");
     logger.info("AiCopilotDAO initialized");
   }

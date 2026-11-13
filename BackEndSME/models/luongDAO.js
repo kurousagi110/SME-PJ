@@ -9,8 +9,8 @@ let luongCol;
 let usersCol;
 let soQuyCol;
 let bangLuongChotCol;
-let hoaDonCol;
-let lenhSanXuatCol;
+let donHangCol;
+let sanXuatLogsCol;
 
 const STATUS = {
   ACTIVE: "active",
@@ -29,8 +29,8 @@ export default class LuongDAO {
       usersCol = db.collection("users");
       soQuyCol = db.collection("so_quy");
       bangLuongChotCol = db.collection("bang_luong_chot");
-      hoaDonCol = db.collection("hoa_don");
-      lenhSanXuatCol = db.collection("lenh_san_xuat");
+      donHangCol = db.collection("don_hang");
+      sanXuatLogsCol = db.collection("san_xuat_logs");
 
       await luongCol.createIndex({ ma_nv: 1, ngay_thang: 1 }, { unique: true });
       await luongCol.createIndex({ user_id: 1, ngay_thang: 1 });
@@ -361,36 +361,32 @@ export default class LuongDAO {
         if (nv.tai_khoan) nvMap.set(String(nv.tai_khoan), nv);
       }
 
-      // Batch fetch sales revenue by staff (hoa_don: loai_phieu='sale', trang_thai='completed')
+      // Batch fetch sales revenue by staff (don_hang: loai_don='sale', trang_thai='completed')
       const salesByStaffMap = new Map();
-      if (hoaDonCol) {
+      if (donHangCol) {
         try {
-          const salesAgg = await hoaDonCol.aggregate([
+          const salesAgg = await donHangCol.aggregate([
             {
               $match: {
-                loai_phieu: "sale",
+                loai_don: "sale",
                 trang_thai: "completed",
-                ngay_lap: { $gte: startDate, $lt: endDate },
+                $or: [
+                  { ngay_dat: { $gte: startDate, $lt: endDate } },
+                  { created_at: { $gte: startDate, $lt: endDate } },
+                ],
               },
             },
             {
               $group: {
-                _id: {
-                  id: "$nguoi_lap_id",
-                  tai_khoan: "$nguoi_lap.tai_khoan",
-                },
+                _id: "$nguoi_lap_id",
                 tong_doanh_so: { $sum: { $ifNull: ["$tong_tien", 0] } },
               },
             },
           ]).toArray();
           for (const s of salesAgg) {
             const val = Number(s.tong_doanh_so || 0);
-            if (s._id?.id) {
-              const k = String(s._id.id);
-              salesByStaffMap.set(k, (salesByStaffMap.get(k) || 0) + val);
-            }
-            if (s._id?.tai_khoan) {
-              const k = String(s._id.tai_khoan);
+            if (s._id) {
+              const k = String(s._id);
               salesByStaffMap.set(k, (salesByStaffMap.get(k) || 0) + val);
             }
           }
@@ -399,26 +395,22 @@ export default class LuongDAO {
         }
       }
 
-      // Batch fetch completed production output (lenh_san_xuat: trang_thai='completed')
+      // Batch fetch completed production output (san_xuat_logs + don_hang loai_don in prod_receipt/production_receipt)
       let totalCompletedProductionQty = 0;
       const prodByStaffMap = new Map();
-      if (lenhSanXuatCol) {
+      if (sanXuatLogsCol) {
         try {
-          const prodOrders = await lenhSanXuatCol
+          const prodLogs = await sanXuatLogsCol
             .find({
-              trang_thai: "completed",
-              $or: [
-                { ngay_hoan_thanh: { $gte: startDate, $lt: endDate } },
-                { updated_at: { $gte: startDate, $lt: endDate } },
-              ],
+              created_at: { $gte: startDate, $lt: endDate },
             })
-            .project({ so_luong_dat: 1, so_luong: 1, nguoi_phu_trach_id: 1, nguoi_tao_id: 1 })
+            .project({ so_luong_sx: 1, so_luong_dat: 1, so_luong: 1, nguoi_thuc_hien_id: 1, user_id: 1 })
             .toArray();
 
-          for (const po of prodOrders) {
-            const qty = Math.max(0, Number(po.so_luong_dat ?? po.so_luong ?? 0));
+          for (const po of prodLogs) {
+            const qty = Math.max(0, Number(po.so_luong_dat ?? po.so_luong_sx ?? po.so_luong ?? 0));
             totalCompletedProductionQty += qty;
-            const ownerId = po.nguoi_phu_trach_id || po.nguoi_tao_id;
+            const ownerId = po.nguoi_thuc_hien_id || po.user_id;
             if (ownerId) {
               const k = String(ownerId);
               prodByStaffMap.set(k, (prodByStaffMap.get(k) || 0) + qty);
