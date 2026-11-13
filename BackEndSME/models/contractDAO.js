@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "./soQuyDAO.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let contractsCol = null;
 
@@ -20,10 +21,11 @@ export class ContractDAO {
     const filter = {};
     if (trang_thai) filter.trang_thai = trang_thai;
     if (q) {
+      const safeQ = escapeSafeRegexPattern(q);
       filter.$or = [
-        { ma_hop_dong: new RegExp(q, "i") },
-        { ten_hop_dong: new RegExp(q, "i") },
-        { partner_name: new RegExp(q, "i") },
+        { ma_hop_dong: new RegExp(safeQ, "i") },
+        { ten_hop_dong: new RegExp(safeQ, "i") },
+        { partner_name: new RegExp(safeQ, "i") },
       ];
     }
 

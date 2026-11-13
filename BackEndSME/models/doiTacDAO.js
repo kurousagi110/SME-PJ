@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 export const LOAI_DOI_TAC = {
   KHACH_HANG: "khach_hang",
@@ -116,7 +117,7 @@ export default class DoiTacDAO {
       }
 
       if (search && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
+        const regex = new RegExp(escapeSafeRegexPattern(search), "i");
         conditions.push({
           $or: [
             { ma_doi_tac: regex },

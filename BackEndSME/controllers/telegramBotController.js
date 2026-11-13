@@ -6,6 +6,7 @@ import { BotNotifierService } from "../services/botNotifierService.js";
 import { mergeAutomationConfig, toPublicAutomationConfig } from "../utils/automationConfig.js";
 import { runAutomationJob, getCronSchedulerStatus } from "../utils/cronScheduler.js";
 import { logAction } from "../utils/auditLogger.js";
+import { timingSafeEqualStrings, validateExternalWebhookUrl } from "../utils/securityHelpers.js";
 import { getDB } from "../config/database.js";
 
 export class TelegramBotController {
@@ -75,9 +76,21 @@ export class TelegramBotController {
 
   /**
    * Webhook nhận tương tác từ Telegram (Duyệt chứng từ 1-Click)
-   * POST /api/v1/bot/telegram/webhook (Public webhook)
+   * POST /api/v1/bot/telegram/webhook (Public webhook - xác thực bằng X-Telegram-Bot-Api-Secret-Token)
    */
   static handleWebhook = asyncHandler(async (req, res) => {
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
+    if (!expectedSecret) {
+      if (process.env.NODE_ENV === "production") {
+        throw ApiError.serviceUnavailable("TELEGRAM_WEBHOOK_SECRET chưa được cấu hình");
+      }
+    } else {
+      const incomingSecret = String(req.headers["x-telegram-bot-api-secret-token"] || "");
+      if (!timingSafeEqualStrings(incomingSecret, expectedSecret)) {
+        throw ApiError.unauthorized("Telegram webhook secret token không hợp lệ");
+      }
+    }
+
     const body = req.body || {};
     if (body.callback_query) {
       await TelegramBotService.handleCallbackQuery(body.callback_query);
@@ -115,6 +128,14 @@ export class TelegramBotController {
 
     const existing = await BotNotifierService.getAutomationConfig();
     const merged = mergeAutomationConfig(existing, req.body || {});
+
+    if (merged.channels.zalo.enabled && merged.channels.zalo.mode === "webhook" && merged.channels.zalo.webhook_url) {
+      const urlCheck = validateExternalWebhookUrl(merged.channels.zalo.webhook_url);
+      if (!urlCheck.valid) {
+        throw ApiError.badRequest(urlCheck.reason || "Zalo Webhook URL không hợp lệ");
+      }
+      merged.channels.zalo.webhook_url = urlCheck.normalizedUrl;
+    }
 
     await db.collection("ai_settings").updateOne(
       { type: "automation_config" },

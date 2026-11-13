@@ -7,11 +7,11 @@ const router = express.Router();
 /* Webhook public nhận callback từ Telegram */
 router.post("/telegram/webhook", TelegramBotController.handleWebhook);
 
-/* Quản trị & Test (Cần đăng nhập) */
-router.get("/telegram/status",             verifyToken, TelegramBotController.getStatus);
+/* Quản trị & Test (Chỉ Admin) */
+router.get("/telegram/status",             verifyToken, verifyAdmin, TelegramBotController.getStatus);
 router.post("/telegram/config",            verifyToken, verifyAdmin, TelegramBotController.updateConfig);
-router.post("/telegram/test",              verifyToken, TelegramBotController.sendTestMessage);
-router.post("/telegram/morning-briefing",   verifyToken, TelegramBotController.triggerMorningBriefing);
+router.post("/telegram/test",              verifyToken, verifyAdmin, TelegramBotController.sendTestMessage);
+router.post("/telegram/morning-briefing",   verifyToken, verifyAdmin, TelegramBotController.triggerMorningBriefing);
 
 /* Cấu hình Tự động hóa & Đa kênh (Telegram + Zalo) - Admin only */
 router.get("/automation-config",            verifyToken, verifyAdmin, TelegramBotController.getAutomationConfig);

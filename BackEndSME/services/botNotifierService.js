@@ -6,6 +6,7 @@
 import logger from "../utils/logger.js";
 import { getDB } from "../config/database.js";
 import { DEFAULT_AUTOMATION_CONFIG, resolveTargetChannels } from "../utils/automationConfig.js";
+import { validateExternalWebhookUrl } from "../utils/securityHelpers.js";
 
 function stripHtmlForPlainText(html = "") {
   return String(html || "")
@@ -110,10 +111,11 @@ export class BotNotifierService {
 
     try {
       if (mode === "webhook") {
-        if (!cfg.webhook_url) {
-          return { success: false, skipped: true, error: "Chưa cấu hình Zalo Webhook URL" };
+        const urlCheck = validateExternalWebhookUrl(cfg.webhook_url);
+        if (!urlCheck.valid) {
+          return { success: false, skipped: !cfg.webhook_url, error: urlCheck.reason };
         }
-        const resp = await fetch(cfg.webhook_url, {
+        const resp = await fetch(urlCheck.normalizedUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

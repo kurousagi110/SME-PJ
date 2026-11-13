@@ -193,6 +193,12 @@ export class TelegramBotService {
         return { ok: false, message: "Invalid callback format" };
       }
 
+      const { token, defaultChatId } = await this.getConfig();
+      if (defaultChatId && String(chatId || "") !== String(defaultChatId)) {
+        logger.warn("[TelegramBot.handleCallbackQuery] Rejected unauthorized chatId", { chatId });
+        return { ok: false, message: "Unauthorized chat ID" };
+      }
+
       const [action, docType, docId] = data.split(":");
       const db = getDB();
       if (!db || !ObjectId.isValid(docId)) {
@@ -231,7 +237,6 @@ export class TelegramBotService {
       }
 
       // Cập nhật lại tin nhắn Telegram để loại bỏ nút bấm và ghi nhận kết quả
-      const { token } = await this.getConfig();
       if (token && chatId && messageId) {
         const editUrl = `https://api.telegram.org/bot${token}/editMessageText`;
         const oldText = callbackQuery.message?.text || "";

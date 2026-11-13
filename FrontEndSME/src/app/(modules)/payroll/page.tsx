@@ -198,14 +198,26 @@ export default function PayrollPage() {
   const toVND = (n: number) =>
     (Number.isFinite(n) ? n : 0).toLocaleString("vi-VN") + " đ";
 
+  const escapeHtml = (val: unknown) =>
+    String(val ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
   // Print individual payslip (A5)
   const printPayslip = (item: PayrollItem) => {
+    const safeName = escapeHtml(item.ho_ten || "Chưa cập nhật");
+    const safeMaNv = escapeHtml(item.ma_nv);
+    const safePhongBan = escapeHtml(item.phong_ban || "-");
+    const safeChucVu = escapeHtml(item.chuc_vu || "-");
     const printHtml = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Phiếu lương - ${item.ho_ten || item.ma_nv}</title>
+        <title>Phiếu lương - ${escapeHtml(item.ho_ten || item.ma_nv)}</title>
         <style>
           body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 25px; color: #333; font-size: 13px; line-height: 1.5; }
           .header { border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; }
@@ -236,10 +248,10 @@ export default function PayrollPage() {
 
         <div class="info-box">
           <div class="info-grid">
-            <div><strong>Họ và tên:</strong> ${item.ho_ten || "Chưa cập nhật"}</div>
-            <div><strong>Mã nhân viên:</strong> ${item.ma_nv}</div>
-            <div><strong>Phòng ban:</strong> ${item.phong_ban || "-"}</div>
-            <div><strong>Chức vụ:</strong> ${item.chuc_vu || "-"}</div>
+            <div><strong>Họ và tên:</strong> ${safeName}</div>
+            <div><strong>Mã nhân viên:</strong> ${safeMaNv}</div>
+            <div><strong>Phòng ban:</strong> ${safePhongBan}</div>
+            <div><strong>Chức vụ:</strong> ${safeChucVu}</div>
           </div>
         </div>
 

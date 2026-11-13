@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import DonHangDAO from "./donHangDAO.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let quotationCol;
 
@@ -35,7 +36,7 @@ export default class QuotationDAO {
         filter.trang_thai = trang_thai;
       }
       if (search) {
-        const q = String(search).trim();
+        const q = escapeSafeRegexPattern(search);
         filter.$or = [
           { ma_bao_gia: { $regex: q, $options: "i" } },
           { "khach_hang.ten": { $regex: q, $options: "i" } },

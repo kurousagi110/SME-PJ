@@ -7,10 +7,14 @@ import UserService from "../services/userService.js";
 export default class UsersController {
   /* ─── AUTH ─── */
   static register = asyncHandler(async (req, res) => {
-    // SECURITY: register is public. Chỉ nhận các field an toàn.
-    // KHÔNG nhận chuc_vu / phong_ban — tránh privilege escalation
-    // (attacker tạo user tự xưng "Giám đốc/Phòng giám đốc" → admin).
-    // Phân quyền phải do admin set qua /users/:id/set-chuc-vu, set-phong-ban.
+    // SECURITY: Trong môi trường production ERP nội bộ, tắt tự đăng ký công khai
+    // trừ khi bật rõ ràng ALLOW_PUBLIC_REGISTER=true.
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_PUBLIC_REGISTER !== "true") {
+      return res.status(403).json({
+        success: false,
+        message: "Chức năng tự đăng ký đã bị khóa. Vui lòng liên hệ Quản trị viên hoặc Nhân sự để được cấp tài khoản.",
+      });
+    }
     const { ho_ten, ngay_sinh, tai_khoan, password } = req.body || {};
     const data = await UserService.register({ ho_ten, ngay_sinh, tai_khoan, password });
     return sendSuccess(res, data, "Đăng ký thành công", 201);

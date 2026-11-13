@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let warrantyCol = null;
 
@@ -20,12 +21,13 @@ export class WarrantyDAO {
     const filter = {};
     if (trang_thai) filter.trang_thai = trang_thai;
     if (q) {
+      const safeQ = escapeSafeRegexPattern(q);
       filter.$or = [
-        { ma_bao_hanh: new RegExp(q, "i") },
-        { serial_number: new RegExp(q, "i") },
-        { so_dien_thoai: new RegExp(q, "i") },
-        { khach_hang_ten: new RegExp(q, "i") },
-        { ten_sp: new RegExp(q, "i") },
+        { ma_bao_hanh: new RegExp(safeQ, "i") },
+        { serial_number: new RegExp(safeQ, "i") },
+        { so_dien_thoai: new RegExp(safeQ, "i") },
+        { khach_hang_ten: new RegExp(safeQ, "i") },
+        { ten_sp: new RegExp(safeQ, "i") },
       ];
     }
 

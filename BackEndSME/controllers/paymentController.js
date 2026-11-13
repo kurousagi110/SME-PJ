@@ -10,6 +10,7 @@ import { logAction } from "../utils/auditLogger.js";
 import { state } from "../models/donHangState.js";
 import { ObjectId } from "mongodb";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { timingSafeEqualStrings } from "../utils/securityHelpers.js";
 import { getDB } from "../config/database.js";
 
 export default class PaymentController {
@@ -53,15 +54,22 @@ export default class PaymentController {
     const payload = req.body || {};
     logger.info("[Payment Webhook] Nhận thông báo giao dịch", { payload });
 
-    // 1. Xác thực Webhook Secret (nếu cấu hình PAYMENT_WEBHOOK_SECRET)
-    const configuredSecret = process.env.PAYMENT_WEBHOOK_SECRET;
-    if (configuredSecret) {
-      const incomingSecret =
+    // 1. Xác thực Webhook Secret (Fail-closed trong production nếu thiếu PAYMENT_WEBHOOK_SECRET)
+    const configuredSecret = process.env.PAYMENT_WEBHOOK_SECRET || "";
+    if (!configuredSecret) {
+      if (process.env.NODE_ENV === "production") {
+        logger.error("[Payment Webhook] Từ chối vì chưa cấu hình PAYMENT_WEBHOOK_SECRET trong production");
+        throw ApiError.serviceUnavailable("Cổng webhook thanh toán chưa được cấu hình khóa bảo mật");
+      }
+    } else {
+      const incomingSecret = String(
         req.headers["x-api-key"] ||
-        req.headers["authorization"]?.replace(/^Bearer\s+|^Apikey\s+/i, "") ||
-        req.query?.secret;
+          req.headers["authorization"]?.replace(/^Bearer\s+|^Apikey\s+/i, "") ||
+          req.query?.secret ||
+          ""
+      );
 
-      if (!incomingSecret || incomingSecret !== configuredSecret) {
+      if (!timingSafeEqualStrings(incomingSecret, configuredSecret)) {
         logger.warn("[Payment Webhook] Từ chối truy cập do sai secret/token");
         throw ApiError.unauthorized("Chữ ký hoặc mã khóa webhook không hợp lệ", "INVALID_WEBHOOK_SECRET");
       }
@@ -110,14 +118,17 @@ export default class PaymentController {
       });
     }
 
-    // Fallback: Quét tìm mã đơn hàng tồn tại có xuất hiện trong chuỗi content
+    // Fallback: Quét tìm mã đơn hàng khớp chính xác có xuất hiện trong chuỗi content
     if (!order && content) {
-      const cleanTokens = content.toUpperCase().split(/[^A-Z0-9-]/).filter((t) => t.length >= 6);
+      const cleanTokens = String(content).toUpperCase().split(/[^A-Z0-9-]/).filter((t) => t.length >= 6 && t.length <= 40);
       for (const token of cleanTokens) {
-        const found = await state.don_hang.findOne({ ma_dh: new RegExp(escapeRegex(token), "i") });
+        const found = await state.don_hang.findOne({ ma_dh: new RegExp(`^${escapeRegex(token)}$`, "i") });
         if (found) {
           order = found;
           break;
+        }
+      }
+    }
         }
       }
     }

@@ -1,5 +1,6 @@
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let col = null;
 
@@ -27,7 +28,8 @@ export default class AuditLogController {
     if (tai_khoan)  filter["user.tai_khoan"] = tai_khoan;
     if (severity)   filter.severity           = severity;
     if (q && String(q).trim()) {
-      const regex = { $regex: String(q).trim(), $options: "i" };
+      const safeQ = escapeSafeRegexPattern(q);
+      const regex = { $regex: safeQ, $options: "i" };
       filter.$or = [
         { description: regex },
         { module: regex },

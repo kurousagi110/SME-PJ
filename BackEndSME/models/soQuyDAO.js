@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import PeriodClosingDAO from "./periodClosingDAO.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 export const LOAI_PHIEU = {
   THU: "thu",
@@ -138,7 +139,7 @@ export default class SoQuyDAO {
       }
 
       if (search && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
+        const regex = new RegExp(escapeSafeRegexPattern(search), "i");
         filter.$or = [
           { ma_phieu: regex },
           { ma_chung_tu: regex },
