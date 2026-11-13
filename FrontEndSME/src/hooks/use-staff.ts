@@ -49,8 +49,20 @@ export function useCreateStaff() {
 export function useUpdateStaff() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { id: string; phong_ban?: Department; chuc_vu?: Position }) =>
-      updateStaffById(data.id, data.phong_ban, data.chuc_vu),
+    mutationFn: (data: {
+      id: string;
+      phong_ban?: Department;
+      chuc_vu?: Position;
+      role?: string;
+      quyen_han?: string[];
+    }) =>
+      updateStaffById(
+        data.id,
+        data.phong_ban,
+        data.chuc_vu,
+        data.role,
+        data.quyen_han
+      ),
     onSuccess: () => {
       toast.success("Cập nhật nhân viên thành công");
       queryClient.invalidateQueries({ queryKey: ["staff"] });

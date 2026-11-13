@@ -38,6 +38,7 @@ import {
   testAiConnectionAction,
   AiQueryResult,
   AiConfig,
+  SuggestedAction,
 } from "@/app/actions/ai-copilot";
 
 interface Message {
@@ -45,6 +46,7 @@ interface Message {
   sender: "user" | "ai";
   text: string;
   action?: { title: string; url: string };
+  suggestedAction?: SuggestedAction | null;
   time: string;
 }
 
@@ -176,6 +178,7 @@ export function AiCopilotWidget() {
         sender: "ai",
         text: res?.answer || "Tôi đã nhận được câu hỏi nhưng không tìm thấy dữ liệu phù hợp.",
         action: res?.action,
+        suggestedAction: res?.suggestedAction ?? null,
         time: new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" }),
       };
       setMessages((prev) => [...prev, aiMsg]);
@@ -381,6 +384,28 @@ export function AiCopilotWidget() {
                         }}
                       >
                         <span>{msg.action.title}</span>
+                        <IconArrowRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {msg.suggestedAction && (
+                    <div className="mt-2 rounded-md border border-blue-200 bg-blue-50/70 dark:bg-blue-950/30 p-2 space-y-1.5">
+                      <div className="text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                        ⚡ Hành động AI đề xuất: {msg.suggestedAction.title}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {msg.suggestedAction.description}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-7 text-[11px] w-full justify-between"
+                        onClick={() => {
+                          setOpen(false);
+                          router.push(msg.suggestedAction!.route || "/planning");
+                        }}
+                      >
+                        <span>{msg.suggestedAction.buttonLabel}</span>
                         <IconArrowRight className="h-3 w-3" />
                       </Button>
                     </div>

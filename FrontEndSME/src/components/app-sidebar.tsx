@@ -28,6 +28,7 @@ import {
   IconScan,
   IconReportAnalytics,
   IconFileInvoice,
+  IconRobot,
   IconChartBar,
   IconFileText,
 } from "@tabler/icons-react";
@@ -45,40 +46,41 @@ import {
 } from "@/components/ui/sidebar";
 
 import { useMyProfile } from "@/hooks/use-account";
+import {
+  isAdminOrDirector,
+  hasPermission,
+  canAccessApprovalsHub,
+} from "@/lib/permissions";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: profile } = useMyProfile();
 
   const deptName = (profile?.phong_ban?.ten || "").trim();
-  const chucVuName = (profile?.chuc_vu?.ten || "").trim();
-  const roleName = ((profile as any)?.role || "").trim().toLowerCase();
 
-  const isDirector =
-    roleName === "admin" ||
-    deptName.toLowerCase().includes("giám đốc") ||
-    chucVuName.toLowerCase().includes("giám đốc");
+  const isDirector = isAdminOrDirector(profile);
+  const canSeeApprovals = canAccessApprovalsHub(profile);
 
   const canSeeSalesMenu = React.useMemo(() => {
     const d = deptName.toLowerCase();
     return (
       isDirector ||
+      hasPermission(profile, ["sales.view", "sales.create", "sales.approve"]) ||
       d.includes("kế toán") ||
       d.includes("nhân sự") ||
       d.includes("kinh doanh")
     );
-  }, [deptName, isDirector]);
+  }, [deptName, isDirector, profile]);
 
   const canSeeFinancialMenu = React.useMemo(() => {
     const d = deptName.toLowerCase();
-    const c = chucVuName.toLowerCase();
     return (
       isDirector ||
-      d.includes("kế toán") ||
-      c.includes("kế toán")
+      hasPermission(profile, ["finance.view", "finance.manage", "cashbook.close_period"]) ||
+      d.includes("kế toán")
     );
-  }, [deptName, chucVuName, isDirector]);
+  }, [deptName, isDirector, profile]);
 
-  const isDirectorDepartment = deptName.toLowerCase().includes("giám đốc");
+  const isDirectorDepartment = isDirector;
   const canSeeAuditLog = isDirector;
 
   // Nhóm các tính năng khoa học theo luồng nghiệp vụ thực tế
@@ -93,12 +95,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/dashboard",
             icon: IconDashboard,
           },
-          {
-            title: "Trình Ký & Duyệt Việc",
-            url: "/approvals",
-            icon: IconFileCheck,
-            badge: "Hub",
-          },
+          canSeeApprovals
+            ? {
+                title: "Trình Ký & Duyệt Việc",
+                url: "/approvals",
+                icon: IconFileCheck,
+                badge: "Hub",
+              }
+            : null,
           {
             title: "Demand Planning",
             icon: IconTrendingUp,
@@ -111,7 +115,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               { title: "Định giá sàn TMĐT", url: "/planning" },
             ],
           },
-        ],
+        ].filter(Boolean) as any[],
       },
 
       // 2. KINH DOANH & BÁN HÀNG
@@ -278,10 +282,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 icon: IconClipboardList,
               }
             : null,
+          canSeeAuditLog
+            ? {
+                title: "Tự Động Hóa & Bot",
+                url: "/automation",
+                icon: IconRobot,
+              }
+            : null,
         ].filter(Boolean) as any[],
       },
     ];
-  }, [canSeeSalesMenu, canSeeFinancialMenu, isDirectorDepartment, canSeeAuditLog]);
+  }, [canSeeApprovals, canSeeSalesMenu, canSeeFinancialMenu, isDirectorDepartment, canSeeAuditLog]);
 
   const data = {
     user: {

@@ -61,6 +61,7 @@ import {
   type AlertsData,
 } from "@/app/actions/planning";
 import { EcommercePlanningTab } from "./ecommerce-tab";
+import { SupplierAndAtpTab } from "@/components/supplier-atp-tab";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1018,7 +1019,7 @@ export default function PlanningPage() {
       </div>
 
       <Tabs defaultValue="forecast">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="forecast" className="flex items-center gap-1 text-xs">
             <IconTrendingUp size={14} />
             Dự Báo
@@ -1039,6 +1040,10 @@ export default function PlanningPage() {
             <IconBrandShopee size={14} />
             Kênh TMĐT
           </TabsTrigger>
+          <TabsTrigger value="scorecard" className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+            <IconCircleCheck size={14} />
+            NCC & ATP
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="forecast" className="mt-4">
@@ -1055,6 +1060,9 @@ export default function PlanningPage() {
         </TabsContent>
         <TabsContent value="ecommerce" className="mt-4">
           <EcommercePlanningTab />
+        </TabsContent>
+        <TabsContent value="scorecard" className="mt-4">
+          <SupplierAndAtpTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -2,6 +2,7 @@ import logger from "../utils/logger.js";
 import { EcommercePolicyDAO, DEFAULT_ECOMMERCE_POLICIES } from "./ecommercePolicyDAO.js";
 import AiConfigDAO from "./aiConfigDAO.js";
 import FinancialReportDAO from "./financialReportDAO.js";
+import { detectAgenticIntent, parseInvoiceTextOrLines } from "../utils/aiAgentParser.js";
 
 let dbInstance = null;
 let donHangCol = null;
@@ -196,6 +197,7 @@ DỮ LIỆU THỰC TẾ HỆ THỐNG DOANH NGHIỆP HIỆN TẠI:
     try {
       const q = removeVietnameseTones(query);
       const originalQuery = query.trim();
+      const suggestedAction = detectAgenticIntent(originalQuery);
 
       // Kiểm tra có LLM bên ngoài được cấu hình không
       const config = await AiConfigDAO.getActiveConfig();
@@ -225,6 +227,7 @@ ${context}
               answer: llmText.trim(),
               provider: config.provider,
               model: config.model,
+              suggestedAction,
               suggestions: await this.getSuggestions(),
             };
           }
@@ -234,7 +237,11 @@ ${context}
       }
 
       // FALLBACK TO INTERNAL DATABASE NLP ENGINE
-      return await this.processInternalQuery(q, originalQuery);
+      const internalRes = await this.processInternalQuery(q, originalQuery);
+      return {
+        ...internalRes,
+        suggestedAction: suggestedAction || internalRes?.suggestedAction || null,
+      };
     } catch (err) {
       logger.error("AI Copilot processQuery error", { error: err.message });
       return {
@@ -766,6 +773,73 @@ ${context}
         { text: "Báo cáo lãi lỗ P&L năm nay thế nào?", category: "finance" },
         { text: "Tồn quỹ tiền mặt và tài khoản ngân hàng?", category: "debt" },
       ],
+    };
+  }
+
+  /**
+   * AI OCR Invoice / Receipt Parser
+   * Hỗ trợ bóc tách hóa đơn/bảng kê từ text hoặc ảnh Base64 (qua Gemini Vision nếu có cấu hình).
+   */
+  static async parseInvoiceOCR({ text = "", imageBase64 = "" } = {}) {
+    const [materials, products] = await Promise.all([
+      nguyenLieuCol ? nguyenLieuCol.find({ trang_thai: { $ne: "deleted" } }).toArray() : [],
+      sanPhamCol ? sanPhamCol.find({ trang_thai: { $ne: "deleted" } }).toArray() : [],
+    ]);
+    const catalog = [...materials, ...products];
+
+    let extractedText = String(text || "").trim();
+
+    if (!extractedText && imageBase64) {
+      const config = await AiConfigDAO.getActiveConfig();
+      if (config && config.apiKey && config.provider === "gemini") {
+        try {
+          const cleanB64 = String(imageBase64).replace(/^data:image\/\w+;base64,/, "");
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model || "gemini-1.5-flash")}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+          const resp = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: "Hãy trích xuất từng dòng mặt hàng trong hóa đơn này theo định dạng chuẩn mỗi dòng: Tên hàng | Số lượng | Đơn giá. Chỉ trả về các dòng mặt hàng.",
+                    },
+                    {
+                      inline_data: {
+                        mime_type: "image/jpeg",
+                        data: cleanB64,
+                      },
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+          if (resp.ok) {
+            const json = await resp.json();
+            extractedText = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          }
+        } catch (err) {
+          logger.warn("Gemini OCR fallback error", { error: err.message });
+        }
+      }
+    }
+
+    if (!extractedText) {
+      return {
+        items: [],
+        total_items: 0,
+        total_amount: 0,
+        extracted_text: "",
+        note: "Vui lòng dán nội dung bảng kê hoặc cấu hình Gemini API Key để đọc ảnh hóa đơn.",
+      };
+    }
+
+    const parsed = parseInvoiceTextOrLines(extractedText, catalog);
+    return {
+      ...parsed,
+      extracted_text: extractedText,
     };
   }
 }

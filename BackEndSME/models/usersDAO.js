@@ -3,6 +3,7 @@ import logger from "../utils/logger.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { ROLE_DEFINITIONS } from "../utils/permissions.js";
 
 let users;
 
@@ -73,7 +74,16 @@ export default class UsersDAO {
   }
 
   /* =============== User CRUD =============== */
-  static async registerUser(ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban) {
+  static async registerUser(
+    ho_ten,
+    ngay_sinh,
+    tai_khoan,
+    password,
+    chuc_vu,
+    phong_ban,
+    roleInput = "user",
+    quyenHanInput = []
+  ) {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // chuẩn hóa: nếu truyền gì khác object thì thành null
@@ -81,6 +91,8 @@ export default class UsersDAO {
       ten: chuc_vu.ten || "",
       mo_ta: chuc_vu.mo_ta || "",
       heSoluong: chuc_vu.heSoluong ?? null,
+      ...(chuc_vu.role_code ? { role_code: chuc_vu.role_code } : {}),
+      ...(Array.isArray(chuc_vu.quyen_han) ? { quyen_han: chuc_vu.quyen_han } : {}),
     } : null;
 
     const dept = phong_ban && typeof phong_ban === "object" ? {
@@ -88,11 +100,20 @@ export default class UsersDAO {
       mo_ta: phong_ban.mo_ta || "",
     } : null;
 
+    const safeRole = ROLE_DEFINITIONS[String(roleInput || "user").toLowerCase()]
+      ? String(roleInput).toLowerCase()
+      : "user";
+    const safeQuyenHan = Array.isArray(quyenHanInput)
+      ? [...new Set(quyenHanInput.map((q) => String(q).trim()).filter(Boolean))]
+      : [];
+
     const doc = {
       ho_ten,
       ngay_sinh,
       tai_khoan,
       mat_khau: hashedPassword,
+      role: safeRole,
+      quyen_han: safeQuyenHan,
       trang_thai: 1,
       chuc_vu: role,       // <- object hoặc null
       phong_ban: dept,     // <- object hoặc null
@@ -211,16 +232,39 @@ export default class UsersDAO {
   }
 
 
-  /* =============== Chức vụ / Phòng ban (object) =============== */
+  /* =============== Chức vụ / Phòng ban / Role (object) =============== */
   // set/overwrite chức vụ
-  static async setChucVu(id_user, { ten = "", mo_ta = "", heSoluong = null } = {}) {
+  static async setChucVu(
+    id_user,
+    { ten = "", mo_ta = "", heSoluong = null, role_code = undefined, quyen_han = undefined } = {}
+  ) {
     try {
+      const chucVuObj = { ten, mo_ta, heSoluong };
+      if (role_code !== undefined) chucVuObj.role_code = role_code;
+      if (Array.isArray(quyen_han)) chucVuObj.quyen_han = quyen_han;
+
       return await users.updateOne(
         { _id: new ObjectId(id_user) },
-        { $set: { chuc_vu: { ten, mo_ta, heSoluong }, updateAt: new Date() } }
+        { $set: { chuc_vu: chucVuObj, updateAt: new Date() } }
       );
     } catch (e) {
       logger.error("setChucVu error", { error: e.message }); return { error: e };
+    }
+  }
+
+  static async setUserRole(id_user, { role = "user", quyen_han } = {}) {
+    try {
+      const safeRole = ROLE_DEFINITIONS[String(role || "user").toLowerCase()]
+        ? String(role).toLowerCase()
+        : "user";
+      const $set = { role: safeRole, updateAt: new Date() };
+      if (Array.isArray(quyen_han)) {
+        $set.quyen_han = [...new Set(quyen_han.map((q) => String(q).trim()).filter(Boolean))];
+      }
+      return await users.updateOne({ _id: new ObjectId(id_user) }, { $set });
+    } catch (e) {
+      logger.error("setUserRole error", { error: e.message });
+      return { error: e };
     }
   }
 

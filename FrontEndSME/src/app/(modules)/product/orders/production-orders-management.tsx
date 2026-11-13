@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { MoreHorizontal, PackageCheck } from "lucide-react";
 import { useMyProfile } from "@/hooks/use-account";
+import { canManageProduction, isAdminOrDirector } from "@/lib/permissions";
 import { myProfile } from "@/app/actions/auth";
 import { banGiaoNhapKhoAction } from "@/app/actions/handover";
 
@@ -124,25 +125,26 @@ export default function ProductionOrdersManagement() {
 
   // rule quyền
   const isDirectorDepartment =
-    myPhongBan === "Phòng giám đốc" ||
+    isAdminOrDirector(me) ||
     myPhongBan === "Phòng kế toán" ||
     myPhongBan === "Phòng nhân sự";
   const canConfirm =
     isDirectorDepartment ||
-    myChucVu === "Giám đốc" ||
-    myChucVu === "Trưởng phòng" ||
-    myChucVu === "Tổng giám đốc";
+    canManageProduction(me) ||
+    myChucVu === "Trưởng xưởng" ||
+    myChucVu === "Trưởng phòng";
   const canComplete =
     isDirectorDepartment ||
-    myChucVu === "Giám đốc" ||
-    myChucVu === "Trưởng phòng" ||
-    myChucVu === "Tổng giám đốc";
+    canManageProduction(me) ||
+    myChucVu === "Trưởng xưởng" ||
+    myChucVu === "Trưởng phòng";
   const canCancel =
     isDirectorDepartment ||
+    canManageProduction(me) ||
+    myChucVu === "Trưởng xưởng" ||
     myChucVu === "Kế toán" ||
-    myChucVu === "Trưởng phòng" ||
-    myChucVu === "Tổng giám đốc" ||
-    myChucVu === "Giám đốc";
+    myChucVu === "Kế toán trưởng" ||
+    myChucVu === "Trưởng phòng";
 
   /* ===== filters + paging ===== */
   const [q, setQ] = React.useState("");

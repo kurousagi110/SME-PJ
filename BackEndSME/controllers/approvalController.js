@@ -7,6 +7,7 @@ import LuongDAO from "../models/luongDAO.js";
 import { notifyDepartment, notifyUser } from "../utils/socketManager.js";
 import ApiError from "../utils/ApiError.js";
 import { isAdminUser } from "../middleware/auth.js";
+import { inferRoleCode, hasPermission } from "../utils/permissions.js";
 
 export default class ApprovalController {
   /* GET /api/v1/approvals/pending — Tổng hợp tất cả chứng từ đang chờ phê duyệt */
@@ -98,19 +99,23 @@ export default class ApprovalController {
 
     const isApprove = hanh_dong === "approve";
     const isDirectorOrAdmin = isAdminUser(user);
+    const roleCode = inferRoleCode(user);
     const isChiefAccountant =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Kế toán trưởng" ||
-      user?.chuc_vu?.ten === "Kế toán" ||
-      user?.phong_ban?.ten === "Phòng kế toán";
+      roleCode === "chief_accountant" ||
+      hasPermission(user, ["payroll.manage", "finance.manage"]) ||
+      user?.chuc_vu?.ten === "Kế toán trưởng";
     const isSalesManager =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Trưởng phòng" ||
-      user?.phong_ban?.ten === "Phòng kinh doanh";
+      roleCode === "sales_manager" ||
+      hasPermission(user, "sales.approve") ||
+      (user?.phong_ban?.ten === "Phòng kinh doanh" &&
+        (user?.chuc_vu?.ten || "").toLowerCase().includes("trưởng"));
     const isWarehouseApprover =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Thủ kho" ||
-      user?.phong_ban?.ten === "Phòng kho";
+      roleCode === "warehouse_manager" ||
+      hasPermission(user, ["warehouse.approve", "purchase.manage"]) ||
+      user?.chuc_vu?.ten === "Thủ kho";
 
     if (loai === "purchase") {
       if (!isWarehouseApprover) {

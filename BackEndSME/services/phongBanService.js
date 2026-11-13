@@ -73,15 +73,21 @@ export default class PhongBanService {
   }
 
   /* ─── CHỨC VỤ ─── */
-  static async addChucVu(phongBanId, { ten_chuc_vu, mo_ta, he_so_luong }) {
+  static async addChucVu(phongBanId, { ten_chuc_vu, mo_ta, he_so_luong, role_code, quyen_han }) {
     if (!ten_chuc_vu) throw ApiError.badRequest("Thiếu ten_chuc_vu", "VALIDATION_ERROR");
-    const result = await phongban_chucvuDAO.addChucVu(phongBanId, { ten_chuc_vu, mo_ta, he_so_luong });
+    const result = await phongban_chucvuDAO.addChucVu(phongBanId, {
+      ten_chuc_vu,
+      mo_ta,
+      he_so_luong,
+      role_code,
+      quyen_han,
+    });
     this._daoError(result, "Thêm chức vụ thất bại", "ADD_CHUCVU_FAILED");
     return { modifiedCount: result.modifiedCount, chuc_vu_id: result.chuc_vu_id };
   }
 
   static async updateChucVu(phongBanId, chucVuId, rawPayload) {
-    const allowed = ["ten_chuc_vu", "mo_ta", "he_so_luong", "trang_thai"];
+    const allowed = ["ten_chuc_vu", "mo_ta", "he_so_luong", "role_code", "quyen_han", "trang_thai"];
     const payload = {};
     allowed.forEach((k) => { if (rawPayload[k] !== undefined) payload[k] = rawPayload[k]; });
     const result = await phongban_chucvuDAO.updateChucVu(phongBanId, chucVuId, payload);

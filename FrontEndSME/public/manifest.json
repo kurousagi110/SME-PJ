@@ -1,0 +1,17 @@
+{
+  "name": "SME ERP - Quản Trị Doanh Nghiệp Toàn Diện",
+  "short_name": "SME ERP",
+  "description": "Hệ thống quản trị Bán hàng, Kho vận, Sản xuất, Tài chính & Nhân sự SME",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

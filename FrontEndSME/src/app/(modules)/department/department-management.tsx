@@ -52,12 +52,30 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import { IconTrash, IconEdit } from "@tabler/icons-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ROLE_OPTIONS,
+  ROLE_MAP,
+  PERMISSION_LIST,
+  getRoleLabel,
+  isAdminOrDirector,
+} from "@/lib/permissions";
 
 /* ===================== Zod Schemas ===================== */
 export const positionSchema = z.object({
   ten_chuc_vu: z.string().min(1, "Tên chức vụ không được để trống"),
   mo_ta: z.string().optional(),
   he_so_luong: z.number().min(0.1, "Hệ số lương phải ≥ 0.1"),
+  role_code: z.string().optional(),
+  quyen_han: z.array(z.string()).optional(),
 });
 
 export const createDepartmentSchema = z.object({
@@ -71,6 +89,8 @@ type Position = {
   ten_chuc_vu: string;
   mo_ta?: string;
   he_so_luong: number;
+  role_code?: string;
+  quyen_han?: string[];
 };
 
 type DepartmentFormValues = {
@@ -106,6 +126,7 @@ export function DepartmentManagement() {
     ten_chuc_vu: true,
     mo_ta: true,
     he_so_luong: true,
+    role_code: true,
   });
 
   // ============================
@@ -171,8 +192,13 @@ export function DepartmentManagement() {
       ten_chuc_vu: "",
       mo_ta: "",
       he_so_luong: 0.1,
+      role_code: "user",
+      quyen_han: [],
     },
   });
+
+  const watchedRoleCode = positionForm.watch("role_code") || "user";
+  const watchedQuyenHan = positionForm.watch("quyen_han") || [];
 
   // ============================
   // HANDLERS
@@ -201,12 +227,20 @@ export function DepartmentManagement() {
       ten_chuc_vu: values.ten_chuc_vu,
       mo_ta: values.mo_ta,
       he_so_luong: values.he_so_luong,
+      role_code: values.role_code || "user",
+      quyen_han: values.quyen_han || [],
     };
 
     // MODE 1: tạo phòng ban -> thêm chức vụ vào state tạm
     if (mode === "create-department") {
       setPosition((prev) => [...prev, baseBody]);
-      positionForm.reset({ ten_chuc_vu: "", mo_ta: "", he_so_luong: 0.1 });
+      positionForm.reset({
+        ten_chuc_vu: "",
+        mo_ta: "",
+        he_so_luong: 0.1,
+        role_code: "user",
+        quyen_han: [],
+      });
       setOpenPositionModal(false);
       return;
     }
@@ -228,6 +262,8 @@ export function DepartmentManagement() {
               ten_chuc_vu: "",
               mo_ta: "",
               he_so_luong: 0.1,
+              role_code: "user",
+              quyen_han: [],
             });
           },
         }
@@ -235,7 +271,7 @@ export function DepartmentManagement() {
       return;
     }
 
-    // MODE 3: edit-position -> chỉ update field nào dirty
+    // MODE 3: edit-position -> gửi các field thay đổi (kể cả role_code / quyen_han)
     if (mode === "edit-position") {
       if (!selectedDepartment?._id || !selectedPosition?._id) return;
 
@@ -245,7 +281,9 @@ export function DepartmentManagement() {
       if (
         !dirtyFields.ten_chuc_vu &&
         !dirtyFields.mo_ta &&
-        !dirtyFields.he_so_luong
+        !dirtyFields.he_so_luong &&
+        !dirtyFields.role_code &&
+        !dirtyFields.quyen_han
       ) {
         setOpenPositionModal(false);
         return;
@@ -255,6 +293,10 @@ export function DepartmentManagement() {
       if (dirtyFields.ten_chuc_vu) updateBody.ten_chuc_vu = values.ten_chuc_vu;
       if (dirtyFields.mo_ta) updateBody.mo_ta = values.mo_ta;
       if (dirtyFields.he_so_luong) updateBody.he_so_luong = values.he_so_luong;
+      if (dirtyFields.role_code) updateBody.role_code = values.role_code || "user";
+      if (dirtyFields.quyen_han || dirtyFields.role_code) {
+        updateBody.quyen_han = values.quyen_han || [];
+      }
 
       updatePosition.mutate(
         {
@@ -271,8 +313,10 @@ export function DepartmentManagement() {
               ten_chuc_vu: "",
               mo_ta: "",
               he_so_luong: 0.1,
+              role_code: "user",
+              quyen_han: [],
             });
-            setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true });
+            setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true, role_code: true });
           },
         }
       );
@@ -359,9 +403,7 @@ export function DepartmentManagement() {
   // ============================
   // PERMISSION (button create)
   // ============================
-  const canCreateDepartment =
-    profile?.phong_ban?.ten === "Phòng giám đốc" ||
-    (profile?.chuc_vu?.ten || "").toLowerCase().includes("trưởng phòng");
+  const canCreateDepartment = isAdminOrDirector(profile);
 
   return (
     <div className="p-6 space-y-5">
@@ -382,7 +424,7 @@ export function DepartmentManagement() {
             onClick={() => {
               setMode("create-department");
               setOpenCreateDepartmentModal(true);
-              setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true });
+              setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true, role_code: true });
             }}
           >
             + Thêm Phòng ban
@@ -616,6 +658,13 @@ export function DepartmentManagement() {
                   </div>
                   <p>Mô tả: {p.mo_ta || "-"}</p>
                   <p>Hệ số lương: {p.he_so_luong}</p>
+                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className="text-xs font-medium text-muted-foreground">Vai trò:</span>
+                    <Badge variant="secondary">{getRoleLabel(p.role_code)}</Badge>
+                    {(p.quyen_han || []).length > 0 && (
+                      <Badge variant="outline">{p.quyen_han?.length} quyền</Badge>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -652,13 +701,15 @@ export function DepartmentManagement() {
               ten_chuc_vu: "",
               mo_ta: "",
               he_so_luong: 0.1,
+              role_code: "user",
+              quyen_han: [],
             });
             setSelectedPosition(null);
-            setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true });
+            setPosLock({ ten_chuc_vu: true, mo_ta: true, he_so_luong: true, role_code: true });
           }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {mode === "edit-position" ? "Chỉnh sửa chức vụ" : "Thêm chức vụ"}
@@ -761,6 +812,74 @@ export function DepartmentManagement() {
               </p>
             )}
 
+            {/* Nhóm vai trò hệ thống (role_code) */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Vai trò hệ thống (Role)</label>
+              <Select
+                value={watchedRoleCode}
+                onValueChange={(val) => {
+                  positionForm.setValue("role_code", val, { shouldDirty: true });
+                  const defaults = ROLE_MAP[val]?.permissions || [];
+                  positionForm.setValue("quyen_han", [...defaults], { shouldDirty: true });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn vai trò hệ thống" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r.code} value={r.code}>
+                      {r.label} ({r.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Checklist Quyền hạn (quyen_han) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Phân quyền chi tiết ({watchedQuyenHan.length} quyền)</label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    const defaults = ROLE_MAP[watchedRoleCode]?.permissions || [];
+                    positionForm.setValue("quyen_han", [...defaults], { shouldDirty: true });
+                  }}
+                >
+                  Đặt lại mặc định theo Role
+                </Button>
+              </div>
+              <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/20">
+                {PERMISSION_LIST.map((perm) => {
+                  const checked = watchedQuyenHan.includes(perm.code);
+                  return (
+                    <label
+                      key={perm.code}
+                      className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(isChecked) => {
+                          const next = isChecked
+                            ? [...new Set([...watchedQuyenHan, perm.code])]
+                            : watchedQuyenHan.filter((c) => c !== perm.code);
+                          positionForm.setValue("quyen_han", next, { shouldDirty: true });
+                        }}
+                      />
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {perm.group}
+                      </Badge>
+                      <span>{perm.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             <DialogFooter>
               <Button
                 variant="outline"
@@ -771,12 +890,15 @@ export function DepartmentManagement() {
                     ten_chuc_vu: "",
                     mo_ta: "",
                     he_so_luong: 0.1,
+                    role_code: "user",
+                    quyen_han: [],
                   });
                   setSelectedPosition(null);
                   setPosLock({
                     ten_chuc_vu: true,
                     mo_ta: true,
                     he_so_luong: true,
+                    role_code: true,
                   });
                 }}
               >
@@ -829,6 +951,7 @@ export function DepartmentManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>Chức vụ</TableHead>
+                <TableHead>Vai trò & Quyền</TableHead>
                 <TableHead>Mô tả</TableHead>
                 <TableHead>Hệ số lương</TableHead>
               </TableRow>
@@ -837,14 +960,28 @@ export function DepartmentManagement() {
             <TableBody>
               {(departmentData?.data?.chuc_vu || []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center p-6">
+                  <TableCell colSpan={4} className="text-center p-6">
                     Không có dữ liệu
                   </TableCell>
                 </TableRow>
               ) : (
                 (departmentData?.data?.chuc_vu || []).map((p: any) => (
                   <TableRow key={p._id}>
-                    <TableCell>{p.ten_chuc_vu}</TableCell>
+                    <TableCell className="font-medium">{p.ten_chuc_vu}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className="w-fit text-[11px]">
+                          {getRoleLabel(p.role_code)}
+                        </Badge>
+                        {Array.isArray(p.quyen_han) && p.quyen_han.length > 0 && (
+                          <span className="text-[11px] text-muted-foreground">
+                            {p.quyen_han.includes("all")
+                              ? "Toàn quyền"
+                              : `${p.quyen_han.length} quyền hạn`}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{p.mo_ta || "-"}</TableCell>
                     <TableCell>{p.he_so_luong}</TableCell>
                   </TableRow>
@@ -939,10 +1076,11 @@ export function DepartmentManagement() {
                     ten_chuc_vu: true,
                     mo_ta: true,
                     he_so_luong: true,
+                    role_code: true,
                   });
 
                   positionForm.reset(
-                    { ten_chuc_vu: "", mo_ta: "", he_so_luong: 0.1 },
+                    { ten_chuc_vu: "", mo_ta: "", he_so_luong: 0.1, role_code: "user", quyen_han: [] },
                     { keepDirty: false, keepTouched: false }
                   );
                 }}
@@ -1004,12 +1142,22 @@ export function DepartmentManagement() {
                                   ten_chuc_vu: true,
                                   mo_ta: true,
                                   he_so_luong: true,
+                                  role_code: true,
                                 });
 
-                                positionForm.reset(p, {
-                                  keepDirty: false,
-                                  keepTouched: false,
-                                });
+                                positionForm.reset(
+                                  {
+                                    ...p,
+                                    role_code: p.role_code || "user",
+                                    quyen_han: Array.isArray(p.quyen_han)
+                                      ? p.quyen_han
+                                      : ROLE_MAP[p.role_code || "user"]?.permissions || [],
+                                  },
+                                  {
+                                    keepDirty: false,
+                                    keepTouched: false,
+                                  }
+                                );
                               }}
                             >
                               <IconEdit />

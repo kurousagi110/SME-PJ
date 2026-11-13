@@ -37,5 +37,14 @@ export default class AiCopilotController {
     const result = await AiConfigDAO.testConnection({ provider, api_key, model });
     return sendSuccess(res, result, result.message);
   });
+
+  static ocrInvoice = asyncHandler(async (req, res) => {
+    const { text, imageBase64 } = req.body || {};
+    if (!text && !imageBase64) {
+      throw ApiError.badRequest("Vui lòng cung cấp nội dung text hoặc ảnh hóa đơn (imageBase64)");
+    }
+    const data = await AiCopilotDAO.parseInvoiceOCR({ text, imageBase64 });
+    return sendSuccess(res, data, "Bóc tách hóa đơn thành công");
+  });
 }
 

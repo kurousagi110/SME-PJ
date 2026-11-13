@@ -65,8 +65,16 @@ export default class DepartmentPositionController {
     const ten_chuc_vu = body.ten_chuc_vu || body.position_name || body.name;
     const mo_ta = body.mo_ta || body.description;
     const he_so_luong = body.he_so_luong ?? body.salary_coefficient;
+    const role_code = body.role_code;
+    const quyen_han = body.quyen_han;
 
-    const data = await PhongBanService.addChucVu(req.params.id, { ten_chuc_vu, mo_ta, he_so_luong });
+    const data = await PhongBanService.addChucVu(req.params.id, {
+      ten_chuc_vu,
+      mo_ta,
+      he_so_luong,
+      role_code,
+      quyen_han,
+    });
     return sendSuccess(res, data, "Thêm chức vụ thành công");
   });
 

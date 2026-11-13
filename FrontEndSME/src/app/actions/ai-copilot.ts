@@ -2,12 +2,23 @@
 
 import { http } from "@/lib/http";
 
+export interface SuggestedAction {
+  type: "CREATE_MRP_PO" | "NAVIGATE";
+  title: string;
+  description: string;
+  buttonLabel: string;
+  method?: string;
+  endpoint?: string;
+  route?: string;
+}
+
 export interface AiQueryResult {
   answer: string;
   action?: {
     title: string;
     url: string;
   };
+  suggestedAction?: SuggestedAction | null;
   suggestions?: Array<{
     text: string;
     category: string;
@@ -88,6 +99,34 @@ export async function testAiConnectionAction(payload: {
   } catch (err: any) {
     console.error("testAiConnectionAction error", err);
     return { success: false, message: err?.message || "Lỗi kiểm tra kết nối" };
+  }
+}
+
+export async function ocrInvoiceAction(payload: {
+  text?: string;
+  imageBase64?: string;
+}): Promise<{
+  success: boolean;
+  data?: {
+    items: Array<{
+      ten: string;
+      so_luong: number;
+      don_gia: number;
+      thanh_tien: number;
+      matched_id: string | null;
+      matched_code: string | null;
+    }>;
+    total_items: number;
+    total_amount: number;
+    extracted_text?: string;
+  };
+  error?: string;
+}> {
+  try {
+    const res = await http.post<{ success: boolean; data: any }>("/ai-copilot/ocr-invoice", payload);
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Lỗi bóc tách hóa đơn OCR" };
   }
 }
 

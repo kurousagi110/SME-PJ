@@ -14,6 +14,8 @@ import logger from "./utils/logger.js";
 import { injectSocketDB, initSocket } from "./utils/socketManager.js";
 import { injectAuditDB } from "./utils/auditLogger.js";
 import { injectAuditLogControllerDB } from "./controllers/auditLogController.js";
+import { injectPortalDB } from "./controllers/portalController.js";
+import { startCronScheduler } from "./utils/cronScheduler.js";
 
 import UsersDAO              from "./models/usersDAO.js";
 import MaterialDAO           from "./models/materialDAO.js";
@@ -96,6 +98,7 @@ async function main() {
     injectSocketDB(client);
     injectAuditDB(client);
     injectAuditLogControllerDB(client);
+    injectPortalDB(client);
 
     await Promise.all([
       UsersDAO.injectDB(client),
@@ -137,6 +140,7 @@ async function main() {
     initSocket(httpServer);
     logger.info("Socket.io initialised");
 
+    startCronScheduler();
     server = httpServer.listen(port, "0.0.0.0", () => {
       logger.info(`Server running`, { url: `${hostName}:${port}` });
       logger.info(`Swagger docs`, { url: `${hostName}:${port}/api-docs` });

@@ -5,7 +5,13 @@
 
 import express from "express";
 import DonHangController from "../../controllers/donHangControllers.js";
-import { verifyToken, verifyAdmin, verifyApprover, verifyProductionManager } from "../../middleware/auth.js";
+import {
+  verifyToken,
+  verifyAdmin,
+  verifyApprover,
+  verifyOrderStatusApprover,
+  verifyProductionManager,
+} from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -59,8 +65,8 @@ router.post("/:id/payment",          verifyToken, verifyAdmin, DonHangController
 router.post("/:id/thanh-toan-mua",   verifyToken, verifyApprover, DonHangController.thanhToanDonMua);
 router.patch("/:id/note",            verifyToken, verifyAdmin, DonHangController.updateNote);
 
-/* ─── TRẠNG THÁI (Approver + Admin — duyệt phiếu) ─── */
-router.patch("/:id/status", verifyToken, verifyApprover, DonHangController.updateStatus);
+/* ─── TRẠNG THÁI (Approver / Trưởng phòng KD / Trưởng xưởng + Admin — duyệt phiếu) ─── */
+router.patch("/:id/status", verifyToken, verifyOrderStatusApprover, DonHangController.updateStatus);
 
 /* ─── XOÁ / KHÔI PHỤC — chỉ admin ─── */
 router.delete("/:id",        verifyToken, verifyAdmin, DonHangController.softDelete);

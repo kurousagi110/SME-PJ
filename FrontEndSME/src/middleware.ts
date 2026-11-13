@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 // cookie). Previously this list was whitelisted, which let users reach
 // /sales, /dieu-chinh-kho, /staff, /audit-log, /department, /san-xuat,
 // /warehouse, /material/*, /product/*, /account, /check-in etc. without auth.
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/portal"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

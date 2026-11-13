@@ -16,6 +16,36 @@ export default class UsersController {
     return sendSuccess(res, data, "Đăng ký thành công", 201);
   });
 
+  /* Admin tạo nhân viên mới kèm phòng ban, chức vụ & phân quyền */
+  static createByAdmin = asyncHandler(async (req, res) => {
+    const {
+      ho_ten,
+      ngay_sinh,
+      tai_khoan,
+      password,
+      chuc_vu = null,
+      phong_ban = null,
+      role = "user",
+      quyen_han = [],
+    } = req.body || {};
+    const data = await UserService.createByAdmin({
+      ho_ten,
+      ngay_sinh,
+      tai_khoan,
+      password,
+      chuc_vu,
+      phong_ban,
+      role,
+      quyen_han,
+    });
+    return sendSuccess(res, data, "Tạo nhân viên thành công", 201);
+  });
+
+  static getRoleMetadata = asyncHandler(async (_req, res) => {
+    const data = UserService.getRoleMetadata();
+    return sendSuccess(res, data, "Lấy danh mục vai trò và quyền hạn thành công");
+  });
+
   static login = asyncHandler(async (req, res) => {
     const { tai_khoan, password } = req.body || {};
     const data = await UserService.login({ tai_khoan, password });
@@ -83,9 +113,22 @@ export default class UsersController {
 
   /* ─── CHỨC VỤ ─── */
   static setChucVu = asyncHandler(async (req, res) => {
-    const { ten = "", mo_ta = "", heSoluong = null } = req.body || {};
-    const data = await UserService.setChucVu(req.params.id, { ten, mo_ta, heSoluong });
+    const { ten = "", mo_ta = "", heSoluong = null, role_code, quyen_han } = req.body || {};
+    const data = await UserService.setChucVu(req.params.id, {
+      ten,
+      mo_ta,
+      heSoluong,
+      role_code,
+      quyen_han,
+    });
     return sendSuccess(res, data, "Thiết lập chức vụ thành công");
+  });
+
+  /* ─── ROLE & QUYỀN HẠN ─── */
+  static setUserRole = asyncHandler(async (req, res) => {
+    const { role = "user", quyen_han } = req.body || {};
+    const data = await UserService.setUserRole(req.params.id, { role, quyen_han });
+    return sendSuccess(res, data, "Cập nhật phân quyền thành công");
   });
 
   static updateChucVu = asyncHandler(async (req, res) => {

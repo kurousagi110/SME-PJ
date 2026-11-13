@@ -3,22 +3,29 @@
 
 import express from "express";
 import LuongController from "../../controllers/luongControllers.js";
-import { verifyToken, verifyAdmin, verifyApprover, verifySelfOrAdminByMaNV } from "../../middleware/auth.js";
+import {
+  verifyToken,
+  verifyAdmin,
+  verifyAttendanceManager,
+  verifyHRManager,
+  verifyFinanceManager,
+  verifySelfOrAdminByMaNV,
+} from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
 
-/* ─── CHẤM CÔNG BULK (Thủ kho + Admin — ghi chấm công hộ nhân viên) ─── */
-router.post("/cham-cong/bulk", verifyToken, verifyApprover, requireBody("ngay_thang", "items"), LuongController.chamCongBulk);
+/* ─── CHẤM CÔNG BULK (Quản lý phòng ban / Nhân sự / Admin) ─── */
+router.post("/cham-cong/bulk", verifyToken, verifyAttendanceManager, requireBody("ngay_thang", "items"), LuongController.chamCongBulk);
 
-/* ─── CHẤM CÔNG 1 (Thủ kho + Admin — approver ghi hộ) ─── */
-router.post("/cham-cong", verifyToken, verifyApprover, requireBody("ma_nv", "ngay_thang"), LuongController.chamCong);
+/* ─── CHẤM CÔNG 1 (Quản lý phòng ban / Nhân sự / Admin) ─── */
+router.post("/cham-cong", verifyToken, verifyAttendanceManager, requireBody("ma_nv", "ngay_thang"), LuongController.chamCong);
 
 /* ─── GET / LIST ───
  * SECURITY: payroll + attendance are PII. A non-privileged user may only
  * read their own record. verifySelfOrAdminByMaNV enforces this by
- * comparing req.user.ma_nv against ma_nv in body/query — admins/approvers
- * (Thủ kho + Giám đốc) bypass the self check.
+ * comparing req.user.ma_nv against ma_nv in body/query — admins/HR/managers
+ * bypass the self check.
  */
 router.get("/cham-cong/by-day", verifyToken, verifySelfOrAdminByMaNV, LuongController.getChamCongByDay);
 router.get("/cham-cong",        verifyToken, verifySelfOrAdminByMaNV, LuongController.listChamCong);
@@ -26,9 +33,9 @@ router.get("/cham-cong",        verifyToken, verifySelfOrAdminByMaNV, LuongContr
 /* ─── DELETE (chỉ admin) ─── */
 router.delete("/cham-cong/:id", verifyToken, verifyAdmin, LuongController.softDeleteChamCong);
 
-/* ─── TÍNH LƯƠNG & CHI TRẢ LƯƠNG (chỉ Admin — payroll integrity) ─── */
-router.post("/tinh-luong",              verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.tinhLuongThang);
-router.post("/chi-tra-luong",          verifyToken, verifyAdmin, requireBody("thang", "nam"), LuongController.chiTraLuongThang);
-router.get("/trang-thai-chi-luong",    verifyToken, verifyAdmin, LuongController.getTrangThaiChiLuong);
+/* ─── TÍNH LƯƠNG & CHI TRẢ LƯƠNG (Kế toán trưởng / Nhân sự / Admin) ─── */
+router.post("/tinh-luong",              verifyToken, verifyHRManager, requireBody("thang", "nam"), LuongController.tinhLuongThang);
+router.post("/chi-tra-luong",          verifyToken, verifyFinanceManager, requireBody("thang", "nam"), LuongController.chiTraLuongThang);
+router.get("/trang-thai-chi-luong",    verifyToken, verifyHRManager, LuongController.getTrangThaiChiLuong);
 
 export default router;

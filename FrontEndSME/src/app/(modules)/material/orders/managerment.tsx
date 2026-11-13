@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { MoreHorizontal } from "lucide-react";
 
 import { useMyProfile } from "@/hooks/use-account";
+import { canApproveWarehouseOrders, isAdminOrDirector } from "@/lib/permissions";
 import { myProfile } from "@/app/actions/auth";
 
 import {
@@ -161,21 +162,8 @@ export default function OrdersManagerment() {
 
   const me = meQuery.data;
 
-  const myPhongBanRaw =
-    (me?.phong_ban_ten || "").trim() || pickTenDeep(me?.phong_ban);
-  const myChucVuRaw =
-    (me?.chuc_vu_ten || "").trim() || pickTenDeep(me?.chuc_vu);
-
-  const myPhongBan = normText(myPhongBanRaw);
-  const myChucVu = normText(myChucVuRaw);
-
-  const isDirectorDepartment = myPhongBan === normText("Phòng giám đốc");
-  const isWarehouseDepartment = myPhongBan === normText("Phòng kho");
-
-  // data BE phòng kho: "Trưởng phòng", "Nhân viên kho"
-  const isWarehouseLeader =
-    isWarehouseDepartment &&
-    (myChucVu === normText("Trưởng phòng") || myChucVu.includes("truong kho")); // fallback nếu sau này đổi tên
+  const isDirectorDepartment = isAdminOrDirector(me);
+  const isWarehouseLeader = canApproveWarehouseOrders(me);
 
   const canConfirm = isDirectorDepartment || isWarehouseLeader;
   const canComplete = isDirectorDepartment || isWarehouseLeader;

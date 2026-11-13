@@ -25,8 +25,20 @@ export default class PlanningController {
   /* ── MRP ──────────────────────────────────────────────────────────────── */
   static getMRP = asyncHandler(async (req, res) => {
     const lead_time = Math.min(30, Math.max(1, parseInt(req.query.lead_time) || 7));
-    const data = await PlanningDAO.getMRPPlan(lead_time);
-    return sendSuccess(res, data, "Lấy kế hoạch MRP thành công");
+    const [data, scorecards] = await Promise.all([
+      PlanningDAO.getMRPPlan(lead_time),
+      PlanningDAO.getSupplierScorecards(),
+    ]);
+    const topSupplier = scorecards[0] || null;
+    return sendSuccess(
+      res,
+      {
+        ...data,
+        recommended_supplier: topSupplier,
+        supplier_scorecards: scorecards.slice(0, 5),
+      },
+      "Lấy kế hoạch MRP thành công"
+    );
   });
 
   /* ── ABC Analysis ─────────────────────────────────────────────────────── */
@@ -87,5 +99,18 @@ export default class PlanningController {
       user: req.user,
     });
     return sendSuccess(res, result, "Tạo đơn mua hàng từ MRP thành công", 201);
+  });
+
+  /* ── ATP Check (Available-to-Promise) ─────────────────────────────────── */
+  static checkATP = asyncHandler(async (req, res) => {
+    const items = req.body?.items || [];
+    const data = await PlanningDAO.checkATP(items);
+    return sendSuccess(res, data, "Kiểm tra năng lực đáp ứng & lịch giao (ATP) thành công");
+  });
+
+  /* ── Supplier Scorecard ───────────────────────────────────────────────── */
+  static getSupplierScorecards = asyncHandler(async (req, res) => {
+    const data = await PlanningDAO.getSupplierScorecards();
+    return sendSuccess(res, data, "Lấy bảng chấm điểm nhà cung cấp thành công");
   });
 }

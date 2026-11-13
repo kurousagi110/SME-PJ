@@ -44,6 +44,23 @@ import { ChevronDown, MoreHorizontal, Download } from "lucide-react";
 import { exportToCSV } from "@/lib/export";
 import confirmToast from "@/components/confirm-toast";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ROLE_OPTIONS,
+  ROLE_MAP,
+  PERMISSION_LIST,
+  getRoleLabel,
+  inferUserRoleCode,
+  isAdminOrDirector,
+} from "@/lib/permissions";
 
 // ... (Giữ nguyên schema validation) ...
 const createStaffSchema = z.object({
@@ -59,7 +76,11 @@ const createStaffSchema = z.object({
     ten: z.string().min(1, "Chức vụ là bắt buộc"),
     mo_ta: z.string().optional(),
     heSoluong: z.number().optional(),
+    role_code: z.string().optional(),
+    quyen_han: z.array(z.string()).optional(),
   }),
+  role: z.string().optional(),
+  quyen_han: z.array(z.string()).optional(),
 });
 
 export function StaffTablePage() {
@@ -89,14 +110,14 @@ export function StaffTablePage() {
     // 1. Không bao giờ hiển thị nút thao tác cho chính bản thân mình
     if (isSelf) return false;
 
-    const myRole = profile.chuc_vu?.ten;
-    const myDept = profile.phong_ban?.ten;
+    const myRole = profile.chuc_vu?.ten || "";
+    const myDept = profile.phong_ban?.ten || "";
 
     // 2. Thư ký: Không được thao tác bất cứ ai
     if (myRole === "Thư ký") return false;
 
-    // 3. Logic cho Phòng Giám Đốc
-    if (myDept === "Phòng giám đốc") {
+    // 3. Logic cho Admin / Phòng Giám Đốc
+    if (isAdminOrDirector(profile) || myDept === "Phòng giám đốc") {
       const targetRole = targetStaff.chuc_vu?.ten;
 
       // Giám đốc không được sửa Tổng giám đốc (ẩn icon)
@@ -104,16 +125,14 @@ export function StaffTablePage() {
         return false;
       }
 
-      // Còn lại (Tổng giám đốc sửa tất cả, Giám đốc sửa nhân viên khác) -> OK
       return true;
     }
 
     // 4. Logic cho Trưởng phòng các phòng ban khác
-    if (myRole === "Trưởng phòng") {
+    if (myRole.toLowerCase().includes("trưởng phòng")) {
       // Chỉ được sửa nhân viên cùng phòng ban
       if (myDept === targetStaff.phong_ban?.ten) {
-        // Không được sửa một Trưởng phòng khác (nếu có lỗi data)
-        if (targetStaff.chuc_vu?.ten === "Trưởng phòng") return false;
+        if ((targetStaff.chuc_vu?.ten || "").toLowerCase().includes("trưởng phòng")) return false;
         return true;
       }
     }
@@ -130,9 +149,10 @@ export function StaffTablePage() {
     const myRole = profile?.chuc_vu?.ten;
     const sensitiveRoles = ["Tổng giám đốc", "Giám đốc", "Thư ký"];
 
+    if (profile?.role === "admin" || profile?.tai_khoan === "admin") return [];
     if (myDept !== "Phòng giám đốc") return sensitiveRoles;
     if (myRole === "Tổng giám đốc") return ["Tổng giám đốc"]; // TGĐ không được tạo thêm 1 TGĐ
-    if (myRole === "Giám đốc") return ["Tổng giám đốc", "Giám đốc"];
+    if (myRole === "Giám đốc") return ["Tổng giám đốc"];
     if (myRole === "Thư ký") return sensitiveRoles;
     return sensitiveRoles;
   }, [profile]);
@@ -196,6 +216,8 @@ export function StaffTablePage() {
       password: "",
       phong_ban: { ten: "", mo_ta: "" },
       chuc_vu: { ten: "", mo_ta: "", heSoluong: 0 },
+      role: "user",
+      quyen_han: [],
     },
   });
 
@@ -236,7 +258,11 @@ export function StaffTablePage() {
         ten: values.chuc_vu.ten,
         mo_ta: values.chuc_vu.mo_ta,
         heSoluong: values.chuc_vu.heSoluong,
+        role_code: values.chuc_vu.role_code,
+        quyen_han: values.chuc_vu.quyen_han,
       },
+      role: values.role || values.chuc_vu.role_code || "user",
+      quyen_han: values.quyen_han || values.chuc_vu.quyen_han || [],
     };
     // Thêm (body as any) để bỏ qua kiểm tra type của Payload
     createStaff.mutate(body as any, {
@@ -258,7 +284,9 @@ export function StaffTablePage() {
     defaultValues: {
       id: "",
       phong_ban: { ten: "", mo_ta: "" },
-      chuc_vu: { ten: "", mo_ta: "", heSoluong: 0 },
+      chuc_vu: { ten: "", mo_ta: "", heSoluong: 0, role_code: "", quyen_han: [] as string[] },
+      role: "user",
+      quyen_han: [] as string[],
     },
   });
 
@@ -292,7 +320,11 @@ export function StaffTablePage() {
         ten: values.chuc_vu.ten,
         mo_ta: values.chuc_vu.mo_ta,
         heSoluong: values.chuc_vu.heSoluong,
+        role_code: values.chuc_vu.role_code || values.role,
+        quyen_han: values.chuc_vu.quyen_han || values.quyen_han,
       },
+      role: values.role || "user",
+      quyen_han: values.quyen_han || [],
     };
 
     updateStaff.mutate(body as any, {
@@ -306,6 +338,13 @@ export function StaffTablePage() {
 
   const handleEdit = (s: any) => {
     setSelectedStaff(s);
+    const inferredRole = inferUserRoleCode(s);
+    const defaultPerms = Array.isArray(s.quyen_han) && s.quyen_han.length > 0
+      ? s.quyen_han
+      : Array.isArray(s.chuc_vu?.quyen_han) && s.chuc_vu.quyen_han.length > 0
+        ? s.chuc_vu.quyen_han
+        : ROLE_MAP[inferredRole]?.permissions || [];
+
     formUpdate.reset({
       id: s._id,
       phong_ban: {
@@ -316,7 +355,11 @@ export function StaffTablePage() {
         ten: s.chuc_vu?.ten || "",
         mo_ta: s.chuc_vu?.mo_ta || "",
         heSoluong: s.chuc_vu?.heSoluong || 0,
+        role_code: s.chuc_vu?.role_code || inferredRole,
+        quyen_han: defaultPerms,
       },
+      role: s.role && s.role !== "user" ? s.role : inferredRole,
+      quyen_han: defaultPerms,
     });
     setOpenUpdateModal(true);
   };
@@ -436,14 +479,14 @@ export function StaffTablePage() {
 
           {/* BUTTON CREATE: Ẩn nút nếu là Thư ký */}
           {profile?.chuc_vu?.ten !== "Thư ký" &&
-            (profile?.phong_ban?.ten === "Phòng giám đốc" ||
-              profile?.chuc_vu?.ten === "Trưởng phòng") && (
+            (isAdminOrDirector(profile) ||
+              (profile?.chuc_vu?.ten || "").toLowerCase().includes("trưởng phòng")) && (
               <Button
                 onClick={() => {
                   setOpenCreateModal(true);
                   if (
-                    profile?.chuc_vu?.ten === "Trưởng phòng" &&
-                    profile?.phong_ban?.ten !== "Phòng giám đốc"
+                    !isAdminOrDirector(profile) &&
+                    (profile?.chuc_vu?.ten || "").toLowerCase().includes("trưởng phòng")
                   ) {
                     form.setValue("phong_ban", {
                       ten: profile.phong_ban.ten,
@@ -469,6 +512,7 @@ export function StaffTablePage() {
               <TableHead>Ngày sinh</TableHead>
               <TableHead>Phòng ban</TableHead>
               <TableHead>Chức vụ</TableHead>
+              <TableHead>Quyền hệ thống</TableHead>
               <TableHead className="text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -476,27 +520,33 @@ export function StaffTablePage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center p-6">
+                <TableCell colSpan={6} className="text-center p-6">
                   Đang tải...
                 </TableCell>
               </TableRow>
             ) : filteredList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center p-6">
+                <TableCell colSpan={6} className="text-center p-6">
                   Không có dữ liệu
                 </TableCell>
               </TableRow>
             ) : (
               filteredList.map((s: any) => {
                 const showAction = canShowAction(s);
+                const roleCode = inferUserRoleCode(s);
                 return (
                   <TableRow key={s._id}>
                     <TableCell>{s.ho_ten}</TableCell>
                     <TableCell>
                       {s.ngay_sinh ? new Date(s.ngay_sinh).toLocaleDateString("vi-VN") : "-"}
                     </TableCell>
-                    <TableCell>{s.phong_ban?.ten}</TableCell>
-                    <TableCell>{s.chuc_vu?.ten}</TableCell>
+                    <TableCell>{s.phong_ban?.ten || "-"}</TableCell>
+                    <TableCell>{s.chuc_vu?.ten || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant={roleCode === "admin" ? "default" : "secondary"}>
+                        {getRoleLabel(roleCode)}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-right">
                       {showAction && (
                         <DropdownMenu>
@@ -643,13 +693,21 @@ export function StaffTablePage() {
                         {posOptionsForm.map((p: any) => (
                           <DropdownMenuItem
                             key={p._id}
-                            onClick={() =>
+                            onClick={() => {
                               field.onChange({
                                 ten: p.ten_chuc_vu,
                                 mo_ta: p.mo_ta,
                                 heSoluong: p.he_so_luong,
-                              })
-                            }
+                                role_code: p.role_code || "user",
+                                quyen_han: p.quyen_han || [],
+                              });
+                              const nextRole = p.role_code || "user";
+                              const nextPerms = Array.isArray(p.quyen_han) && p.quyen_han.length > 0
+                                ? p.quyen_han
+                                : ROLE_MAP[nextRole]?.permissions || [];
+                              form.setValue("role", nextRole);
+                              form.setValue("quyen_han", nextPerms);
+                            }}
                           >
                             {p.ten_chuc_vu}
                           </DropdownMenuItem>
@@ -660,6 +718,32 @@ export function StaffTablePage() {
                 )}
               />
             </div>
+
+            {isAdminOrDirector(profile) && (
+              <div className="space-y-2 border-t pt-3">
+                <label className="text-xs font-semibold text-muted-foreground">
+                  Vai trò hệ thống (tự động điền theo chức vụ, có thể chỉnh riêng)
+                </label>
+                <Select
+                  value={form.watch("role") || "user"}
+                  onValueChange={(val) => {
+                    form.setValue("role", val);
+                    form.setValue("quyen_han", [...(ROLE_MAP[val]?.permissions || [])]);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn vai trò" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLE_OPTIONS.map((r) => (
+                      <SelectItem key={r.code} value={r.code}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <DialogFooter>
               <Button
@@ -752,13 +836,23 @@ export function StaffTablePage() {
                   {posOptionsFormUpdate.map((p: any) => (
                     <DropdownMenuItem
                       key={p._id}
-                      onClick={() =>
+                      onClick={() => {
                         formUpdate.setValue("chuc_vu", {
                           ten: p.ten_chuc_vu,
                           mo_ta: p.mo_ta,
                           heSoluong: p.he_so_luong,
-                        })
-                      }
+                          role_code: p.role_code || "user",
+                          quyen_han: p.quyen_han || [],
+                        });
+                        if (isAdminOrDirector(profile)) {
+                          const nextRole = p.role_code || "user";
+                          const nextPerms = Array.isArray(p.quyen_han) && p.quyen_han.length > 0
+                            ? p.quyen_han
+                            : ROLE_MAP[nextRole]?.permissions || [];
+                          formUpdate.setValue("role", nextRole);
+                          formUpdate.setValue("quyen_han", nextPerms);
+                        }
+                      }}
                     >
                       {p.ten_chuc_vu}
                     </DropdownMenuItem>
@@ -766,6 +860,64 @@ export function StaffTablePage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
+
+            {isAdminOrDirector(profile) && (
+              <div className="space-y-3 border-t pt-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Vai trò hệ thống (Role)</label>
+                  <Select
+                    value={formUpdate.watch("role") || "user"}
+                    onValueChange={(val) => {
+                      formUpdate.setValue("role", val);
+                      formUpdate.setValue("quyen_han", [...(ROLE_MAP[val]?.permissions || [])]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn vai trò" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((r) => (
+                        <SelectItem key={r.code} value={r.code}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Quyền hạn bổ sung ({(formUpdate.watch("quyen_han") || []).length} quyền)
+                  </label>
+                  <div className="border rounded-md p-2.5 max-h-40 overflow-y-auto space-y-1.5 bg-muted/20">
+                    {PERMISSION_LIST.map((perm) => {
+                      const currentPerms = formUpdate.watch("quyen_han") || [];
+                      const checked = currentPerms.includes(perm.code);
+                      return (
+                        <label
+                          key={perm.code}
+                          className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(isChecked) => {
+                              const next = isChecked
+                                ? [...new Set([...currentPerms, perm.code])]
+                                : currentPerms.filter((c) => c !== perm.code);
+                              formUpdate.setValue("quyen_han", next);
+                            }}
+                          />
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {perm.group}
+                          </Badge>
+                          <span>{perm.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <DialogFooter>
               <Button

@@ -31,6 +31,7 @@ import financialRoute         from "./financial.route.js";
 import botRoute               from "./bot.route.js";
 import contractRoute          from "./contract.route.js";
 import warrantyRoute          from "./warranty.route.js";
+import portalRoute            from "./portal.route.js";
 
 const v1Router = Router();
 
@@ -64,6 +65,7 @@ v1Router.use("/financial",          financialRoute);
 v1Router.use("/bot",                botRoute);
 v1Router.use("/contracts",          contractRoute);
 v1Router.use("/warranty",           warrantyRoute);
+v1Router.use("/portal",             portalRoute); // Public customer self-service portal
 
 
 

@@ -1,6 +1,6 @@
 import express from "express";
 import FinancialController from "../../controllers/financialController.js";
-import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
+import { verifyToken, verifyFinanceManager } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -19,7 +19,7 @@ router.get("/cashflow-forecast", FinancialController.getCashFlowForecast);
 router.post("/bank-reconcile",   FinancialController.reconcileBank);
 
 /* ─── 4. Quản trị giá vốn & Đồng bộ lại ─── */
-router.post("/recalculate-cogs", verifyAdmin, FinancialController.recalculateCOGS);
+router.post("/recalculate-cogs", verifyFinanceManager, FinancialController.recalculateCOGS);
 
 export default router;
 

@@ -4,7 +4,7 @@
 
 import express from "express";
 import UsersController from "../../controllers/usersControllers.js";
-import { verifyToken, verifyAdmin, verifySelfOrAdmin } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifyHRManager, verifySelfOrAdmin } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
@@ -19,17 +19,25 @@ router.post("/refresh",     requireBody("refreshToken"),                    User
 router.post("/logout",      verifyToken, requireBody("refreshToken"),       UsersController.logout);
 router.post("/logout-all",  verifyToken,                                    UsersController.logoutAll);
 
+/* ─── ROLE METADATA & ADMIN CREATE ─── */
+router.get("/roles/metadata", verifyToken, UsersController.getRoleMetadata);
+router.post("/admin-create",  verifyToken, verifyAdmin, requireBody("ho_ten", "tai_khoan", "password"), UsersController.createByAdmin);
+
 /* ─── EMPLOYEE LIST ─── */
 router.get("/danh-sach-nhan-vien", verifyToken, UsersController.getDanhSachNhanVien);
 
-/* ─── USER INFO (Protected) — chỉ chính chủ hoặc admin ─── */
-router.get("/",        verifyToken, verifyAdmin, UsersController.getUsers);
+/* ─── USER INFO (Protected) — Admin / HR hoặc chính chủ ─── */
+router.get("/",        verifyToken, verifyHRManager, UsersController.getUsers);
 router.get("/me/:id",  verifyToken, verifySelfOrAdmin, UsersController.getMyUser);
 router.get("/:id",     verifyToken, verifySelfOrAdmin, UsersController.getUserById);
 
 /* ─── PROFILE / PASSWORD — chỉ chính chủ hoặc admin ─── */
 router.patch("/:id/profile",  verifyToken, verifySelfOrAdmin, UsersController.updateProfile);
 router.patch("/:id/password", verifyToken, verifySelfOrAdmin, requireBody("oldPassword", "newPassword"), UsersController.updatePassword);
+
+/* ─── ROLE & QUYỀN HẠN — chỉ admin ─── */
+router.put("/:id/role",       verifyToken, verifyAdmin, UsersController.setUserRole);
+router.patch("/:id/role",     verifyToken, verifyAdmin, UsersController.setUserRole);
 
 /* ─── CHỨC VỤ — chỉ admin ─── */
 router.put("/:id/chuc-vu",    verifyToken, verifyAdmin, UsersController.setChucVu);

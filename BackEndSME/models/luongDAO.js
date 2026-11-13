@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import { sanitizeNumber } from "../utils/number.js";
+import { computeKpiPayrollRow } from "../utils/payrollCalculator.js";
 import SoQuyDAO from "./soQuyDAO.js";
 import PeriodClosingDAO from "./periodClosingDAO.js";
 
@@ -8,6 +9,8 @@ let luongCol;
 let usersCol;
 let soQuyCol;
 let bangLuongChotCol;
+let hoaDonCol;
+let lenhSanXuatCol;
 
 const STATUS = {
   ACTIVE: "active",
@@ -26,6 +29,8 @@ export default class LuongDAO {
       usersCol = db.collection("users");
       soQuyCol = db.collection("so_quy");
       bangLuongChotCol = db.collection("bang_luong_chot");
+      hoaDonCol = db.collection("hoa_don");
+      lenhSanXuatCol = db.collection("lenh_san_xuat");
 
       await luongCol.createIndex({ ma_nv: 1, ngay_thang: 1 }, { unique: true });
       await luongCol.createIndex({ user_id: 1, ngay_thang: 1 });
@@ -356,45 +361,129 @@ export default class LuongDAO {
         if (nv.tai_khoan) nvMap.set(String(nv.tai_khoan), nv);
       }
 
-      const GIO_TIEU_CHUAN = 160; // 8h × 20 ngày công chuẩn/tháng
-      const LUONG_CO_SO    = 1_000_000; // 1 triệu đồng/hệ số
+      // Batch fetch sales revenue by staff (hoa_don: loai_phieu='sale', trang_thai='completed')
+      const salesByStaffMap = new Map();
+      if (hoaDonCol) {
+        try {
+          const salesAgg = await hoaDonCol.aggregate([
+            {
+              $match: {
+                loai_phieu: "sale",
+                trang_thai: "completed",
+                ngay_lap: { $gte: startDate, $lt: endDate },
+              },
+            },
+            {
+              $group: {
+                _id: {
+                  id: "$nguoi_lap_id",
+                  tai_khoan: "$nguoi_lap.tai_khoan",
+                },
+                tong_doanh_so: { $sum: { $ifNull: ["$tong_tien", 0] } },
+              },
+            },
+          ]).toArray();
+          for (const s of salesAgg) {
+            const val = Number(s.tong_doanh_so || 0);
+            if (s._id?.id) {
+              const k = String(s._id.id);
+              salesByStaffMap.set(k, (salesByStaffMap.get(k) || 0) + val);
+            }
+            if (s._id?.tai_khoan) {
+              const k = String(s._id.tai_khoan);
+              salesByStaffMap.set(k, (salesByStaffMap.get(k) || 0) + val);
+            }
+          }
+        } catch (err) {
+          logger.warn("tinhLuongThang sales KPI query skipped", { error: err.message });
+        }
+      }
 
-      const items = chamCongsRaw.map(r => {
-        const nv        = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
-        const heSoluong = Math.max(0, Number(nv.chuc_vu?.heSoluong ?? 1)) || 1;
-        const luong_co_ban    = Math.round(heSoluong * LUONG_CO_SO);
-        const ty_le_lam_viec  = Math.min(1, r.tong_gio / GIO_TIEU_CHUAN);
+      // Batch fetch completed production output (lenh_san_xuat: trang_thai='completed')
+      let totalCompletedProductionQty = 0;
+      const prodByStaffMap = new Map();
+      if (lenhSanXuatCol) {
+        try {
+          const prodOrders = await lenhSanXuatCol
+            .find({
+              trang_thai: "completed",
+              $or: [
+                { ngay_hoan_thanh: { $gte: startDate, $lt: endDate } },
+                { updated_at: { $gte: startDate, $lt: endDate } },
+              ],
+            })
+            .project({ so_luong_dat: 1, so_luong: 1, nguoi_phu_trach_id: 1, nguoi_tao_id: 1 })
+            .toArray();
 
-        // don_gia_gio (nếu được truyền) override lương theo giờ; ngược lại dùng lương cơ bản.
-        let luong_thuc_nhan;
-        if (donGiaGioNum !== null) {
-          // Nhân với tỷ lệ làm việc để giữ nhất quán với công thức cũ.
-          luong_thuc_nhan = Math.round(donGiaGioNum * r.tong_gio);
-        } else {
-          luong_thuc_nhan = Math.round(luong_co_ban * ty_le_lam_viec);
+          for (const po of prodOrders) {
+            const qty = Math.max(0, Number(po.so_luong_dat ?? po.so_luong ?? 0));
+            totalCompletedProductionQty += qty;
+            const ownerId = po.nguoi_phu_trach_id || po.nguoi_tao_id;
+            if (ownerId) {
+              const k = String(ownerId);
+              prodByStaffMap.set(k, (prodByStaffMap.get(k) || 0) + qty);
+            }
+          }
+        } catch (err) {
+          logger.warn("tinhLuongThang production KPI query skipped", { error: err.message });
+        }
+      }
+
+      // Đếm số nhân sự khối Sản xuất để phân bổ sản lượng chung nếu lệnh SX không gán riêng cá nhân
+      const prodStaffRecords = chamCongsRaw.filter((r) => {
+        const nv = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
+        const pb = String(nv.phong_ban?.ten || "").toLowerCase();
+        return pb.includes("sản xuất") || pb.includes("san xuat") || pb.includes("xưởng");
+      });
+      const prodStaffCount = prodStaffRecords.length;
+
+      const items = chamCongsRaw.map((r) => {
+        const nv = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
+        const candidateKeys = [
+          String(r._id),
+          nv._id ? String(nv._id) : null,
+          nv.ma_nv ? String(nv.ma_nv) : null,
+          nv.tai_khoan ? String(nv.tai_khoan) : null,
+        ].filter(Boolean);
+
+        // Lấy doanh số bán hàng của nhân viên (tránh cộng trùng key)
+        let doanh_so_ban_hang = 0;
+        for (const k of candidateKeys) {
+          if (salesByStaffMap.has(k)) {
+            doanh_so_ban_hang = salesByStaffMap.get(k);
+            break;
+          }
         }
 
-        // Cộng/trừ thưởng phạt (có thể âm/dương). Không cap dưới 0 vì phạt có thể lớn.
-        luong_thuc_nhan = luong_thuc_nhan + thuongNum - phatNum;
+        // Lấy sản lượng sản xuất của nhân viên (ưu tiên lệnh gán trực tiếp, fallback chia đều khối sản xuất)
+        let san_luong_sx = 0;
+        for (const k of candidateKeys) {
+          if (prodByStaffMap.has(k)) {
+            san_luong_sx = prodByStaffMap.get(k);
+            break;
+          }
+        }
+        const pbLower = String(nv.phong_ban?.ten || "").toLowerCase();
+        const isProdStaff = pbLower.includes("sản xuất") || pbLower.includes("san xuat") || pbLower.includes("xưởng");
+        if (san_luong_sx === 0 && isProdStaff && prodStaffCount > 0 && totalCompletedProductionQty > 0) {
+          san_luong_sx = Math.round((totalCompletedProductionQty / prodStaffCount) * 100) / 100;
+        }
 
-        return {
-          ma_nv:         r._id,
-          ho_ten:        nv.ho_ten        || null,
-          phong_ban:     nv.phong_ban?.ten || null,
-          chuc_vu:       nv.chuc_vu?.ten  || null,
-          thang:         thangNum,
-          nam:           namNum,
-          so_ngay_cong:  r.so_ngay,
-          tong_gio_lam:  r.tong_gio,
+        return computeKpiPayrollRow({
+          ma_nv: r._id,
+          nv,
+          thang: thangNum,
+          nam: namNum,
+          so_ngay_cong: r.so_ngay,
+          tong_gio_lam: r.tong_gio,
           so_ngay_di_tre: r.so_ngay_di_tre,
-          he_so_luong:   heSoluong,
-          luong_co_ban,
           don_gia_gio_override: donGiaGioNum,
-          thuong: thuongNum,
-          phat:   phatNum,
+          thuong_khac: thuongNum,
+          phat_khac: phatNum,
+          doanh_so_ban_hang,
+          san_luong_sx,
           ghi_chu,
-          luong_thuc_nhan,
-        };
+        });
       });
 
       return { ok: true, thang: thangNum, nam: namNum, items };

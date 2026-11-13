@@ -13,4 +13,10 @@ router.post("/telegram/config",            verifyToken, verifyAdmin, TelegramBot
 router.post("/telegram/test",              verifyToken, TelegramBotController.sendTestMessage);
 router.post("/telegram/morning-briefing",   verifyToken, TelegramBotController.triggerMorningBriefing);
 
+/* Cấu hình Tự động hóa & Đa kênh (Telegram + Zalo) - Admin only */
+router.get("/automation-config",            verifyToken, verifyAdmin, TelegramBotController.getAutomationConfig);
+router.put("/automation-config",            verifyToken, verifyAdmin, TelegramBotController.updateAutomationConfig);
+router.post("/test-channel",                verifyToken, verifyAdmin, TelegramBotController.testChannel);
+router.post("/run-job",                     verifyToken, verifyAdmin, TelegramBotController.runJob);
+
 export default router;
