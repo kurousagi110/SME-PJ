@@ -55,7 +55,15 @@ export async function verifyToken(req, res, next) {
 
     const user = await usersCol.findOne(
       { _id: new ObjectId(userId), trang_thai: { $ne: 0 } },
-      { projection: { mat_khau: 0, tokens: 0 } }
+      {
+        projection: {
+          mat_khau: 0,
+          tokens: 0,
+          two_factor_secret: 0,
+          two_factor_pending_secret: 0,
+          two_factor_recovery_codes: 0,
+        },
+      }
     );
 
     if (!user) throw ApiError.unauthorized("Không tìm thấy tài khoản", "USER_NOT_FOUND");

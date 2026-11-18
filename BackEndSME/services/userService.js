@@ -96,6 +96,38 @@ export default class UserService {
     return result;
   }
 
+  static async verifyTwoFactorLogin({ tempToken, code }) {
+    if (!tempToken || !code) {
+      throw ApiError.badRequest("Thiếu tempToken hoặc mã OTP", "VALIDATION_ERROR");
+    }
+    const result = await UsersDAO.verifyTwoFactorLogin(tempToken, code);
+    if (result?.error) throw ApiError.unauthorized(result.error.message || "Xác thực 2FA thất bại", "INVALID_2FA");
+    return result;
+  }
+
+  static async setupTwoFactor(userId) {
+    if (!userId) throw ApiError.badRequest("Thiếu userId", "VALIDATION_ERROR");
+    const result = await UsersDAO.setupTwoFactor(userId);
+    this._daoError(result, "Không thể khởi tạo 2FA", "TWO_FA_SETUP_FAILED");
+    return result;
+  }
+
+  static async enableTwoFactor(userId, { code }) {
+    if (!userId || !code) throw ApiError.badRequest("Thiếu mã OTP xác nhận", "VALIDATION_ERROR");
+    const result = await UsersDAO.enableTwoFactor(userId, code);
+    this._daoError(result, "Kích hoạt 2FA thất bại", "TWO_FA_ENABLE_FAILED");
+    return result;
+  }
+
+  static async disableTwoFactor(userId, { password, code }) {
+    if (!userId || !password || !code) {
+      throw ApiError.badRequest("Vui lòng nhập đầy đủ mật khẩu và mã OTP", "VALIDATION_ERROR");
+    }
+    const result = await UsersDAO.disableTwoFactor(userId, password, code);
+    this._daoError(result, "Tắt 2FA thất bại", "TWO_FA_DISABLE_FAILED");
+    return result;
+  }
+
   // SECURITY: refreshToken đã được verify trong DAO → userId được extract từ JWT payload.
   // Body {userId} đã bị loại bỏ ở controller để chặn forced-logout của người khác.
   static async refreshToken({ refreshToken }) {

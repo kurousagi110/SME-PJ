@@ -53,7 +53,33 @@ export default class UsersController {
   static login = asyncHandler(async (req, res) => {
     const { tai_khoan, password } = req.body || {};
     const data = await UserService.login({ tai_khoan, password });
-    return sendSuccess(res, data, "Đăng nhập thành công");
+    return sendSuccess(res, data, data?.requires2fa ? "Vui lòng nhập mã xác thực 2FA" : "Đăng nhập thành công");
+  });
+
+  static verifyTwoFactorLogin = asyncHandler(async (req, res) => {
+    const { tempToken, code } = req.body || {};
+    const data = await UserService.verifyTwoFactorLogin({ tempToken, code });
+    return sendSuccess(res, data, "Xác thực 2FA và đăng nhập thành công");
+  });
+
+  static setupTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const data = await UserService.setupTwoFactor(userId);
+    return sendSuccess(res, data, "Đã tạo khóa thiết lập 2FA");
+  });
+
+  static enableTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const { code } = req.body || {};
+    const data = await UserService.enableTwoFactor(userId, { code });
+    return sendSuccess(res, data, "Đã kích hoạt bảo mật 2 lớp (2FA)");
+  });
+
+  static disableTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const { password, code } = req.body || {};
+    const data = await UserService.disableTwoFactor(userId, { password, code });
+    return sendSuccess(res, data, "Đã tắt bảo mật 2 lớp (2FA)");
   });
 
   // SECURITY: userId luôn lấy từ req.user._id (JWT) — KHÔNG tin body.userId.

@@ -6,38 +6,53 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 
 
+async function setAuthCookies(
+  userId: string,
+  accessToken: string,
+  refreshToken: string
+) {
+  const cookieStore = await cookies();
+
+  cookieStore.set("user_id", userId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    sameSite: "lax",
+  });
+
+  cookieStore.set("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 15,
+    sameSite: "lax",
+  });
+
+  cookieStore.set("refresh_token", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+    sameSite: "lax",
+  });
+}
+
 export async function loginAction(data: any) {
   try {
     const result = await http.post("/users/login", data);
 
+    if (result?.data?.requires2fa && result?.data?.tempToken) {
+      return {
+        success: false,
+        requires2fa: true,
+        tempToken: String(result.data.tempToken),
+      };
+    }
+
     // sendSuccess() wraps the payload: { success, message, data: { userId, accessToken, refreshToken } }
     const { userId, accessToken, refreshToken } = result.data;
-
-    const cookieStore = await cookies();
-
-    cookieStore.set("user_id", userId, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: "lax",
-    });
-
-    cookieStore.set("access_token", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 15,
-      sameSite: "lax",
-    });
-
-    cookieStore.set("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: "lax",
-    });
+    await setAuthCookies(userId, accessToken, refreshToken);
 
     return { success: true };
   } catch (err: any) {
@@ -45,6 +60,61 @@ export async function loginAction(data: any) {
       success: false,
       message: "Tài khoản hoặc mật khẩu không chính xác",
     };
+  }
+}
+
+export async function verify2faLoginAction(payload: {
+  tempToken: string;
+  code: string;
+}) {
+  try {
+    const result = await http.post("/users/login/2fa", payload);
+    const { userId, accessToken, refreshToken, usedRecoveryCode } = result.data;
+    await setAuthCookies(userId, accessToken, refreshToken);
+    return { success: true, usedRecoveryCode: Boolean(usedRecoveryCode) };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Mã xác thực 2FA không chính xác hoặc đã hết hạn",
+    };
+  }
+}
+
+export async function setup2faAction(): Promise<{
+  success: boolean;
+  data?: { secret: string; otpauthUri: string };
+  message?: string;
+}> {
+  try {
+    const result = await http.post("/users/2fa/setup", {});
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Không thể khởi tạo 2FA" };
+  }
+}
+
+export async function enable2faAction(code: string): Promise<{
+  success: boolean;
+  data?: { enabled: boolean; recoveryCodes: string[] };
+  message?: string;
+}> {
+  try {
+    const result = await http.post("/users/2fa/enable", { code });
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Mã OTP không chính xác" };
+  }
+}
+
+export async function disable2faAction(payload: {
+  password: string;
+  code: string;
+}): Promise<{ success: boolean; message?: string }> {
+  try {
+    await http.post("/users/2fa/disable", payload);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Không thể tắt 2FA" };
   }
 }
 

@@ -14,6 +14,7 @@ import {
   FileText,
   ArrowRight,
   Sparkles,
+  ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,8 +76,25 @@ export function RoleAdaptiveWidget() {
       ? "Góc Nhìn Kho Vận & Sản Xuất"
       : "Góc Nhìn Kinh Doanh & Bán Hàng";
 
+  const show2faBanner =
+    persona === "executive" && !(profile as any)?.two_factor_enabled;
+
   return (
     <div className="space-y-2.5">
+      {show2faBanner && (
+        <Link
+          href="/account"
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-900 dark:text-amber-200 hover:bg-amber-500/15 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="size-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Khuyến nghị bảo mật:</strong> Tài khoản điều hành/kế toán chưa bật xác thực 2 lớp (2FA). Nhấn để kích hoạt ngay.
+            </span>
+          </div>
+          <ArrowRight className="size-3.5 shrink-0" />
+        </Link>
+      )}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           <Sparkles className="size-3.5 text-primary" />

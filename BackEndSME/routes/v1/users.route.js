@@ -12,12 +12,16 @@ const router = express.Router();
 /* ─── AUTH (Public) ─── */
 router.post("/register",    requireBody("ho_ten", "tai_khoan", "password"), UsersController.register);
 router.post("/login",       requireBody("tai_khoan", "password"),           UsersController.login);
+router.post("/login/2fa",   requireBody("tempToken", "code"),               UsersController.verifyTwoFactorLogin);
 // /refresh: derive userId từ JWT payload (refreshToken.verify().uid) trong controller,
 // không tin body userId.
 router.post("/refresh",     requireBody("refreshToken"),                    UsersController.refreshToken);
 // /logout, /logout-all: verifyToken đã có req.user._id → controller dùng luôn, KHÔNG cần body userId.
 router.post("/logout",      verifyToken, requireBody("refreshToken"),       UsersController.logout);
 router.post("/logout-all",  verifyToken,                                    UsersController.logoutAll);
+router.post("/2fa/setup",   verifyToken,                                    UsersController.setupTwoFactor);
+router.post("/2fa/enable",  verifyToken, requireBody("code"),               UsersController.enableTwoFactor);
+router.post("/2fa/disable", verifyToken, requireBody("password", "code"),   UsersController.disableTwoFactor);
 
 /* ─── ROLE METADATA & ADMIN CREATE ─── */
 router.get("/roles/metadata", verifyToken, UsersController.getRoleMetadata);
