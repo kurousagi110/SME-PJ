@@ -5,6 +5,51 @@
  * hop_dong.ma_hop_dong/ten_hop_dong/partner_name, lo_san_xuat.so_lo/so_luong_ton.
  */
 import { escapeSafeRegexPattern } from "./securityHelpers.js";
+import { isAdminUserRecord, hasPermission } from "./permissions.js";
+
+export function getAllowedSearchScopes(user) {
+  if (!user) {
+    return { orders: false, products: false, materials: false, partners: false, contracts: false, batches: false };
+  }
+  if (isAdminUserRecord(user)) {
+    return { orders: true, products: true, materials: true, partners: true, contracts: true, batches: true };
+  }
+  return {
+    orders: hasPermission(user, [
+      "sales.view",
+      "sales.create",
+      "sales.approve",
+      "warehouse.view",
+      "purchase.manage",
+      "production.view",
+      "production.manage",
+    ]),
+    products: hasPermission(user, [
+      "sales.view",
+      "sales.create",
+      "warehouse.view",
+      "production.view",
+      "production.manage",
+      "bom.manage",
+    ]),
+    materials: hasPermission(user, [
+      "warehouse.view",
+      "purchase.manage",
+      "production.view",
+      "production.manage",
+      "bom.manage",
+    ]),
+    partners: hasPermission(user, [
+      "sales.view",
+      "sales.create",
+      "partners.manage",
+      "purchase.manage",
+      "finance.view",
+    ]),
+    contracts: hasPermission(user, ["sales.view", "sales.approve", "finance.view", "finance.manage"]),
+    batches: hasPermission(user, ["warehouse.view", "production.view", "production.manage", "rma.qc"]),
+  };
+}
 
 export function buildSafeSearchRegex(rawQuery, maxLen = 80) {
   const cleaned = String(rawQuery || "").trim();

@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import crypto from "node:crypto";
 import logger from "../utils/logger.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
@@ -24,9 +25,19 @@ const SAFE_USER_PROJECTION = {
 
 let users;
 
-const ACCESS_EXPIRES = "1h";
-const REFRESH_EXPIRES = "7d";
+const getAccessExpires = () => process.env.ACCESS_EXPIRES || "1h";
+const getRefreshExpires = () => process.env.REFRESH_EXPIRES || "7d";
 const SALT_ROUNDS = 12;
+
+/**
+ * Dẫn xuất khóa ký riêng cho tempToken 2FA để không bao giờ dùng được như accessToken.
+ */
+function getTwoFaChallengeKey() {
+  return crypto
+    .createHmac("sha256", String(process.env.JWT_SECRET || ""))
+    .update("sme_2fa_challenge_v1")
+    .digest("hex");
+}
 
 export default class UsersDAO {
   static async injectDB(conn) {
@@ -48,10 +59,10 @@ export default class UsersDAO {
   /* =============== JWT helpers =============== */
   static _signAccessToken(uid, role = null) {
     // role: {ten, heSoluong} hoặc null
-    return jwt.sign({ uid, role }, process.env.JWT_SECRET, { expiresIn: ACCESS_EXPIRES });
+    return jwt.sign({ uid, role }, process.env.JWT_SECRET, { expiresIn: getAccessExpires() });
   }
   static _signRefreshToken(uid, role = null) {
-    return jwt.sign({ uid, role }, process.env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+    return jwt.sign({ uid, role }, process.env.JWT_REFRESH_SECRET, { expiresIn: getRefreshExpires() });
   }
   static async _storeRefreshToken(userId, refreshToken) {
     const hashed = await bcrypt.hash(refreshToken, SALT_ROUNDS);
@@ -370,11 +381,11 @@ export default class UsersDAO {
       const ok = await bcrypt.compare(password, user.mat_khau);
       if (!ok) throw new Error(GENERIC_MSG);
 
-      // Nếu tài khoản đã bật 2FA (TOTP), trả về tempToken sống 5 phút để xác thực bước 2
+      // Nếu tài khoản đã bật 2FA (TOTP), trả về tempToken ký bằng khóa riêng (không có uid)
       if (user.two_factor_enabled && user.two_factor_secret) {
         const tempToken = jwt.sign(
-          { uid: user._id.toString(), purpose: "2fa_challenge" },
-          process.env.JWT_SECRET,
+          { pendingUid: user._id.toString(), purpose: "2fa_challenge" },
+          getTwoFaChallengeKey(),
           { expiresIn: "5m" }
         );
         return { requires2fa: true, tempToken };
@@ -399,12 +410,12 @@ export default class UsersDAO {
   static async verifyTwoFactorLogin(tempToken, code) {
     try {
       if (!tempToken || !code) throw new Error("Thiếu tempToken hoặc mã OTP");
-      const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
-      if (decoded?.purpose !== "2fa_challenge" || !ObjectId.isValid(decoded?.uid)) {
+      const decoded = jwt.verify(tempToken, getTwoFaChallengeKey());
+      if (decoded?.purpose !== "2fa_challenge" || !ObjectId.isValid(decoded?.pendingUid)) {
         throw new Error("Phiên xác thực 2FA không hợp lệ hoặc đã hết hạn");
       }
 
-      const user = await users.findOne({ _id: new ObjectId(decoded.uid), trang_thai: 1 });
+      const user = await users.findOne({ _id: new ObjectId(decoded.pendingUid), trang_thai: 1 });
       if (!user || !user.two_factor_enabled || !user.two_factor_secret) {
         throw new Error("Tài khoản chưa kích hoạt 2FA");
       }

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useForm } from "@tanstack/react-form";
 import * as z from "zod";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,10 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextRaw = searchParams.get("next") || "";
+  const redirectTarget =
+    nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/dashboard";
   const [twoFaChallenge, setTwoFaChallenge] = React.useState<{
     tempToken: string;
     taiKhoan: string;
@@ -65,7 +69,7 @@ export function LoginForm({
 
         if (res.success) {
           toast.success("Đăng nhập thành công!");
-          router.push("/dashboard");
+          router.push(redirectTarget);
           router.refresh();
         } else {
           toast.error(res.message || "Đăng nhập thất bại");
@@ -91,7 +95,7 @@ export function LoginForm({
         } else {
           toast.success("Xác thực 2FA thành công!");
         }
-        router.push("/dashboard");
+        router.push(redirectTarget);
         router.refresh();
       } else {
         toast.error(res.message || "Mã OTP không hợp lệ");

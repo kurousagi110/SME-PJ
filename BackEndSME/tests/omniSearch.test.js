@@ -1,6 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildSafeSearchRegex, formatOmniSearchResults, resolveOrderRoute } from "../utils/omniSearch.js";
+import {
+  buildSafeSearchRegex,
+  formatOmniSearchResults,
+  resolveOrderRoute,
+  getAllowedSearchScopes,
+} from "../utils/omniSearch.js";
 
 describe("Omni-Search Helpers (Ctrl + K Live Search)", () => {
   it("returns null for short queries (< 2 chars) and escapes ReDoS metacharacters", () => {
@@ -44,5 +49,34 @@ describe("Omni-Search Helpers (Ctrl + K Live Search)", () => {
     );
     assert.match(items[3].subtitle, /0909123456/);
     assert.match(items[5].subtitle, /SL còn: 8/);
+  });
+
+  it("enforces RBAC scopes for omni-search", () => {
+    const adminScopes = getAllowedSearchScopes({ role: "admin", quyen_han: ["all"] });
+    assert.deepEqual(adminScopes, {
+      orders: true,
+      products: true,
+      materials: true,
+      partners: true,
+      contracts: true,
+      batches: true,
+    });
+
+    const hrScopes = getAllowedSearchScopes({ role: "hr_staff", quyen_han: ["hr.view", "attendance.manage"] });
+    assert.deepEqual(hrScopes, {
+      orders: false,
+      products: false,
+      materials: false,
+      partners: false,
+      contracts: false,
+      batches: false,
+    });
+
+    const salesScopes = getAllowedSearchScopes({ role: "sales_staff", quyen_han: ["sales.view", "sales.create", "partners.manage"] });
+    assert.equal(salesScopes.orders, true);
+    assert.equal(salesScopes.contracts, true);
+    assert.equal(salesScopes.partners, true);
+    assert.equal(salesScopes.materials, false);
+    assert.equal(salesScopes.batches, false);
   });
 });

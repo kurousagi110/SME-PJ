@@ -44,6 +44,10 @@ export async function verifyToken(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    if (decoded?.purpose) {
+      throw ApiError.unauthorized("Token không hợp lệ cho truy cập API", "INVALID_TOKEN_PURPOSE");
+    }
+
     const userId = decoded?.uid;
     if (!userId || !ObjectId.isValid(userId)) {
       throw ApiError.unauthorized("Token không hợp lệ (uid)", "INVALID_TOKEN");

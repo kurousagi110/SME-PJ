@@ -99,6 +99,17 @@ export default class ApprovalController {
 
     const isApprove = hanh_dong === "approve";
     const isDirectorOrAdmin = isAdminUser(user);
+
+    const assertNotSelfApproval = (doc, label) => {
+      if (!isApprove || isDirectorOrAdmin || !doc) return;
+      const creatorId = doc.nguoi_lap_id || doc.created_by?.user_id || doc.created_by?._id;
+      const creatorUsername = doc.nguoi_lap_tai_khoan || doc.created_by?.tai_khoan;
+      const sameId = creatorId && String(creatorId) === String(user._id);
+      const sameUser = creatorUsername && user?.tai_khoan && creatorUsername === user.tai_khoan;
+      if (sameId || sameUser) {
+        throw ApiError.forbidden(`Không thể tự duyệt ${label} của chính mình (trừ quản trị viên)`, "SELF_APPROVE_FORBIDDEN");
+      }
+    };
     const roleCode = inferRoleCode(user);
     const isChiefAccountant =
       isDirectorOrAdmin ||
@@ -120,6 +131,10 @@ export default class ApprovalController {
     if (loai === "purchase") {
       if (!isWarehouseApprover) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn mua hàng");
+      }
+      if (ObjectId.isValid(id)) {
+        const po = await db.collection("don_hang").findOne({ _id: new ObjectId(id) });
+        assertNotSelfApproval(po, "đơn mua hàng");
       }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {
@@ -144,6 +159,8 @@ export default class ApprovalController {
       if (!isWarehouseApprover) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu điều chỉnh kho");
       }
+      const phieu = await DieuChinhKhoDAO.getById(id);
+      assertNotSelfApproval(phieu, "phiếu điều chỉnh kho");
       if (isApprove) {
         await DieuChinhKhoDAO.duyetPhieu(id, user);
       } else {
@@ -166,6 +183,10 @@ export default class ApprovalController {
     if (loai === "sale") {
       if (!isSalesManager) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn bán hàng");
+      }
+      if (ObjectId.isValid(id)) {
+        const saleOrder = await db.collection("don_hang").findOne({ _id: new ObjectId(id) });
+        assertNotSelfApproval(saleOrder, "đơn bán hàng");
       }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {

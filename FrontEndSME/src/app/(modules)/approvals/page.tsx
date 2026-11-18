@@ -492,12 +492,15 @@ export default function ApprovalsPage() {
                           </div>
                           <div className="text-sm font-medium text-foreground">
                             Hàng hóa: <span className="text-primary">{a.ten_hang || a.ma_hang}</span> (
-                            {a.loai_hang === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"})
+                            {(a.loai ?? a.loai_hang) === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"})
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Chênh lệch:{" "}
                             <strong className="text-amber-600">
-                              {a.so_luong_lech > 0 ? `+${a.so_luong_lech}` : a.so_luong_lech}
+                              {(() => {
+                                const delta = Number(a.so_luong_dieu_chinh ?? a.so_luong_lech ?? 0);
+                                return delta > 0 ? `+${delta}` : delta;
+                              })()}
                             </strong>{" "}
                             • Lý do: {a.ly_do || "Kiểm kê định kỳ"}
                           </div>
@@ -759,11 +762,14 @@ export default function ApprovalsPage() {
                       <TableCell className="font-medium">{a.ten_hang}</TableCell>
                       <TableCell>
                         <Badge variant="outline">
-                          {a.loai_hang === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"}
+                          {(a.loai ?? a.loai_hang) === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-bold text-amber-600">
-                        {a.so_luong_lech > 0 ? `+${a.so_luong_lech}` : a.so_luong_lech}
+                        {(() => {
+                          const delta = Number(a.so_luong_dieu_chinh ?? a.so_luong_lech ?? 0);
+                          return delta > 0 ? `+${delta}` : delta;
+                        })()}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{a.ly_do || "-"}</TableCell>
                       <TableCell className="text-right space-x-2">
@@ -1103,13 +1109,17 @@ export default function ApprovalsPage() {
                     <span className="font-bold text-primary">{toVND(previewTarget.raw.tong_tien)}</span>
                   </div>
                 )}
-                {previewTarget.raw.so_luong_lech !== undefined && (
+                {(previewTarget.raw.so_luong_dieu_chinh !== undefined ||
+                  previewTarget.raw.so_luong_lech !== undefined) && (
                   <div>
                     <span className="text-muted-foreground block">Chênh lệch tồn:</span>
                     <span className="font-bold text-amber-600">
-                      {previewTarget.raw.so_luong_lech > 0
-                        ? `+${previewTarget.raw.so_luong_lech}`
-                        : previewTarget.raw.so_luong_lech}
+                      {(() => {
+                        const delta = Number(
+                          previewTarget.raw.so_luong_dieu_chinh ?? previewTarget.raw.so_luong_lech ?? 0
+                        );
+                        return delta > 0 ? `+${delta}` : delta;
+                      })()}
                     </span>
                   </div>
                 )}
