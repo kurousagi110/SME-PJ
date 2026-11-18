@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Tabs,
   TabsContent,
@@ -1008,7 +1009,26 @@ function AlertsTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function PlanningPage() {
+const VALID_TABS = new Set(["forecast", "mrp", "abc", "alerts", "ecommerce", "scorecard"]);
+
+function PlanningContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") || "forecast";
+  const initialTab = VALID_TABS.has(tabParam) ? tabParam : "forecast";
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  useEffect(() => {
+    if (VALID_TABS.has(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    router.replace(`/planning?tab=${val}`, { scroll: false });
+  };
+
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div>
@@ -1018,7 +1038,7 @@ export default function PlanningPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="forecast">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="forecast" className="flex items-center gap-1 text-xs">
             <IconTrendingUp size={14} />
@@ -1066,5 +1086,13 @@ export default function PlanningPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function PlanningPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải Demand Planning...</div>}>
+      <PlanningContent />
+    </Suspense>
   );
 }

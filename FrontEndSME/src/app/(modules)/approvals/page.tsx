@@ -12,21 +12,37 @@ import {
   Calendar,
   Layers,
   ArrowRight,
-  TrendingDown,
-  DollarSign,
-  AlertCircle,
   RefreshCw,
+  Eye,
+  CheckSquare,
 } from "lucide-react";
 
 import {
   fetchPendingApprovalsAction,
   processApprovalAction,
-  type PendingApprovalsData,
 } from "@/app/actions/approval";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -53,8 +69,44 @@ function fmtDate(iso?: string) {
   }
 }
 
+type ApprovalKind = "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order";
+
+interface SelectedApprovalItem {
+  key: string;
+  loai: ApprovalKind;
+  id: string;
+  title: string;
+}
+
+interface PreviewTarget {
+  loai: ApprovalKind;
+  title: string;
+  raw: any;
+}
+
 export default function ApprovalsPage() {
   const queryClient = useQueryClient();
+
+  const [selectedKeys, setSelectedKeys] = React.useState<Record<string, SelectedApprovalItem>>({});
+  const [batchRunning, setBatchRunning] = React.useState(false);
+
+  // Shadcn Confirm / Reject Dialog State
+  const [confirmState, setConfirmState] = React.useState<{
+    open: boolean;
+    mode: "approve" | "reject" | "batch_approve";
+    loai?: ApprovalKind;
+    id?: string;
+    title: string;
+    reason: string;
+  }>({
+    open: false,
+    mode: "approve",
+    title: "",
+    reason: "",
+  });
+
+  // Quick-Preview Slide-Over Sheet State
+  const [previewTarget, setPreviewTarget] = React.useState<PreviewTarget | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["pending-approvals"],
@@ -62,12 +114,20 @@ export default function ApprovalsPage() {
       const res = await fetchPendingApprovalsAction();
       return res.data;
     },
-    refetchInterval: 15000, // Refresh every 15s
+    refetchInterval: 15000,
   });
+
+  const invalidateApprovalQueries = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["pending-approvals"] });
+    queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
+    queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
+    queryClient.invalidateQueries({ queryKey: ["order-sale"] });
+    queryClient.invalidateQueries({ queryKey: ["rma-orders"] });
+  }, [queryClient]);
 
   const mutation = useMutation({
     mutationFn: async (payload: {
-      loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "rma";
+      loai: ApprovalKind | "rma";
       id: string;
       hanh_dong: "approve" | "reject";
       ghi_chu?: string;
@@ -80,43 +140,93 @@ export default function ApprovalsPage() {
       }
       return res;
     },
-    onSuccess: (res, vars) => {
+    onSuccess: (res) => {
       toast.success(res.message);
-      queryClient.invalidateQueries({ queryKey: ["pending-approvals"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-receipts"] });
-      queryClient.invalidateQueries({ queryKey: ["dieu-chinh-kho"] });
-      queryClient.invalidateQueries({ queryKey: ["order-sale"] });
-      queryClient.invalidateQueries({ queryKey: ["rma-orders"] });
+      invalidateApprovalQueries();
+      setPreviewTarget(null);
     },
     onError: (err: any) => {
       toast.error(err.message || "Xử lý thất bại");
     },
   });
 
-  const handleApprove = (
-    loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order",
-    id: string,
-    title: string
-  ) => {
-    if (window.confirm(`Xác nhận PHÊ DUYỆT cho: ${title}?`)) {
-      mutation.mutate({ loai, id, hanh_dong: "approve" });
-    }
+  const handleApprove = (loai: ApprovalKind, id: string, title: string) => {
+    setConfirmState({
+      open: true,
+      mode: "approve",
+      loai,
+      id,
+      title,
+      reason: "",
+    });
   };
 
-  const handleReject = (
-    loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order",
-    id: string,
-    title: string
-  ) => {
-    const reason = window.prompt(`Nhập lý do TỪ CHỐI cho: ${title}:`);
-    if (reason !== null) {
+  const handleReject = (loai: ApprovalKind, id: string, title: string) => {
+    setConfirmState({
+      open: true,
+      mode: "reject",
+      loai,
+      id,
+      title,
+      reason: "",
+    });
+  };
+
+  const toggleSelect = (item: SelectedApprovalItem, checked: boolean) => {
+    setSelectedKeys((prev) => {
+      const next = { ...prev };
+      if (checked) next[item.key] = item;
+      else delete next[item.key];
+      return next;
+    });
+  };
+
+  const selectedItems = Object.values(selectedKeys);
+
+  const executeConfirmDialog = async () => {
+    if (confirmState.mode === "batch_approve") {
+      if (selectedItems.length === 0) return;
+      setBatchRunning(true);
+      let ok = 0;
+      let fail = 0;
+      for (const item of selectedItems) {
+        try {
+          const res = await processApprovalAction({
+            loai: item.loai,
+            id: item.id,
+            hanh_dong: "approve",
+          });
+          if (res.success) ok++;
+          else fail++;
+        } catch {
+          fail++;
+        }
+      }
+      setBatchRunning(false);
+      setSelectedKeys({});
+      setConfirmState((s) => ({ ...s, open: false }));
+      invalidateApprovalQueries();
+      if (ok > 0) toast.success(`Đã phê duyệt thành công ${ok} chứng từ${fail > 0 ? `, ${fail} chứng từ lỗi` : ""}`);
+      else toast.error(`Không thể phê duyệt ${fail} chứng từ đã chọn`);
+      return;
+    }
+
+    if (!confirmState.loai || !confirmState.id) return;
+    if (confirmState.mode === "approve") {
       mutation.mutate({
-        loai,
-        id,
+        loai: confirmState.loai,
+        id: confirmState.id,
+        hanh_dong: "approve",
+      });
+    } else {
+      mutation.mutate({
+        loai: confirmState.loai,
+        id: confirmState.id,
         hanh_dong: "reject",
-        ghi_chu: reason.trim() || "Không đạt yêu cầu phê duyệt",
+        ghi_chu: confirmState.reason.trim() || "Không đạt yêu cầu phê duyệt",
       });
     }
+    setConfirmState((s) => ({ ...s, open: false }));
   };
 
   const pending = data || {
@@ -143,6 +253,24 @@ export default function ApprovalsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {selectedItems.length > 0 && (
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-xs"
+              disabled={batchRunning}
+              onClick={() =>
+                setConfirmState({
+                  open: true,
+                  mode: "batch_approve",
+                  title: `${selectedItems.length} chứng từ đã chọn`,
+                  reason: "",
+                })
+              }
+            >
+              <CheckSquare className="mr-1.5 h-4 w-4" />
+              Duyệt hàng loạt ({selectedItems.length})
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -239,24 +367,12 @@ export default function ApprovalsPage() {
       {/* Main Tabs */}
       <Tabs defaultValue="all" className="w-full">
         <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full">
-          <TabsTrigger value="all">
-            Tất cả ({pending.totalPending})
-          </TabsTrigger>
-          <TabsTrigger value="purchases">
-            Đơn Mua Vật Tư ({pending.purchases.length})
-          </TabsTrigger>
-          <TabsTrigger value="stock">
-            Kiểm Kê Kho ({pending.stockAdjustments.length})
-          </TabsTrigger>
-          <TabsTrigger value="sales">
-            Đơn Bán Hàng ({pending.sales.length})
-          </TabsTrigger>
-          <TabsTrigger value="rma">
-            Đổi Trả RMA ({pending.returnOrders?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger value="payroll">
-            Lương Tháng
-          </TabsTrigger>
+          <TabsTrigger value="all">Tất cả ({pending.totalPending})</TabsTrigger>
+          <TabsTrigger value="purchases">Đơn Mua Vật Tư ({pending.purchases.length})</TabsTrigger>
+          <TabsTrigger value="stock">Kiểm Kê Kho ({pending.stockAdjustments.length})</TabsTrigger>
+          <TabsTrigger value="sales">Đơn Bán Hàng ({pending.sales.length})</TabsTrigger>
+          <TabsTrigger value="rma">Đổi Trả RMA ({pending.returnOrders?.length || 0})</TabsTrigger>
+          <TabsTrigger value="payroll">Lương Tháng</TabsTrigger>
         </TabsList>
 
         {/* TAB 1: ALL */}
@@ -264,146 +380,241 @@ export default function ApprovalsPage() {
           {pending.totalPending === 0 ? (
             <Card className="p-12 text-center text-muted-foreground border-dashed">
               <CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto mb-2" />
-              <div className="font-semibold text-foreground text-base">Tuyệt vời! Không có chứng từ nào chờ duyệt</div>
-              <p className="text-xs mt-1">Mọi yêu cầu luân chuyển giữa các phòng ban đã được xử lý xong</p>
+              <div className="font-semibold text-foreground text-base">
+                Tuyệt vời! Không có chứng từ nào chờ duyệt
+              </div>
+              <p className="text-xs mt-1">
+                Mọi yêu cầu luân chuyển giữa các phòng ban đã được xử lý xong
+              </p>
             </Card>
           ) : (
             <div className="space-y-4">
               {/* Purchase items */}
-              {pending.purchases.map((p: any) => (
-                <Card key={p._id} className="p-4 border-l-4 border-l-blue-500 shadow-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                          Đơn Mua Vật Tư
-                        </Badge>
-                        <span className="font-bold text-foreground">{p.ma_dh}</span>
-                        <span className="text-xs text-muted-foreground">• {fmtDate(p.created_at)}</span>
+              {pending.purchases.map((p: any) => {
+                const key = `purchase:${p._id}`;
+                return (
+                  <Card key={p._id} className="p-4 border-l-4 border-l-blue-500 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={!!selectedKeys[key]}
+                          onCheckedChange={(checked) =>
+                            toggleSelect(
+                              { key, loai: "purchase", id: p._id, title: `Đơn mua ${p.ma_dh}` },
+                              !!checked
+                            )
+                          }
+                          className="mt-1"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                              Đơn Mua Vật Tư
+                            </Badge>
+                            <span className="font-bold text-foreground">{p.ma_dh}</span>
+                            <span className="text-xs text-muted-foreground">• {fmtDate(p.created_at)}</span>
+                          </div>
+                          <div className="text-sm font-medium text-foreground">
+                            Nhà cung cấp: <span className="text-primary">{p.nha_cung_cap_ten || "NCC"}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Người lập: {p.nguoi_lap_ten || "Nhân viên"} • Số mặt hàng: {(p.san_pham || []).length} • Tổng tiền:{" "}
+                            <strong className="text-foreground">{toVND(p.tong_tien)}</strong>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm font-medium text-foreground">
-                        Nhà cung cấp: <span className="text-primary">{p.nha_cung_cap_ten || "NCC"}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Người lập: {p.nguoi_lap_ten || "Nhân viên"} • Số mặt hàng: {(p.san_pham || []).length} • Tổng tiền:{" "}
-                        <strong className="text-foreground">{toVND(p.tong_tien)}</strong>
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        disabled={mutation.isPending}
-                        onClick={() => handleApprove("purchase", p._id, `Đơn mua ${p.ma_dh}`)}
-                      >
-                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                        Duyệt Đơn Mua
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                        disabled={mutation.isPending}
-                        onClick={() => handleReject("purchase", p._id, `Đơn mua ${p.ma_dh}`)}
-                      >
-                        <XCircle className="mr-1.5 h-4 w-4" />
-                        Từ Chối
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setPreviewTarget({ loai: "purchase", title: `Đơn mua ${p.ma_dh}`, raw: p })
+                          }
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          Xem nhanh
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={mutation.isPending}
+                          onClick={() => handleApprove("purchase", p._id, `Đơn mua ${p.ma_dh}`)}
+                        >
+                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                          Duyệt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          disabled={mutation.isPending}
+                          onClick={() => handleReject("purchase", p._id, `Đơn mua ${p.ma_dh}`)}
+                        >
+                          <XCircle className="mr-1.5 h-4 w-4" />
+                          Từ Chối
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
 
               {/* Stock adjustment items */}
-              {pending.stockAdjustments.map((a: any) => (
-                <Card key={a._id} className="p-4 border-l-4 border-l-amber-500 shadow-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                          Kiểm Kê Kho
-                        </Badge>
-                        <span className="font-bold text-foreground">{a.ma_phieu || a._id.slice(-6)}</span>
-                        <span className="text-xs text-muted-foreground">• {fmtDate(a.created_at)}</span>
+              {pending.stockAdjustments.map((a: any) => {
+                const key = `stock_adjustment:${a._id}`;
+                return (
+                  <Card key={a._id} className="p-4 border-l-4 border-l-amber-500 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={!!selectedKeys[key]}
+                          onCheckedChange={(checked) =>
+                            toggleSelect(
+                              {
+                                key,
+                                loai: "stock_adjustment",
+                                id: a._id,
+                                title: `Phiếu kho ${a.ten_hang}`,
+                              },
+                              !!checked
+                            )
+                          }
+                          className="mt-1"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                              Kiểm Kê Kho
+                            </Badge>
+                            <span className="font-bold text-foreground">{a.ma_phieu || a._id.slice(-6)}</span>
+                            <span className="text-xs text-muted-foreground">• {fmtDate(a.created_at)}</span>
+                          </div>
+                          <div className="text-sm font-medium text-foreground">
+                            Hàng hóa: <span className="text-primary">{a.ten_hang || a.ma_hang}</span> (
+                            {a.loai_hang === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"})
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Chênh lệch:{" "}
+                            <strong className="text-amber-600">
+                              {a.so_luong_lech > 0 ? `+${a.so_luong_lech}` : a.so_luong_lech}
+                            </strong>{" "}
+                            • Lý do: {a.ly_do || "Kiểm kê định kỳ"}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm font-medium text-foreground">
-                        Hàng hóa: <span className="text-primary">{a.ten_hang || a.ma_hang}</span> ({a.loai_hang === "nguyen_lieu" ? "Nguyên liệu" : "Sản phẩm"})
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Chênh lệch: <strong className="text-amber-600">{a.so_luong_lech > 0 ? `+${a.so_luong_lech}` : a.so_luong_lech}</strong> • Lý do: {a.ly_do || "Kiểm kê định kỳ"}
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        disabled={mutation.isPending}
-                        onClick={() => handleApprove("stock_adjustment", a._id, `Phiếu kho ${a.ten_hang}`)}
-                      >
-                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                        Duyệt Điều Chỉnh
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                        disabled={mutation.isPending}
-                        onClick={() => handleReject("stock_adjustment", a._id, `Phiếu kho ${a.ten_hang}`)}
-                      >
-                        <XCircle className="mr-1.5 h-4 w-4" />
-                        Từ Chối
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setPreviewTarget({
+                              loai: "stock_adjustment",
+                              title: `Phiếu kiểm kê ${a.ma_phieu || a.ten_hang}`,
+                              raw: a,
+                            })
+                          }
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          Xem nhanh
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={mutation.isPending}
+                          onClick={() => handleApprove("stock_adjustment", a._id, `Phiếu kho ${a.ten_hang}`)}
+                        >
+                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                          Duyệt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          disabled={mutation.isPending}
+                          onClick={() => handleReject("stock_adjustment", a._id, `Phiếu kho ${a.ten_hang}`)}
+                        >
+                          <XCircle className="mr-1.5 h-4 w-4" />
+                          Từ Chối
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
 
               {/* Sales items */}
-              {pending.sales.map((s: any) => (
-                <Card key={s._id} className="p-4 border-l-4 border-l-purple-500 shadow-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                          Đơn Bán Hàng
-                        </Badge>
-                        <span className="font-bold text-foreground">{s.ma_dh}</span>
-                        <span className="text-xs text-muted-foreground">• {fmtDate(s.created_at)}</span>
+              {pending.sales.map((s: any) => {
+                const key = `sale:${s._id}`;
+                return (
+                  <Card key={s._id} className="p-4 border-l-4 border-l-purple-500 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          checked={!!selectedKeys[key]}
+                          onCheckedChange={(checked) =>
+                            toggleSelect(
+                              { key, loai: "sale", id: s._id, title: `Đơn bán ${s.ma_dh}` },
+                              !!checked
+                            )
+                          }
+                          className="mt-1"
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                              Đơn Bán Hàng
+                            </Badge>
+                            <span className="font-bold text-foreground">{s.ma_dh}</span>
+                            <span className="text-xs text-muted-foreground">• {fmtDate(s.created_at)}</span>
+                          </div>
+                          <div className="text-sm font-medium text-foreground">
+                            Khách hàng:{" "}
+                            <span className="text-primary">{s.khach_hang_ten || s.khach_hang?.ten || "Khách lẻ"}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Tổng giá trị: <strong className="text-foreground">{toVND(s.tong_tien)}</strong> • Chiết khấu:{" "}
+                            {toVND(s.giam_gia || 0)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-sm font-medium text-foreground">
-                        Khách hàng: <span className="text-primary">{s.khach_hang_ten || s.khach_hang?.ten || "Khách lẻ"}</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Tổng giá trị: <strong className="text-foreground">{toVND(s.tong_tien)}</strong> • Chiết khấu: {toVND(s.giam_gia || 0)}
-                      </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        disabled={mutation.isPending}
-                        onClick={() => handleApprove("sale", s._id, `Đơn bán ${s.ma_dh}`)}
-                      >
-                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                        Xác Nhận Đơn
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                        disabled={mutation.isPending}
-                        onClick={() => handleReject("sale", s._id, `Đơn bán ${s.ma_dh}`)}
-                      >
-                        <XCircle className="mr-1.5 h-4 w-4" />
-                        Hủy Đơn
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setPreviewTarget({ loai: "sale", title: `Đơn bán ${s.ma_dh}`, raw: s })
+                          }
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          Xem nhanh
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          disabled={mutation.isPending}
+                          onClick={() => handleApprove("sale", s._id, `Đơn bán ${s.ma_dh}`)}
+                        >
+                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                          Xác Nhận
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                          disabled={mutation.isPending}
+                          onClick={() => handleReject("sale", s._id, `Đơn bán ${s.ma_dh}`)}
+                        >
+                          <XCircle className="mr-1.5 h-4 w-4" />
+                          Hủy
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
 
               {/* Payroll item */}
               {!pending.payroll.da_chi && (
@@ -488,6 +699,16 @@ export default function ApprovalsPage() {
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
+                          variant="ghost"
+                          className="h-8"
+                          onClick={() =>
+                            setPreviewTarget({ loai: "purchase", title: `Đơn mua ${p.ma_dh}`, raw: p })
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
                           onClick={() => handleApprove("purchase", p._id, `Đơn mua ${p.ma_dh}`)}
                         >
@@ -548,6 +769,20 @@ export default function ApprovalsPage() {
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
+                          variant="ghost"
+                          className="h-8"
+                          onClick={() =>
+                            setPreviewTarget({
+                              loai: "stock_adjustment",
+                              title: `Phiếu kiểm kê ${a.ma_phieu || a.ten_hang}`,
+                              raw: a,
+                            })
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
                           onClick={() => handleApprove("stock_adjustment", a._id, `Phiếu kho ${a.ten_hang}`)}
                         >
@@ -602,6 +837,16 @@ export default function ApprovalsPage() {
                       <TableCell className="text-right space-x-2">
                         <Button
                           size="sm"
+                          variant="ghost"
+                          className="h-8"
+                          onClick={() =>
+                            setPreviewTarget({ loai: "sale", title: `Đơn bán ${s.ma_dh}`, raw: s })
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
                           onClick={() => handleApprove("sale", s._id, `Đơn bán ${s.ma_dh}`)}
                         >
@@ -636,11 +881,11 @@ export default function ApprovalsPage() {
                   <TableHead>Lý Do Trả</TableHead>
                   <TableHead>Số Mặt Hàng</TableHead>
                   <TableHead className="text-right">Tiền Hoàn Dự Kiến</TableHead>
-                  <TableHead className="text-right w-[180px]">Hành Động</TableHead>
+                  <TableHead className="text-right w-[220px]">Hành Động</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(!pending.returnOrders || pending.returnOrders.length === 0) ? (
+                {!pending.returnOrders || pending.returnOrders.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Không có phiếu đổi trả hàng nào đang chờ duyệt
@@ -667,19 +912,31 @@ export default function ApprovalsPage() {
                       <TableCell className="max-w-[200px] truncate text-muted-foreground">
                         {r.ly_do || "Không có lý do cụ thể"}
                       </TableCell>
-                      <TableCell>
-                        {(r.san_pham || []).length} sản phẩm
-                      </TableCell>
+                      <TableCell>{(r.san_pham || []).length} sản phẩm</TableCell>
                       <TableCell className="text-right font-bold text-foreground">
                         {toVND(r.tong_tien_hoan)}
                       </TableCell>
                       <TableCell className="text-right space-x-1.5">
                         <Button
                           size="sm"
+                          variant="ghost"
+                          className="h-8"
+                          onClick={() =>
+                            setPreviewTarget({
+                              loai: "return_order",
+                              title: `Phiếu RMA ${r.ma_rma}`,
+                              raw: r,
+                            })
+                          }
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
                           className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
                           onClick={() => handleApprove("return_order", r.ma_rma, `Phiếu đổi trả ${r.ma_rma}`)}
                         >
-                          Duyệt Chuyển Kho QC
+                          Duyệt QC
                         </Button>
                         <Button
                           size="sm"
@@ -753,6 +1010,188 @@ export default function ApprovalsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Confirm / Reject Dialog (replaces window.confirm / window.prompt) */}
+      <Dialog
+        open={confirmState.open}
+        onOpenChange={(open) => setConfirmState((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmState.mode === "reject" ? (
+                <XCircle className="h-5 w-5 text-rose-600" />
+              ) : (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              )}
+              {confirmState.mode === "reject"
+                ? "Xác nhận Từ chối chứng từ"
+                : confirmState.mode === "batch_approve"
+                ? "Xác nhận Duyệt hàng loạt"
+                : "Xác nhận Phê duyệt chứng từ"}
+            </DialogTitle>
+            <DialogDescription>
+              {confirmState.mode === "reject"
+                ? `Vui lòng nhập lý do từ chối cho: ${confirmState.title}`
+                : `Bạn có chắc chắn muốn phê duyệt: ${confirmState.title}?`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmState.mode === "reject" && (
+            <div className="py-2">
+              <Textarea
+                value={confirmState.reason}
+                onChange={(e) => setConfirmState((prev) => ({ ...prev, reason: e.target.value }))}
+                placeholder="Nhập lý do từ chối (vd: Sai số lượng kiểm kê, vượt định mức giá)..."
+                rows={3}
+              />
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmState((prev) => ({ ...prev, open: false }))}
+            >
+              Hủy bỏ
+            </Button>
+            <Button
+              variant={confirmState.mode === "reject" ? "destructive" : "default"}
+              className={confirmState.mode !== "reject" ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+              disabled={mutation.isPending || batchRunning}
+              onClick={executeConfirmDialog}
+            >
+              {batchRunning
+                ? "Đang xử lý..."
+                : confirmState.mode === "reject"
+                ? "Xác nhận Từ chối"
+                : "Xác nhận Phê duyệt"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick-Preview Slide-Over Sheet */}
+      <Sheet open={!!previewTarget} onOpenChange={(open) => !open && setPreviewTarget(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              {previewTarget?.title}
+            </SheetTitle>
+            <SheetDescription>
+              Xem nhanh chi tiết chứng từ trước khi phê duyệt
+            </SheetDescription>
+          </SheetHeader>
+
+          {previewTarget && (
+            <div className="space-y-4 py-4 text-sm">
+              <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3 text-xs border">
+                <div>
+                  <span className="text-muted-foreground block">Ngày lập:</span>
+                  <span className="font-medium">{fmtDate(previewTarget.raw.created_at)}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block">Người lập:</span>
+                  <span className="font-medium">
+                    {previewTarget.raw.nguoi_lap_ten || previewTarget.raw.nguoi_tao_ten || "Nhân viên"}
+                  </span>
+                </div>
+                {previewTarget.raw.tong_tien !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground block">Tổng giá trị:</span>
+                    <span className="font-bold text-primary">{toVND(previewTarget.raw.tong_tien)}</span>
+                  </div>
+                )}
+                {previewTarget.raw.so_luong_lech !== undefined && (
+                  <div>
+                    <span className="text-muted-foreground block">Chênh lệch tồn:</span>
+                    <span className="font-bold text-amber-600">
+                      {previewTarget.raw.so_luong_lech > 0
+                        ? `+${previewTarget.raw.so_luong_lech}`
+                        : previewTarget.raw.so_luong_lech}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {(previewTarget.raw.ly_do || previewTarget.raw.ghi_chu) && (
+                <div className="rounded-lg border p-3 text-xs">
+                  <div className="font-semibold mb-1">Ghi chú / Lý do:</div>
+                  <p className="text-muted-foreground">
+                    {previewTarget.raw.ly_do || previewTarget.raw.ghi_chu}
+                  </p>
+                </div>
+              )}
+
+              {Array.isArray(previewTarget.raw.san_pham) && previewTarget.raw.san_pham.length > 0 && (
+                <div>
+                  <div className="font-semibold text-xs mb-2">
+                    Chi tiết mặt hàng ({previewTarget.raw.san_pham.length})
+                  </div>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead className="text-xs">Hàng hóa</TableHead>
+                          <TableHead className="text-xs text-right">SL</TableHead>
+                          <TableHead className="text-xs text-right">Đơn giá</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewTarget.raw.san_pham.map((item: any, idx: number) => (
+                          <TableRow key={idx}>
+                            <TableCell className="text-xs">
+                              <div className="font-medium">{item.ten_sp || item.ten_nl || item.ten_hang}</div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {item.ma_sp || item.ma_nl || item.ma_hang}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-mono">{item.so_luong}</TableCell>
+                            <TableCell className="text-xs text-right font-mono">
+                              {toVND(item.don_gia || item.gia_nhap || 0)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {previewTarget && (
+            <SheetFooter className="gap-2">
+              <Button
+                variant="outline"
+                className="text-red-600"
+                onClick={() =>
+                  handleReject(
+                    previewTarget.loai,
+                    previewTarget.loai === "return_order" ? previewTarget.raw.ma_rma : previewTarget.raw._id,
+                    previewTarget.title
+                  )
+                }
+              >
+                Từ chối
+              </Button>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() =>
+                  handleApprove(
+                    previewTarget.loai,
+                    previewTarget.loai === "return_order" ? previewTarget.raw.ma_rma : previewTarget.raw._id,
+                    previewTarget.title
+                  )
+                }
+              >
+                Phê duyệt ngay
+              </Button>
+            </SheetFooter>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

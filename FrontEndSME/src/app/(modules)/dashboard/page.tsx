@@ -15,6 +15,7 @@ import { DashboardKpiCards } from "@/components/dashboard-kpi-cards";
 import { DashboardYearlyCompare } from "@/components/dashboard-yearly-compare";
 import { ChartAreaInteractive } from "@/components/chart-area-interactive";
 import DashboardOrdersTable from "@/components/dashboard-orders-table";
+import { RoleAdaptiveWidget } from "@/components/role-adaptive-widget";
 
 export default function Page() {
   const today = new Intl.DateTimeFormat("vi-VN", {
@@ -87,6 +88,9 @@ export default function Page() {
           </div>
         </div>
       </div>
+
+      {/* Role-Adaptive Priority Strip */}
+      <RoleAdaptiveWidget />
 
       {/* KPI Overview */}
       <DashboardKpiCards />

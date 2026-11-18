@@ -11,7 +11,10 @@ import {
   IconRefresh,
   IconFlame,
   IconTrendingUp,
+  IconMaximize,
+  IconMinimize,
 } from "@tabler/icons-react";
+import { playSuccessBeep, playErrorBeep } from "@/lib/audio-feedback";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +84,12 @@ export default function ProductionKanban() {
   const [boardData, setBoardData] = React.useState<KanbanBoardResponse | null>(null);
   const [scrapData, setScrapData] = React.useState<any>(null);
   const [barcodeInput, setBarcodeInput] = React.useState<string>("");
+  const [kioskMode, setKioskMode] = React.useState<boolean>(false);
+  const [scanFeedback, setScanFeedback] = React.useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
 
   // Modal báo phế phẩm
   const [selectedOrder, setSelectedOrder] = React.useState<KanbanOrder | null>(null);
@@ -121,12 +130,19 @@ export default function ProductionKanban() {
     try {
       const res = await updateProductionStageAction(order._id, { stage: nextStage });
       if (res.success) {
-        toast.success(`Đã chuyển đơn ${order.ma_dh} sang: ${STAGE_CONFIG[nextStage]?.title}`);
+        playSuccessBeep(true);
+        const msg = `Đã chuyển đơn ${order.ma_dh} sang: ${STAGE_CONFIG[nextStage]?.title}`;
+        setScanFeedback({ ok: true, message: msg });
+        toast.success(msg);
         loadData();
       } else {
-        toast.error(res.error || "Chuyển bước thất bại");
+        playErrorBeep(true);
+        const errMsg = res.error || "Chuyển bước thất bại";
+        setScanFeedback({ ok: false, message: errMsg });
+        toast.error(errMsg);
       }
     } catch {
+      playErrorBeep(true);
       toast.error("Lỗi kết nối khi cập nhật tiến độ");
     }
   };
@@ -149,7 +165,10 @@ export default function ProductionKanban() {
     }
 
     if (!found) {
-      toast.error(`Không tìm thấy lệnh sản xuất có mã: ${code}`);
+      playErrorBeep(true);
+      const errMsg = `Không tìm thấy lệnh sản xuất có mã: ${code}`;
+      setScanFeedback({ ok: false, message: errMsg });
+      toast.error(errMsg);
       return;
     }
 
@@ -182,7 +201,13 @@ export default function ProductionKanban() {
   };
 
   return (
-    <div className="space-y-6">
+    <div
+      className={
+        kioskMode
+          ? "fixed inset-0 z-50 bg-background p-4 sm:p-6 overflow-y-auto space-y-5"
+          : "space-y-6"
+      }
+    >
       {/* ─── Top Stats & Barcode Scanner Bar ─── */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="bg-gradient-to-br from-emerald-500/10 to-transparent border-emerald-200">
@@ -232,19 +257,48 @@ export default function ProductionKanban() {
           <CardContent>
             <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
               <Input
+                ref={barcodeInputRef}
                 placeholder="Quét mã vạch tại đây..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                className="font-mono text-sm uppercase bg-slate-50"
+                className="font-mono text-sm uppercase bg-muted/40"
               />
               <Button type="submit" size="sm" className="shrink-0">
                 <IconCheck className="h-4 w-4 mr-1" />
                 Chuyển Bước
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={loadData}>
+              <Button type="button" variant="outline" size="sm" onClick={loadData} title="Làm mới">
                 <IconRefresh className="h-4 w-4" />
               </Button>
+              <Button
+                type="button"
+                variant={kioskMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setKioskMode((v) => !v);
+                  setTimeout(() => barcodeInputRef.current?.focus(), 100);
+                }}
+                title={kioskMode ? "Thoát chế độ Kiosk Xưởng" : "Mở chế độ Kiosk Xưởng toàn màn hình"}
+              >
+                {kioskMode ? (
+                  <IconMinimize className="h-4 w-4" />
+                ) : (
+                  <IconMaximize className="h-4 w-4" />
+                )}
+              </Button>
             </form>
+            {scanFeedback && (
+              <div
+                className={`mt-2 px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                  scanFeedback.ok
+                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                    : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                }`}
+              >
+                {scanFeedback.ok ? "✅ " : "⚠️ "}
+                {scanFeedback.message}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

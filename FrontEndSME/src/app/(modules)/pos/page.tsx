@@ -16,9 +16,12 @@ import {
   IconUser,
   IconArrowLeft,
   IconRefresh,
+  IconVolume,
+  IconVolumeOff,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { playSuccessBeep, playErrorBeep } from "@/lib/audio-feedback";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,6 +60,32 @@ interface CartItem {
   so_luong_ton: number;
 }
 
+interface HeldCartTab {
+  id: string;
+  label: string;
+  cart: CartItem[];
+  customerName: string;
+  customerPhone: string;
+  discount: number;
+  paymentMethod: "tien_mat" | "chuyen_khoan";
+  cashGiven: number;
+  notes: string;
+}
+
+const POS_STORAGE_KEY = "sme_pos_multi_carts_v1";
+
+const createDefaultTab = (index = 1): HeldCartTab => ({
+  id: `tab-${Date.now()}-${index}`,
+  label: `HĐ #${index}`,
+  cart: [],
+  customerName: "Khách lẻ tại quầy",
+  customerPhone: "",
+  discount: 0,
+  paymentMethod: "tien_mat",
+  cashGiven: 0,
+  notes: "",
+});
+
 export default function PosCashierPage() {
   const { data: profile } = useMyProfile();
   const cashierName = profile?.ho_ten || profile?.tai_khoan || "Thu ngân";
@@ -72,20 +101,107 @@ export default function PosCashierPage() {
   }, [productRes]);
 
   const [customers, setCustomers] = useState<DoiTacItem[]>([]);
-  const [selectedCustomerName, setSelectedCustomerName] = useState<string>("Khách lẻ tại quầy");
-  const [selectedCustomerPhone, setSelectedCustomerPhone] = useState<string>("");
+
+  // Multi-Cart Tabs (persisted in localStorage)
+  const [tabs, setTabs] = useState<HeldCartTab[]>(() => [createDefaultTab(1)]);
+  const [activeTabId, setActiveTabId] = useState<string>("");
+  const [hydratedCarts, setHydratedCarts] = useState<boolean>(false);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(POS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed?.tabs) && parsed.tabs.length > 0) {
+          setTabs(parsed.tabs);
+          setActiveTabId(parsed.activeTabId || parsed.tabs[0].id);
+          setHydratedCarts(true);
+          return;
+        }
+      }
+    } catch {
+      // Ignore storage error
+    }
+    setActiveTabId((prev) => prev || tabs[0].id);
+    setHydratedCarts(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydratedCarts) return;
+    try {
+      localStorage.setItem(POS_STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [tabs, activeTabId, hydratedCarts]);
+
+  const activeTab = useMemo(
+    () => tabs.find((t) => t.id === activeTabId) || tabs[0],
+    [tabs, activeTabId]
+  );
+
+  const updateActiveTab = React.useCallback(
+    (updater: (tab: HeldCartTab) => HeldCartTab) => {
+      setTabs((prev) =>
+        prev.map((t) => (t.id === (activeTab?.id || prev[0]?.id) ? updater(t) : t))
+      );
+    },
+    [activeTab?.id]
+  );
+
+  const selectedCustomerName = activeTab.customerName;
+  const selectedCustomerPhone = activeTab.customerPhone;
+  const cart = activeTab.cart;
+  const discount = activeTab.discount;
+  const paymentMethod = activeTab.paymentMethod;
+  const cashGiven = activeTab.cashGiven;
+  const notes = activeTab.notes;
+
+  const setSelectedCustomerName = (val: string) =>
+    updateActiveTab((t) => ({ ...t, customerName: val }));
+  const setSelectedCustomerPhone = (val: string) =>
+    updateActiveTab((t) => ({ ...t, customerPhone: val }));
+  const setCart = (updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) =>
+    updateActiveTab((t) => ({
+      ...t,
+      cart: typeof updater === "function" ? updater(t.cart) : updater,
+    }));
+  const setDiscount = (val: number) => updateActiveTab((t) => ({ ...t, discount: val }));
+  const setPaymentMethod = (val: "tien_mat" | "chuyen_khoan") =>
+    updateActiveTab((t) => ({ ...t, paymentMethod: val }));
+  const setCashGiven = (val: number) => updateActiveTab((t) => ({ ...t, cashGiven: val }));
+  const setNotes = (val: string) => updateActiveTab((t) => ({ ...t, notes: val }));
+
+  const handleAddHeldTab = () => {
+    if (tabs.length >= 5) {
+      toast.warning("Tối đa 5 hóa đơn lưu tạm cùng lúc");
+      return;
+    }
+    const nextIdx = tabs.length + 1;
+    const newTab = createDefaultTab(nextIdx);
+    setTabs((prev) => [...prev, newTab]);
+    setActiveTabId(newTab.id);
+    toast.info(`Đã mở ${newTab.label} (giữ nguyên hóa đơn cũ)`);
+  };
+
+  const handleCloseTab = (tabId: string) => {
+    if (tabs.length <= 1) {
+      clearCart();
+      return;
+    }
+    const remaining = tabs.filter((t) => t.id !== tabId);
+    setTabs(remaining);
+    if (activeTab.id === tabId) {
+      setActiveTabId(remaining[0].id);
+    }
+  };
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
-  // Cart & Payment
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [discount, setDiscount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<"tien_mat" | "chuyen_khoan">("tien_mat");
-  const [cashGiven, setCashGiven] = useState<number>(0);
-  const [notes, setNotes] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Success Dialog
@@ -149,17 +265,21 @@ export default function PosCashierPage() {
       if (existingIdx >= 0) {
         const item = prev[existingIdx];
         if (item.so_luong >= stock) {
+          playErrorBeep(soundEnabled);
           toast.warning(`Kho chỉ còn ${stock} ${product.don_vi || "sản phẩm"}`);
           return prev;
         }
+        playSuccessBeep(soundEnabled);
         const updated = [...prev];
         updated[existingIdx] = { ...item, so_luong: item.so_luong + 1 };
         return updated;
       } else {
         if (stock <= 0) {
+          playErrorBeep(soundEnabled);
           toast.warning("Sản phẩm này hiện đang hết hàng trong kho!");
           return prev;
         }
+        playSuccessBeep(soundEnabled);
         return [
           ...prev,
           {
@@ -230,6 +350,7 @@ export default function PosCashierPage() {
       setSearchTerm("");
       toast.success(`Đã thêm: ${matched[0].ten_sp}`);
     } else if (matched.length === 0) {
+      playErrorBeep(soundEnabled);
       toast.error(`Không tìm thấy sản phẩm với mã "${query}"`);
     }
   };
@@ -321,6 +442,7 @@ export default function PosCashierPage() {
 
       setCompletedOrder(receiptData);
       setShowSuccessDialog(true);
+      playSuccessBeep(soundEnabled);
       toast.success("Thanh toán thành công & Đã tự động trừ kho và ghi sổ quỹ!");
 
       // Print receipt automatically
@@ -335,6 +457,28 @@ export default function PosCashierPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Physical Keyboard Shortcuts: F2 (Focus Barcode), F8 (VietQR), F9 (Checkout)
+  const handleCheckoutRef = useRef(handleCheckout);
+  handleCheckoutRef.current = handleCheckout;
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F2") {
+        e.preventDefault();
+        barcodeInputRef.current?.focus();
+      } else if (e.key === "F8") {
+        e.preventDefault();
+        setPaymentMethod("chuyen_khoan");
+        if (cart.length > 0) setShowQRDialog(true);
+      } else if (e.key === "F9") {
+        e.preventDefault();
+        handleCheckoutRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cart.length]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4.5rem)] -m-6 overflow-hidden bg-muted/20">
@@ -376,6 +520,19 @@ export default function PosCashierPage() {
           <Badge variant="outline" className="font-mono text-xs hidden lg:inline-flex">
             {currentTime}
           </Badge>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSoundEnabled((v) => !v)}
+            className="h-8 w-8 p-0"
+            title={soundEnabled ? "Tắt âm thanh quét mã" : "Bật âm thanh quét mã"}
+          >
+            {soundEnabled ? (
+              <IconVolume className="h-3.5 w-3.5 text-emerald-600" />
+            ) : (
+              <IconVolumeOff className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -471,12 +628,65 @@ export default function PosCashierPage() {
 
         {/* Right Section: Cart & Payment Checkout (5 cols on lg) */}
         <div className="lg:col-span-5 xl:col-span-4 flex flex-col bg-background h-full overflow-hidden">
+          {/* Multi-Cart Tabs (Hold/Park Bills) */}
+          <div className="px-2 pt-2 border-b bg-muted/20 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTab.id;
+              return (
+                <div
+                  key={tab.id}
+                  onClick={() => setActiveTabId(tab.id)}
+                  className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-xs font-medium cursor-pointer border border-b-0 transition-colors shrink-0 ${
+                    isActive
+                      ? "bg-background text-primary border-border shadow-2xs"
+                      : "bg-muted/40 text-muted-foreground border-transparent hover:bg-muted/70"
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {tab.cart.length > 0 && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                      {tab.cart.reduce((s, it) => s + it.so_luong, 0)}
+                    </Badge>
+                  )}
+                  {tabs.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCloseTab(tab.id);
+                      }}
+                      className="ml-0.5 text-muted-foreground hover:text-destructive"
+                      title="Đóng tab hóa đơn"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {tabs.length < 5 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleAddHeldTab}
+                className="h-7 px-2 text-[11px] text-primary hover:bg-primary/10 shrink-0"
+                title="Lưu tạm hóa đơn hiện tại & mở hóa đơn mới"
+              >
+                <IconPlus className="h-3 w-3 mr-0.5" /> Lưu tạm
+              </Button>
+            )}
+          </div>
+
           {/* Cart Header & Customer Picker */}
           <div className="p-3 border-b space-y-2 bg-muted/10 shrink-0">
             <div className="flex items-center justify-between">
               <span className="font-bold text-sm flex items-center gap-1.5">
                 <IconReceipt className="h-4 w-4 text-primary" />
-                Đơn Bán Lẻ ({cart.length} món)
+                {activeTab.label} ({cart.length} món)
+                <span className="hidden xl:inline-block text-[10px] font-normal text-muted-foreground ml-1">
+                  [F2 Quét • F8 QR • F9 Thanh toán]
+                </span>
               </span>
               {cart.length > 0 && (
                 <Button

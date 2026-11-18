@@ -19,6 +19,8 @@ import {
   IconArrowUpRight,
   IconArrowDownRight,
   IconBuildingBank,
+  IconAdjustmentsHorizontal,
+  IconFileZip,
 } from "@tabler/icons-react";
 import {
   Card,
@@ -96,6 +98,11 @@ export default function FinancialReportsPage() {
   const [openReconcileModal, setOpenReconcileModal] = React.useState<boolean>(false);
   const [reconcileResult, setReconcileResult] = React.useState<any>(null);
   const [isReconciling, setIsReconciling] = React.useState<boolean>(false);
+
+  // What-If Simulator states
+  const [simRevenuePct, setSimRevenuePct] = React.useState<number>(0);
+  const [simCogsPct, setSimCogsPct] = React.useState<number>(0);
+  const [simOpexPct, setSimOpexPct] = React.useState<number>(0);
 
   // Fetch all data
   const fetchData = React.useCallback(async (year: string) => {
@@ -202,6 +209,63 @@ export default function FinancialReportsPage() {
     toast.success("Đã xuất báo cáo Tuổi Nợ thành công!");
   };
 
+  // One-Click Audit Pack Export (Combined Multi-Section UTF-8 BOM CSV)
+  const handleExportAuditPack = () => {
+    const lines: string[] = [];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const row = (cols: unknown[]) => lines.push(cols.map(esc).join(","));
+
+    row([`HỒ SƠ KIỂM TOÁN TÀI CHÍNH TỔNG HỢP - NĂM ${selectedYear}`, `Ngày xuất: ${new Date().toLocaleString("vi-VN")}`]);
+    lines.push("");
+
+    // Section 1: P&L
+    row(["PHẦN 1: BÁO CÁO KẾT QUẢ KINH DOANH (P&L)"]);
+    row(["Khoản mục", "Số tiền (VND)", "Ghi chú"]);
+    if (pnlData?.summary) {
+      const s = pnlData.summary;
+      row(["Doanh thu thuần", s.netRevenue, ""]);
+      row(["Giá vốn hàng bán (COGS)", s.totalCogs, "Bình quân gia quyền"]);
+      row(["Lợi nhuận gộp", s.grossProfit, `Biên gộp: ${s.grossMarginPct}%`]);
+      row(["Tổng chi phí vận hành (OPEX)", s.opex.total, `Lương: ${s.opex.payroll}, Ship: ${s.opex.shipping}`]);
+      row(["Lợi nhuận ròng", s.netOperatingProfit, `Biên ròng: ${s.netMarginPct}%`]);
+    }
+    lines.push("");
+
+    // Section 2: Product Profitability
+    row(["PHẦN 2: HIỆU QUẢ SINH LỜI SẢN PHẨM"]);
+    row(["Mã SP", "Tên Sản Phẩm", "SL Bán", "Doanh Thu", "Giá Vốn", "Lợi Nhuận Gộp", "Biên LN (%)", "Phân loại"]);
+    for (const p of productsData) {
+      row([p.code, p.name, p.qty, p.revenue, p.totalCost, p.grossProfit, p.marginPct, p.classification]);
+    }
+    lines.push("");
+
+    // Section 3: Aging Debt
+    row(["PHẦN 3: PHÂN TÍCH TUỔI NỢ KHÁCH HÀNG"]);
+    row(["Khách hàng", "SĐT", "Tổng Nợ", "0-30 ngày", "31-60 ngày", "61-90 ngày", ">90 ngày"]);
+    for (const d of debtData?.items || []) {
+      row([d.name, d.phone, d.totalDebt, d.current, d.days_31_60, d.days_61_90, d.days_over_90]);
+    }
+    lines.push("");
+
+    // Section 4: Cashflow Summary
+    row(["PHẦN 4: DỰ PHÓNG DÒNG TIỀN 12 TUẦN"]);
+    row(["Số dư tiền mặt hiện tại", cashflowData?.currentCashBalance ?? 0]);
+    row(["Monthly Burn Rate", cashflowData?.monthlyBurnRate ?? 0]);
+    row(["Runway (Tháng)", cashflowData?.runwayMonths ?? "Ổn định"]);
+
+    const csvContent = "\uFEFF" + lines.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Ho_So_Kiem_Toan_SME_${selectedYear}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Đã xuất trọn bộ Hồ sơ Kiểm toán 1-Click!");
+  };
+
   const summary = pnlData?.summary;
   const isProfitable = (summary?.netOperatingProfit ?? 0) >= 0;
 
@@ -269,6 +333,18 @@ export default function FinancialReportsPage() {
             Xuất Excel
           </Button>
 
+          {/* One-Click Audit Pack */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAuditPack}
+            className="text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 dark:text-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/40"
+            title="Xuất trọn bộ P&L, Hiệu quả SP, Tuổi nợ và Dòng tiền trong 1 file"
+          >
+            <IconFileZip className="h-4 w-4 mr-1.5" />
+            Audit Pack 1-Click
+          </Button>
+
           {/* Print button */}
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <IconPrinter className="h-4 w-4 mr-1.5" />
@@ -279,7 +355,7 @@ export default function FinancialReportsPage() {
 
       {/* ─── Tabs Navigation ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 max-w-xl">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 max-w-2xl">
           <TabsTrigger value="pnl" className="flex items-center gap-1.5">
             <IconReportMoney className="h-4 w-4" />
             Lãi - Lỗ (P&L)
@@ -295,6 +371,10 @@ export default function FinancialReportsPage() {
           <TabsTrigger value="debt" className="flex items-center gap-1.5">
             <IconClockHour4 className="h-4 w-4" />
             Tuổi Nợ
+          </TabsTrigger>
+          <TabsTrigger value="simulator" className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+            <IconAdjustmentsHorizontal className="h-4 w-4" />
+            What-If
           </TabsTrigger>
         </TabsList>
 
@@ -1037,6 +1117,162 @@ export default function FinancialReportsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ══════════════ TAB 5: WHAT-IF SIMULATOR ══════════════ */}
+        <TabsContent value="simulator" className="space-y-6">
+          {(() => {
+            const baseRev = summary?.netRevenue || 0;
+            const baseCogs = summary?.totalCogs || 0;
+            const baseOpex = summary?.opex?.total || 0;
+
+            const projRev = Math.round(baseRev * (1 + simRevenuePct / 100));
+            const projCogs = Math.round(baseCogs * (1 + simRevenuePct / 100) * (1 + simCogsPct / 100));
+            const projGross = projRev - projCogs;
+            const projOpex = Math.round(baseOpex * (1 + simOpexPct / 100));
+            const projNet = projGross - projOpex;
+            const projMarginPct = projRev > 0 ? Number(((projNet / projRev) * 100).toFixed(1)) : 0;
+            const grossMarginRatio = projRev > 0 ? projGross / projRev : 0;
+            const breakEvenRev = grossMarginRatio > 0 ? Math.round(projOpex / grossMarginRatio) : 0;
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <Card className="lg:col-span-5 shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <IconAdjustmentsHorizontal className="h-5 w-5 text-indigo-600" />
+                        Thông số Giả lập Kịch bản
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSimRevenuePct(0);
+                          setSimCogsPct(0);
+                          setSimOpexPct(0);
+                        }}
+                      >
+                        Đặt lại 0%
+                      </Button>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Kéo thanh trượt để mô phỏng tác động của giá nguyên vật liệu, doanh số và chi phí vận hành tới lợi nhuận ròng.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Doanh số bán hàng</span>
+                        <span className={simRevenuePct >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simRevenuePct > 0 ? `+${simRevenuePct}%` : `${simRevenuePct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-30}
+                        max={50}
+                        step={1}
+                        value={simRevenuePct}
+                        onChange={(e) => setSimRevenuePct(Number(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Giá vốn / Nguyên vật liệu (COGS)</span>
+                        <span className={simCogsPct <= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simCogsPct > 0 ? `+${simCogsPct}%` : `${simCogsPct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-20}
+                        max={40}
+                        step={1}
+                        value={simCogsPct}
+                        onChange={(e) => setSimCogsPct(Number(e.target.value))}
+                        className="w-full accent-amber-600 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Chi phí vận hành (OPEX)</span>
+                        <span className={simOpexPct <= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simOpexPct > 0 ? `+${simOpexPct}%` : `${simOpexPct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-20}
+                        max={40}
+                        step={1}
+                        value={simOpexPct}
+                        onChange={(e) => setSimOpexPct(Number(e.target.value))}
+                        className="w-full accent-rose-600 cursor-pointer"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-7 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Kết quả Dự phóng Tài chính (What-If)</CardTitle>
+                    <CardDescription className="text-xs">
+                      So sánh trực tiếp giữa số liệu thực tế năm {selectedYear} và kịch bản giả lập
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Doanh thu dự kiến</div>
+                        <div className="text-sm font-bold text-blue-600 mt-0.5">{formatVND(projRev)}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Giá vốn dự kiến</div>
+                        <div className="text-sm font-bold text-amber-600 mt-0.5">{formatVND(projCogs)}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Lợi nhuận ròng</div>
+                        <div className={`text-sm font-bold mt-0.5 ${projNet >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          {formatVND(projNet)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Biên ròng / Hòa vốn</div>
+                        <div className="text-sm font-bold text-indigo-600 mt-0.5">{projMarginPct}%</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Hòa vốn: {formatVND(breakEvenRev)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-[220px] w-full pt-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={[
+                            { name: "Thực tế", revenue: baseRev, cogs: baseCogs, netProfit: summary?.netOperatingProfit || 0 },
+                            { name: "Kịch bản giả lập", revenue: projRev, cogs: projCogs, netProfit: projNet },
+                          ]}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1e6)}M`} />
+                          <Tooltip formatter={(v: any) => formatVND(Number(v || 0))} />
+                          <Legend />
+                          <Bar dataKey="revenue" name="Doanh thu thuần" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="cogs" name="Giá vốn (COGS)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="netProfit" name="Lợi nhuận ròng" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 
