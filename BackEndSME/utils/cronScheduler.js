@@ -9,6 +9,8 @@ import { getDB } from "../config/database.js";
 import { BotNotifierService } from "../services/botNotifierService.js";
 import { shouldDailyJobRunNow } from "./automationConfig.js";
 import { notifyAdmin, notifyApprover } from "./socketManager.js";
+import { planAutoReorderBatches } from "./reorderEngine.js";
+import { PlanningDAO } from "../models/planningDAO.js";
 
 let tickTimer = null;
 const lastRunDateMap = new Map(); // jobName -> "YYYY-MM-DD"
@@ -194,6 +196,70 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
           ? `📌 Mã lệnh tiêu biểu: ${stuckOrders.slice(0, 3).map((o) => o.ma_dh || o._id).join(", ")}\n`
           : "") +
         `👉 Quản đốc xưởng vui lòng kiểm tra bảng Kanban sản xuất.`;
+    } else if (jobKey === "auto_reorder") {
+      const [materials, pendingPurchaseOrders, recentPurchaseOrders] = await Promise.all([
+        db
+          .collection("nguyen_lieu")
+          .find({ trang_thai: { $nin: ["deleted", "inactive"] } })
+          .toArray(),
+        db
+          .collection("don_hang")
+          .find({
+            loai_don: "purchase_receipt",
+            trang_thai: { $in: ["draft", "pending", "cho_duyet", "approved", "ordered"] },
+          })
+          .project({ trang_thai: 1, san_pham: 1 })
+          .toArray(),
+        db
+          .collection("don_hang")
+          .find({
+            loai_don: "purchase_receipt",
+            trang_thai: { $nin: ["cancelled", "deleted"] },
+          })
+          .sort({ created_at: -1, _id: -1 })
+          .limit(100)
+          .project({ nha_cung_cap_ten: 1, nha_cung_cap: 1, san_pham: 1, created_at: 1, ngay_dat: 1 })
+          .toArray(),
+      ]);
+
+      const plan = planAutoReorderBatches({
+        materials,
+        pendingPurchaseOrders,
+        recentPurchaseOrders,
+      });
+
+      if (plan.batches.length === 0) {
+        const noNeedMsg =
+          plan.skippedDuplicateCount > 0
+            ? `Đã có đơn mua chờ duyệt cho ${plan.skippedDuplicateCount} vật tư tồn thấp — không tạo trùng`
+            : "Tất cả vật tư đang ở mức an toàn, không cần tạo đơn mua nháp";
+        if (trigger === "cron") {
+          return { ok: true, skipped: true, summary: noNeedMsg };
+        }
+        title = "Tự Động Tạo Đơn Mua Nháp (Auto-Reorder)";
+        summary = noNeedMsg;
+        message = `📦 <b>[AUTO-REORDER]</b>\n${noNeedMsg}`;
+      } else {
+        const createdPOs = [];
+        for (const batch of plan.batches) {
+          // eslint-disable-next-line no-await-in-loop
+          const created = await PlanningDAO.taoDonMuaTuMRP({
+            items: batch.items,
+            nha_cung_cap_ten: batch.nha_cung_cap_ten,
+            ghi_chu: `Đơn mua nháp tạo tự động (Auto-Reorder) cho ${batch.items.length} vật tư chạm điểm đặt hàng`,
+            user: { ho_ten: "Auto-Reorder Scheduler" },
+          });
+          if (created?.ma_dh) createdPOs.push(created);
+        }
+
+        title = "Tạo Đơn Mua Nháp Tự Động (Auto-Reorder)";
+        summary = `Đã tạo ${createdPOs.length} đơn mua nháp (${plan.totalItems} vật tư) chờ duyệt tại /approvals`;
+        message =
+          `🛒 <b>[AUTO-REORDER: ĐƠN MUA NHÁP CHỜ DUYỆT]</b>\n` +
+          `📄 Số đơn mua nháp vừa tạo: <b>${createdPOs.length}</b> (${plan.totalItems} mặt hàng)\n` +
+          `🏷️ Mã đơn: <b>${createdPOs.map((c) => c.ma_dh).join(", ")}</b>\n` +
+          `👉 Vui lòng vào <b>Trung tâm Phê duyệt (/approvals)</b> để kiểm tra và duyệt đặt hàng.`;
+      }
     } else {
       return { ok: false, error: `Tác vụ không hợp lệ: ${jobKey}` };
     }
@@ -251,7 +317,7 @@ async function schedulerTick() {
     const curDateKey = todayKey(now);
 
     // Daily jobs ("HH:mm")
-    for (const dailyKey of ["morning_briefing", "overdue_debt_contract_alert"]) {
+    for (const dailyKey of ["morning_briefing", "overdue_debt_contract_alert", "auto_reorder"]) {
       const j = jobs[dailyKey];
       if (!j?.enabled) continue;
       if (shouldDailyJobRunNow(j.time, now, lastRunDateMap.get(dailyKey))) {

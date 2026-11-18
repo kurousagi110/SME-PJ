@@ -45,6 +45,11 @@ export const DEFAULT_AUTOMATION_CONFIG = {
       threshold_hours: 48,
       channel: "both",
     },
+    auto_reorder: {
+      enabled: false,
+      time: "08:30",
+      channel: "both",
+    },
   },
 };
 
@@ -135,6 +140,12 @@ export function mergeAutomationConfig(existing = {}, incoming = {}) {
       Math.min(720, Number(inJobs.production_bottleneck_alert?.threshold_hours ?? curJobs.production_bottleneck_alert?.threshold_hours ?? 48) || 48)
     ),
     channel: normalizeChannel(inJobs.production_bottleneck_alert?.channel, curJobs.production_bottleneck_alert?.channel),
+  };
+
+  base.jobs.auto_reorder = {
+    enabled: Boolean(inJobs.auto_reorder?.enabled ?? curJobs.auto_reorder?.enabled ?? false),
+    time: normalizeTime(inJobs.auto_reorder?.time, curJobs.auto_reorder?.time || "08:30"),
+    channel: normalizeChannel(inJobs.auto_reorder?.channel, curJobs.auto_reorder?.channel),
   };
 
   return base;

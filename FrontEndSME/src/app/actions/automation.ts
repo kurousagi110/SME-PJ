@@ -48,6 +48,11 @@ export interface AutomationConfigPayload {
       threshold_hours: number;
       channel: JobChannel;
     };
+    auto_reorder?: {
+      enabled: boolean;
+      time: string;
+      channel: JobChannel;
+    };
   };
 }
 

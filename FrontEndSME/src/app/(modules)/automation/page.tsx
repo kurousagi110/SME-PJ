@@ -84,6 +84,7 @@ const DEFAULT_CONFIG: AutomationConfigPayload = {
       threshold_hours: 48,
       channel: "both",
     },
+    auto_reorder: { enabled: false, time: "08:30", channel: "both" },
   },
 };
 
@@ -760,6 +761,79 @@ export default function AutomationAdminPage() {
                     className="h-8 gap-1 text-xs"
                     disabled={runningJob === "production_bottleneck_alert"}
                     onClick={() => handleRunJobNow("production_bottleneck_alert")}
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Chạy ngay
+                  </Button>
+                </div>
+              </div>
+
+              {/* Job 5: Auto-Reorder Draft PO */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-lg border p-4 bg-muted/20">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    checked={Boolean(config.jobs.auto_reorder?.enabled)}
+                    onCheckedChange={(checked) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        jobs: {
+                          ...prev.jobs,
+                          auto_reorder: {
+                            time: prev.jobs.auto_reorder?.time || "08:30",
+                            channel: prev.jobs.auto_reorder?.channel || "both",
+                            enabled: Boolean(checked),
+                          },
+                        },
+                      }))
+                    }
+                  />
+                  <div>
+                    <div className="font-semibold text-sm">
+                      5. Tự động tạo đơn mua nháp khi chạm điểm đặt hàng (Auto-Reorder)
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Tự động quét vật tư có tồn ≤ tồn tối thiểu, tránh tạo trùng và tạo đơn nháp theo NCC gửi lên Hộp thư phê duyệt (/approvals).
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="time"
+                    className="w-28 h-8 text-xs"
+                    value={config.jobs.auto_reorder?.time || "08:30"}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        jobs: {
+                          ...prev.jobs,
+                          auto_reorder: {
+                            enabled: Boolean(prev.jobs.auto_reorder?.enabled),
+                            channel: prev.jobs.auto_reorder?.channel || "both",
+                            time: e.target.value,
+                          },
+                        },
+                      }))
+                    }
+                  />
+                  {renderChannelSelect(config.jobs.auto_reorder?.channel || "both", (val) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      jobs: {
+                        ...prev.jobs,
+                        auto_reorder: {
+                          enabled: Boolean(prev.jobs.auto_reorder?.enabled),
+                          time: prev.jobs.auto_reorder?.time || "08:30",
+                          channel: val,
+                        },
+                      },
+                    }))
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 gap-1 text-xs"
+                    disabled={runningJob === "auto_reorder"}
+                    onClick={() => handleRunJobNow("auto_reorder")}
                   >
                     <Play className="h-3.5 w-3.5" />
                     Chạy ngay
