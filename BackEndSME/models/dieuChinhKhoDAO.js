@@ -187,14 +187,6 @@ export default class DieuChinhKhoDAO {
     if (phieu.trang_thai !== DCK_STATUS.CHO_DUYET) {
       throw new Error("Phiếu đã được xử lý trước đó");
     }
-    if (!isAdminUserRecord(user)) {
-      const sameUser =
-        (user.tai_khoan && phieu.created_by?.tai_khoan === user.tai_khoan) ||
-        ((user._id || user.id) && phieu.created_by?.user_id && String(phieu.created_by.user_id) === String(user._id || user.id));
-      if (sameUser) {
-        throw new Error("Không thể tự duyệt phiếu điều chỉnh kho của chính mình (trừ quản trị viên)");
-      }
-    }
 
     const rejectedBy = {
       user_id: user._id || user.id ? String(user._id || user.id) : null,

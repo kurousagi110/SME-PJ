@@ -206,7 +206,7 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
           .collection("don_hang")
           .find({
             loai_don: "purchase_receipt",
-            trang_thai: { $in: ["draft", "pending", "cho_duyet", "approved", "ordered"] },
+            trang_thai: { $in: ["draft", "pending", "cho_duyet", "confirmed", "paid", "approved", "ordered"] },
           })
           .project({ trang_thai: 1, san_pham: 1 })
           .toArray(),

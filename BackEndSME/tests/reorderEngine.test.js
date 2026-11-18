@@ -23,7 +23,20 @@ describe("Auto-Reorder Engine (Draft PO generation)", () => {
         trang_thai: "draft",
         san_pham: [{ nguyen_lieu_id: "m3", ma_nl: "NL03", so_luong: 20 }],
       },
+      {
+        trang_thai: "confirmed",
+        san_pham: [{ nguyen_lieu_id: "m5", ma_nl: "NL05", so_luong: 10 }],
+      },
     ];
+
+    materials.push({
+      _id: "m5",
+      ma_nl: "NL05",
+      ten_nl: "Đinh vít",
+      so_luong: 1,
+      ton_toi_thieu: 10,
+      gia_nhap: 10000,
+    });
 
     const recentPurchaseOrders = [
       {
@@ -45,7 +58,7 @@ describe("Auto-Reorder Engine (Draft PO generation)", () => {
     });
 
     assert.equal(plan.totalItems, 2);
-    assert.equal(plan.skippedDuplicateCount, 1);
+    assert.equal(plan.skippedDuplicateCount, 2);
     assert.equal(plan.batches.length, 2);
 
     const goBatch = plan.batches.find((b) => b.nha_cung_cap_ten === "NCC Gỗ An Cường");

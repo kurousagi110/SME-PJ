@@ -6,7 +6,15 @@
  * - Nhóm theo nhà cung cấp gần nhất để tạo đơn nháp (chờ duyệt tại /approvals)
  */
 
-const PENDING_PO_STATUSES = new Set(["draft", "pending", "cho_duyet", "approved", "ordered"]);
+const PENDING_PO_STATUSES = new Set([
+  "draft",
+  "pending",
+  "cho_duyet",
+  "confirmed",
+  "paid",
+  "approved",
+  "ordered",
+]);
 
 export function buildPendingMaterialIds(pendingPurchaseOrders = []) {
   const ids = new Set();

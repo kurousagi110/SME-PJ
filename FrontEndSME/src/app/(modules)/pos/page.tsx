@@ -178,7 +178,11 @@ export default function PosCashierPage() {
       toast.warning("Tối đa 5 hóa đơn lưu tạm cùng lúc");
       return;
     }
-    const nextIdx = tabs.length + 1;
+    const maxNum = tabs.reduce((max, t) => {
+      const m = t.label.match(/#(\d+)/);
+      return m ? Math.max(max, Number(m[1])) : max;
+    }, 0);
+    const nextIdx = maxNum + 1;
     const newTab = createDefaultTab(nextIdx);
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newTab.id);
@@ -319,9 +323,15 @@ export default function PosCashierPage() {
   };
 
   const clearCart = () => {
-    setCart([]);
-    setDiscount(0);
-    setCashGiven(0);
+    updateActiveTab((t) => ({
+      ...t,
+      cart: [],
+      customerName: "Khách lẻ tại quầy",
+      customerPhone: "",
+      discount: 0,
+      cashGiven: 0,
+      notes: "",
+    }));
   };
 
   // Barcode / Scanner input handler
