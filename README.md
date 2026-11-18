@@ -242,6 +242,25 @@ docker compose up -d
 
 ---
 
+## 💾 Sao Lưu & Khôi Phục Dữ Liệu (MongoDB Backup & Restore)
+
+Hệ thống tích hợp sẵn service `sme_backup` trong [docker-compose.yml](docker-compose.yml) dùng `mongodump --archive --gzip`:
+- **Lịch chạy tự động**: mặc định `0 2 * * *` (02:00 sáng hàng ngày), tùy chỉnh qua biến `BACKUP_CRON`.
+- **Xoay vòng lưu trữ**: mặc định giữ bản sao lưu trong `14` ngày (`BACKUP_RETENTION_DAYS`), lưu tại thư mục `./backups/` (được loại trừ khỏi Git).
+
+```bash
+# Chạy sao lưu thủ công ngay lập tức (1 lần)
+docker compose run --rm --entrypoint /bin/bash backup -c "/usr/local/bin/mongo-backup.sh --once"
+
+# Khôi phục vào database tạm để kiểm tra (an toàn, không ghi đè DB chính)
+./scripts/restore.sh backups/sme_backup_YYYYMMDD_HHMMSS.archive.gz --target-db=SME_restore_verify
+
+# Khôi phục đè toàn bộ vào database chính
+./scripts/restore.sh backups/sme_backup_YYYYMMDD_HHMMSS.archive.gz
+```
+
+---
+
 ## 📄 Bản Quyền & Giấy Phép
 
 Dự án được xây dựng và tối ưu hóa phục vụ quản lý doanh nghiệp vừa và nhỏ Việt Nam. Phát hành theo giấy phép mã nguồn mở MIT License.
