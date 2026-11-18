@@ -619,7 +619,13 @@ export class OrderController {
       status: "SUCCESS",
     });
 
-    return sendSuccess(res, invoice, "Phát hành hóa đơn điện tử thành công");
+    return sendSuccess(
+      res,
+      invoice,
+      invoice.isMock
+        ? "Đã tạo bản nháp hóa đơn điện tử mô phỏng (chưa kết nối CQT)"
+        : "Phát hành hóa đơn điện tử thành công"
+    );
   });
 }
 
