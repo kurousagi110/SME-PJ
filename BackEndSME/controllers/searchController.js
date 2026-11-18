@@ -30,7 +30,10 @@ export const omniSearch = asyncHandler(async (req, res) => {
       ? findSafe(
           db,
           "don_hang",
-          { $or: [{ ma_dh: rx }, { khach_hang_ten: rx }, { nha_cung_cap_ten: rx }] },
+          {
+            loai_don: { $in: scopes.orderTypes },
+            $or: [{ ma_dh: rx }, { khach_hang_ten: rx }, { nha_cung_cap_ten: rx }],
+          },
           { ma_dh: 1, khach_hang_ten: 1, nha_cung_cap_ten: 1, trang_thai: 1, loai_don: 1 },
           limit,
           { _id: -1 }

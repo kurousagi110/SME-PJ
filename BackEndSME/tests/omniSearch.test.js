@@ -55,6 +55,7 @@ describe("Omni-Search Helpers (Ctrl + K Live Search)", () => {
     const adminScopes = getAllowedSearchScopes({ role: "admin", quyen_han: ["all"] });
     assert.deepEqual(adminScopes, {
       orders: true,
+      orderTypes: ["sale", "purchase_receipt", "prod_receipt"],
       products: true,
       materials: true,
       partners: true,
@@ -65,6 +66,7 @@ describe("Omni-Search Helpers (Ctrl + K Live Search)", () => {
     const hrScopes = getAllowedSearchScopes({ role: "hr_staff", quyen_han: ["hr.view", "attendance.manage"] });
     assert.deepEqual(hrScopes, {
       orders: false,
+      orderTypes: [],
       products: false,
       materials: false,
       partners: false,
@@ -74,9 +76,13 @@ describe("Omni-Search Helpers (Ctrl + K Live Search)", () => {
 
     const salesScopes = getAllowedSearchScopes({ role: "sales_staff", quyen_han: ["sales.view", "sales.create", "partners.manage"] });
     assert.equal(salesScopes.orders, true);
+    assert.deepEqual(salesScopes.orderTypes, ["sale"]);
     assert.equal(salesScopes.contracts, true);
     assert.equal(salesScopes.partners, true);
     assert.equal(salesScopes.materials, false);
     assert.equal(salesScopes.batches, false);
+
+    const prodScopes = getAllowedSearchScopes({ role: "production_staff", quyen_han: ["production.view"] });
+    assert.deepEqual(prodScopes.orderTypes, ["prod_receipt"]);
   });
 });

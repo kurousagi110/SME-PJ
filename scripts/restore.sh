@@ -45,8 +45,8 @@ if [ -n "$TARGET_DB" ]; then
   echo "🔄 Khôi phục dữ liệu từ '${ARCHIVE_PATH}' sang DB '${TARGET_DB}' (từ '${SOURCE_DB}')..."
   RESTORE_ARGS+=(--nsFrom="${SOURCE_DB}.*" --nsTo="${TARGET_DB}.*" --drop)
 else
-  echo "🔄 Khôi phục dữ liệu từ '${ARCHIVE_PATH}' (ghi đè collection hiện tại với --drop)..."
-  RESTORE_ARGS+=(--drop)
+  echo "🔄 Khôi phục dữ liệu từ '${ARCHIVE_PATH}' vào DB '${SOURCE_DB}' (ghi đè collection hiện tại với --drop)..."
+  RESTORE_ARGS+=(--nsInclude="${SOURCE_DB}.*" --drop)
 fi
 
 if [ -n "${MONGO_URI:-}" ] && command -v mongorestore >/dev/null 2>&1; then

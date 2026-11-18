@@ -9,21 +9,42 @@ import { isAdminUserRecord, hasPermission } from "./permissions.js";
 
 export function getAllowedSearchScopes(user) {
   if (!user) {
-    return { orders: false, products: false, materials: false, partners: false, contracts: false, batches: false };
+    return {
+      orders: false,
+      orderTypes: [],
+      products: false,
+      materials: false,
+      partners: false,
+      contracts: false,
+      batches: false,
+    };
   }
   if (isAdminUserRecord(user)) {
-    return { orders: true, products: true, materials: true, partners: true, contracts: true, batches: true };
+    return {
+      orders: true,
+      orderTypes: ["sale", "purchase_receipt", "prod_receipt"],
+      products: true,
+      materials: true,
+      partners: true,
+      contracts: true,
+      batches: true,
+    };
   }
+
+  const orderTypes = [];
+  if (hasPermission(user, ["sales.view", "sales.create", "sales.approve"])) {
+    orderTypes.push("sale");
+  }
+  if (hasPermission(user, ["warehouse.view", "purchase.manage"])) {
+    orderTypes.push("purchase_receipt");
+  }
+  if (hasPermission(user, ["production.view", "production.manage"])) {
+    orderTypes.push("prod_receipt");
+  }
+
   return {
-    orders: hasPermission(user, [
-      "sales.view",
-      "sales.create",
-      "sales.approve",
-      "warehouse.view",
-      "purchase.manage",
-      "production.view",
-      "production.manage",
-    ]),
+    orders: orderTypes.length > 0,
+    orderTypes,
     products: hasPermission(user, [
       "sales.view",
       "sales.create",

@@ -407,6 +407,22 @@ export default class UsersDAO {
     }
   }
 
+  static async _verifyTotpOrRecovery(user, code) {
+    const secret = decryptTotpSecret(user.two_factor_secret);
+    if (verifyTotp(secret, code, { window: 1 })) {
+      return { ok: true, usedRecoveryCode: false, matchedEntryId: null };
+    }
+
+    const normalized = normalizeRecoveryCode(code);
+    for (const entry of user.two_factor_recovery_codes || []) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await bcrypt.compare(normalized, entry.hashed)) {
+        return { ok: true, usedRecoveryCode: true, matchedEntryId: entry.id };
+      }
+    }
+    return { ok: false, usedRecoveryCode: false, matchedEntryId: null };
+  }
+
   static async verifyTwoFactorLogin(tempToken, code) {
     try {
       if (!tempToken || !code) throw new Error("Thiếu tempToken hoặc mã OTP");
@@ -420,33 +436,20 @@ export default class UsersDAO {
         throw new Error("Tài khoản chưa kích hoạt 2FA");
       }
 
-      const secret = decryptTotpSecret(user.two_factor_secret);
-      const isTotpValid = verifyTotp(secret, code, { window: 1 });
-      let usedRecoveryCode = false;
+      const check = await this._verifyTotpOrRecovery(user, code);
+      if (!check.ok) {
+        throw new Error("Mã OTP hoặc mã khôi phục không chính xác");
+      }
 
-      if (!isTotpValid) {
-        // Kiểm tra mã khôi phục dùng 1 lần (single-use recovery code)
-        const normalized = normalizeRecoveryCode(code);
-        let matchedEntry = null;
-        for (const entry of user.two_factor_recovery_codes || []) {
-          // eslint-disable-next-line no-await-in-loop
-          if (await bcrypt.compare(normalized, entry.hashed)) {
-            matchedEntry = entry;
-            break;
-          }
-        }
-        if (!matchedEntry) {
-          throw new Error("Mã OTP hoặc mã khôi phục không chính xác");
-        }
+      if (check.usedRecoveryCode && check.matchedEntryId) {
         // Xóa atomic mã khôi phục đã sử dụng để chống dùng lại
         const pulled = await users.findOneAndUpdate(
-          { _id: user._id, "two_factor_recovery_codes.id": matchedEntry.id },
-          { $pull: { two_factor_recovery_codes: { id: matchedEntry.id } }, $set: { updateAt: new Date() } }
+          { _id: user._id, "two_factor_recovery_codes.id": check.matchedEntryId },
+          { $pull: { two_factor_recovery_codes: { id: check.matchedEntryId } }, $set: { updateAt: new Date() } }
         );
         if (!pulled) {
           throw new Error("Mã khôi phục đã được sử dụng");
         }
-        usedRecoveryCode = true;
       }
 
       const role = user.chuc_vu
@@ -457,7 +460,7 @@ export default class UsersDAO {
       const refreshToken = this._signRefreshToken(user._id.toString(), role);
       await this._storeRefreshToken(user._id, refreshToken);
 
-      return { userId: user._id, accessToken, refreshToken, usedRecoveryCode };
+      return { userId: user._id, accessToken, refreshToken, usedRecoveryCode: check.usedRecoveryCode };
     } catch (e) {
       logger.error("verifyTwoFactorLogin error", { error: e.message });
       return { error: e };
@@ -542,9 +545,9 @@ export default class UsersDAO {
       if (!passOk) throw new Error("Mật khẩu không chính xác");
 
       if (user.two_factor_enabled && user.two_factor_secret) {
-        const secret = decryptTotpSecret(user.two_factor_secret);
-        if (!verifyTotp(secret, code, { window: 1 })) {
-          throw new Error("Mã OTP không chính xác");
+        const check = await this._verifyTotpOrRecovery(user, code);
+        if (!check.ok) {
+          throw new Error("Mã OTP hoặc mã khôi phục không chính xác");
         }
       }
 

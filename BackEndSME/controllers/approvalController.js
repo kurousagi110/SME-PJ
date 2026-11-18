@@ -250,8 +250,13 @@ export default class ApprovalController {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu đổi trả hàng");
       }
 
+      const db = getDB();
+      if (isApprove) {
+        const rmaDoc = await db.collection("doi_tra_hang").findOne({ ma_rma: String(id) });
+        assertNotSelfApproval(rmaDoc, "phiếu đổi trả hàng");
+      }
+
       if (!isApprove) {
-        const db = getDB();
         await db.collection("doi_tra_hang").updateOne(
           { ma_rma: String(id) },
           {
@@ -267,7 +272,6 @@ export default class ApprovalController {
       }
 
       // Khi approve → chuyển sang bước kiểm định kho (kiem_tra_qc)
-      const db = getDB();
       await db.collection("doi_tra_hang").updateOne(
         { ma_rma: String(id) },
         {

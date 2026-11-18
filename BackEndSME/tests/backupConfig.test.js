@@ -24,5 +24,8 @@ describe("Automated MongoDB Backup & Restore Configuration", () => {
 
     execFileSync("bash", ["-n", backupScript]);
     execFileSync("bash", ["-n", restoreScript]);
+
+    const restoreContent = fs.readFileSync(restoreScript, "utf8");
+    assert.match(restoreContent, /--nsInclude=/);
   });
 });
