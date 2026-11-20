@@ -9,6 +9,7 @@ import {
   ORDER_TYPE,
 } from "./donHangConstants.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { invalidateReportCaches } from "../utils/cache.js";
 import {
   genOrderCode,
   num,
@@ -110,6 +111,7 @@ export async function taoDonHang({
 
   try {
     const res = await state.don_hang.insertOne(doc);
+    invalidateReportCaches();
     return { insertedId: res.insertedId, ma_dh: doc.ma_dh };
   } catch (e) {
     if (e?.code === 11000) return { error: new Error("Mã chứng từ đã tồn tại") };

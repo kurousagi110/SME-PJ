@@ -3,6 +3,7 @@ import logger from "../utils/logger.js";
 import SanPhamDAO from "./sanPhamDAO.js";
 import SoQuyDAO from "./soQuyDAO.js";
 import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { invalidateReportCaches } from "../utils/cache.js";
 
 let rmaCol = null;
 let donHangCol = null;
@@ -252,6 +253,7 @@ export default class ReturnOrderDAO {
         }
       );
 
+      invalidateReportCaches();
       return {
         ok: true,
         ma_rma: rma.ma_rma,

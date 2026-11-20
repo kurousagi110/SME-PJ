@@ -13,45 +13,61 @@ import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess } from "../utils/response.js";
 import { PlanningDAO } from "../models/planningDAO.js";
 import { EcommercePolicyDAO } from "../models/ecommercePolicyDAO.js";
+import { withCache, invalidateReportCaches, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 export default class PlanningController {
   /* ── Forecast ─────────────────────────────────────────────────────────── */
   static getForecast = asyncHandler(async (req, res) => {
     const months = Math.min(12, Math.max(3, parseInt(req.query.months) || 6));
-    const data = await PlanningDAO.getForecast(months);
+    const data = await withCache(
+      `${REPORT_CACHE_PREFIXES.PLANNING}forecast:${months}`,
+      () => PlanningDAO.getForecast(months),
+      120
+    );
     return sendSuccess(res, data, "Lấy dự báo nhu cầu thành công");
   });
 
   /* ── MRP ──────────────────────────────────────────────────────────────── */
   static getMRP = asyncHandler(async (req, res) => {
     const lead_time = Math.min(30, Math.max(1, parseInt(req.query.lead_time) || 7));
-    const [data, scorecards] = await Promise.all([
-      PlanningDAO.getMRPPlan(lead_time),
-      PlanningDAO.getSupplierScorecards(),
-    ]);
-    const topSupplier = scorecards[0] || null;
-    return sendSuccess(
-      res,
-      {
-        ...data,
-        recommended_supplier: topSupplier,
-        supplier_scorecards: scorecards.slice(0, 5),
+    const payload = await withCache(
+      `${REPORT_CACHE_PREFIXES.PLANNING}mrp:${lead_time}`,
+      async () => {
+        const [data, scorecards] = await Promise.all([
+          PlanningDAO.getMRPPlan(lead_time),
+          PlanningDAO.getSupplierScorecards(),
+        ]);
+        const topSupplier = scorecards[0] || null;
+        return {
+          ...data,
+          recommended_supplier: topSupplier,
+          supplier_scorecards: scorecards.slice(0, 5),
+        };
       },
-      "Lấy kế hoạch MRP thành công"
+      90
     );
+    return sendSuccess(res, payload, "Lấy kế hoạch MRP thành công");
   });
 
   /* ── ABC Analysis ─────────────────────────────────────────────────────── */
   static getABC = asyncHandler(async (req, res) => {
     const months = Math.min(12, Math.max(3, parseInt(req.query.months) || 6));
-    const data = await PlanningDAO.getABCAnalysis(months);
+    const data = await withCache(
+      `${REPORT_CACHE_PREFIXES.PLANNING}abc:${months}`,
+      () => PlanningDAO.getABCAnalysis(months),
+      120
+    );
     return sendSuccess(res, data, "Phân tích ABC thành công");
   });
 
   /* ── Inventory Alerts ─────────────────────────────────────────────────── */
   static getAlerts = asyncHandler(async (req, res) => {
     const months = Math.min(12, Math.max(3, parseInt(req.query.months) || 6));
-    const data = await PlanningDAO.getAlerts(months);
+    const data = await withCache(
+      `${REPORT_CACHE_PREFIXES.PLANNING}alerts:${months}`,
+      () => PlanningDAO.getAlerts(months),
+      60
+    );
     return sendSuccess(res, data, "Lấy cảnh báo tồn kho thành công");
   });
 
@@ -98,6 +114,7 @@ export default class PlanningController {
       ghi_chu,
       user: req.user,
     });
+    invalidateReportCaches([REPORT_CACHE_PREFIXES.PLANNING, REPORT_CACHE_PREFIXES.DASHBOARD, REPORT_CACHE_PREFIXES.AI]);
     return sendSuccess(res, result, "Tạo đơn mua hàng từ MRP thành công", 201);
   });
 
@@ -110,7 +127,11 @@ export default class PlanningController {
 
   /* ── Supplier Scorecard ───────────────────────────────────────────────── */
   static getSupplierScorecards = asyncHandler(async (req, res) => {
-    const data = await PlanningDAO.getSupplierScorecards();
+    const data = await withCache(
+      `${REPORT_CACHE_PREFIXES.PLANNING}supplier_scorecards`,
+      () => PlanningDAO.getSupplierScorecards(),
+      120
+    );
     return sendSuccess(res, data, "Lấy bảng chấm điểm nhà cung cấp thành công");
   });
 }

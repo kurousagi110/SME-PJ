@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "./soQuyDAO.js";
 import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { invalidateReportCaches, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 let contractsCol = null;
 
@@ -74,6 +75,7 @@ export class ContractDAO {
     };
 
     const res = await contractsCol.insertOne(newDoc);
+    invalidateReportCaches([REPORT_CACHE_PREFIXES.FINANCIAL, REPORT_CACHE_PREFIXES.AI]);
     return { ...newDoc, _id: res.insertedId };
   }
 

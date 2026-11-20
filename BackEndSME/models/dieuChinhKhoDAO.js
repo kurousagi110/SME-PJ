@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import NguyenLieuDAO from "./nguyenLieuDAO.js";
 import SanPhamDAO from "./sanPhamDAO.js";
 import { isAdminUserRecord } from "../utils/permissions.js";
+import { invalidateReportCaches, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 export const DCK_STATUS = {
   CHO_DUYET: "cho_duyet",
@@ -174,6 +175,11 @@ export default class DieuChinhKhoDAO {
       throw new Error(adjustResult.error.message || "Điều chỉnh tồn kho thất bại");
     }
 
+    invalidateReportCaches([
+      REPORT_CACHE_PREFIXES.PLANNING,
+      REPORT_CACHE_PREFIXES.DASHBOARD,
+      REPORT_CACHE_PREFIXES.AI,
+    ]);
     return reserved;
   }
 
