@@ -14,6 +14,12 @@ import DoiTacDAO from "../models/doiTacDAO.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
 import { isAdminUser } from "../middleware/auth.js";
+import { withCache, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
+import {
+  buildCoOccurrenceMap,
+  recommendCrossSellProducts,
+  evaluateCartMarginGuard,
+} from "../utils/salesRecommendationEngine.js";
 
 export class OrderController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
@@ -625,6 +631,72 @@ export class OrderController {
       invoice.isMock
         ? "Đã tạo bản nháp hóa đơn điện tử mô phỏng (chưa kết nối CQT)"
         : "Phát hành hóa đơn điện tử thành công"
+    );
+  });
+
+  /* ─── SMART CART INSIGHTS (Cross-sell Recommendations + Margin Guard) ─── */
+  static getSmartCartInsights = asyncHandler(async (req, res) => {
+    const { items = [], discountAmount = 0, minMarginPct = 10, limit = 4 } = req.body || {};
+    const db = getDB();
+
+    // Cache ma trận mua kèm & danh mục sản phẩm 15 phút để POS phản hồi tức thì
+    const { coOccurrenceMap, products } = await withCache(
+      `${REPORT_CACHE_PREFIXES.RECOMMENDATIONS}co_occurrence_catalog`,
+      async () => {
+        const [recentSales, allProducts] = await Promise.all([
+          db
+            .collection("don_hang")
+            .find({
+              loai_don: "sale",
+              trang_thai: { $nin: ["cancelled", "deleted"] },
+            })
+            .sort({ created_at: -1 })
+            .limit(500)
+            .project({ san_pham: 1, trang_thai: 1 })
+            .toArray(),
+          db
+            .collection("san_pham")
+            .find({ trang_thai: { $nin: ["deleted", "ngung_kinh_doanh"] } })
+            .project({ _id: 1, ma_sp: 1, ten_sp: 1, don_gia: 1, gia_von: 1, so_luong: 1, trang_thai: 1 })
+            .toArray(),
+        ]);
+
+        return {
+          coOccurrenceMap: buildCoOccurrenceMap(recentSales),
+          products: allProducts,
+        };
+      },
+      900
+    );
+
+    const productCostById = new Map(products.map((p) => [String(p._id), Number(p.gia_von || 0)]));
+    const enrichedItems = (Array.isArray(items) ? items : []).map((it) => {
+      const spId = String(it?.san_pham_id || it?.id || "");
+      const giaVon = Number(it?.gia_von || 0) || productCostById.get(spId) || 0;
+      return { ...it, gia_von: giaVon };
+    });
+
+    const cartProductIds = enrichedItems
+      .map((it) => String(it?.san_pham_id || it?.id || it?.ma_sp || "").trim())
+      .filter(Boolean);
+
+    const recommendations = recommendCrossSellProducts({
+      cartProductIds,
+      coOccurrenceMap,
+      products,
+      limit: Math.min(8, Math.max(1, Number(limit) || 4)),
+    });
+
+    const marginGuard = evaluateCartMarginGuard({
+      items: enrichedItems,
+      discountAmount: Number(discountAmount || 0),
+      minMarginPct: Number(minMarginPct || 10),
+    });
+
+    return sendSuccess(
+      res,
+      { recommendations, marginGuard },
+      "Phân tích giỏ hàng thông minh thành công"
     );
   });
 }

@@ -53,6 +53,14 @@ export interface AutomationConfigPayload {
       time: string;
       channel: JobChannel;
     };
+    anomaly_detection?: {
+      enabled: boolean;
+      interval_minutes: number;
+      revenue_drop_pct: number;
+      discount_alert_pct: number;
+      scrap_rate_alert_pct: number;
+      channel: JobChannel;
+    };
   };
 }
 

@@ -77,3 +77,44 @@ export async function checkoutPosAction(
     };
   }
 }
+
+export interface SmartCrossSellItem {
+  san_pham_id: string;
+  ma_sp: string;
+  ten_sp: string;
+  don_gia: number;
+  gia_von: number;
+  so_luong_ton: number;
+  coOccurrenceCount: number;
+  reason: string;
+}
+
+export interface CartMarginGuardResult {
+  status: "HEALTHY" | "LOW_MARGIN" | "LOSS";
+  grossSubtotal: number;
+  discountAmount: number;
+  netRevenue: number;
+  totalCost: number;
+  grossProfit: number;
+  marginPct: number;
+  minMarginPct: number;
+  maxSafeDiscount: number;
+  hasEstimatedCost: boolean;
+  warningMessage: string | null;
+}
+
+export async function fetchSmartCartInsightsAction(payload: {
+  items: Array<{ san_pham_id: string; ma_sp?: string; don_gia: number; so_luong: number }>;
+  discountAmount: number;
+  minMarginPct?: number;
+}): Promise<{
+  success: boolean;
+  data?: { recommendations: SmartCrossSellItem[]; marginGuard: CartMarginGuardResult };
+}> {
+  try {
+    const res: any = await http.post("/don-hang/smart-cart-insights", payload);
+    return { success: true, data: res?.data };
+  } catch {
+    return { success: false };
+  }
+}

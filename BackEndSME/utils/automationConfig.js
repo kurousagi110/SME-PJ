@@ -50,6 +50,14 @@ export const DEFAULT_AUTOMATION_CONFIG = {
       time: "08:30",
       channel: "both",
     },
+    anomaly_detection: {
+      enabled: false,
+      interval_minutes: 240,
+      revenue_drop_pct: 40,
+      discount_alert_pct: 25,
+      scrap_rate_alert_pct: 10,
+      channel: "both",
+    },
   },
 };
 
@@ -146,6 +154,30 @@ export function mergeAutomationConfig(existing = {}, incoming = {}) {
     enabled: Boolean(inJobs.auto_reorder?.enabled ?? curJobs.auto_reorder?.enabled ?? false),
     time: normalizeTime(inJobs.auto_reorder?.time, curJobs.auto_reorder?.time || "08:30"),
     channel: normalizeChannel(inJobs.auto_reorder?.channel, curJobs.auto_reorder?.channel),
+  };
+
+  base.jobs.anomaly_detection = {
+    enabled: Boolean(inJobs.anomaly_detection?.enabled ?? curJobs.anomaly_detection?.enabled ?? false),
+    interval_minutes: Math.max(
+      30,
+      Math.min(
+        1440,
+        Number(inJobs.anomaly_detection?.interval_minutes ?? curJobs.anomaly_detection?.interval_minutes ?? 240) || 240
+      )
+    ),
+    revenue_drop_pct: Math.max(
+      10,
+      Math.min(90, Number(inJobs.anomaly_detection?.revenue_drop_pct ?? curJobs.anomaly_detection?.revenue_drop_pct ?? 40) || 40)
+    ),
+    discount_alert_pct: Math.max(
+      5,
+      Math.min(80, Number(inJobs.anomaly_detection?.discount_alert_pct ?? curJobs.anomaly_detection?.discount_alert_pct ?? 25) || 25)
+    ),
+    scrap_rate_alert_pct: Math.max(
+      1,
+      Math.min(50, Number(inJobs.anomaly_detection?.scrap_rate_alert_pct ?? curJobs.anomaly_detection?.scrap_rate_alert_pct ?? 10) || 10)
+    ),
+    channel: normalizeChannel(inJobs.anomaly_detection?.channel, curJobs.anomaly_detection?.channel),
   };
 
   return base;

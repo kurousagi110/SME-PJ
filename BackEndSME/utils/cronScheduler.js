@@ -10,6 +10,7 @@ import { BotNotifierService } from "../services/botNotifierService.js";
 import { shouldDailyJobRunNow } from "./automationConfig.js";
 import { notifyAdmin, notifyApprover } from "./socketManager.js";
 import { planAutoReorderBatches } from "./reorderEngine.js";
+import { detectEnterpriseAnomalies } from "./anomalyEngine.js";
 import { PlanningDAO } from "../models/planningDAO.js";
 
 let tickTimer = null;
@@ -62,7 +63,7 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
       const endOfYesterday = new Date(startOfYesterday);
       endOfYesterday.setDate(endOfYesterday.getDate() + 1);
 
-      const [ordersCount, pendingOrders, pendingAdjustments, cashEntries] = await Promise.all([
+      const [ordersCount, pendingOrders, pendingAdjustments, cashAgg] = await Promise.all([
         db.collection("don_hang").countDocuments({
           loai_don: "sale",
           trang_thai: { $in: ["completed", "paid"] },
@@ -73,12 +74,23 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
         }),
         db.collection("don_hang").countDocuments({ trang_thai: "draft" }),
         db.collection("dieu_chinh_kho").countDocuments({ trang_thai: "pending" }),
-        db.collection("so_quy").find({ trang_thai: "active" }).project({ loai_phieu: 1, so_tien: 1 }).toArray(),
+        db
+          .collection("so_quy")
+          .aggregate([
+            { $match: { trang_thai: "active" } },
+            {
+              $group: {
+                _id: "$loai_phieu",
+                total: { $sum: { $ifNull: ["$so_tien", 0] } },
+              },
+            },
+          ])
+          .toArray(),
       ]);
       const pendingApprovals = pendingOrders + pendingAdjustments;
 
-      const cashBalance = cashEntries.reduce(
-        (sum, e) => sum + (e.loai_phieu === "thu" ? Number(e.so_tien || 0) : -Number(e.so_tien || 0)),
+      const cashBalance = cashAgg.reduce(
+        (sum, row) => sum + (row._id === "thu" ? Number(row.total || 0) : -Number(row.total || 0)),
         0
       );
 
@@ -136,37 +148,86 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
         `⏳ Lô hàng sắp hết hạn (≤ ${fefoDays} ngày): <b>${expiringBatches.length}</b>\n` +
         `👉 Vui lòng kiểm tra phân hệ Kho & Hoạch định MRP.`;
     } else if (jobKey === "overdue_debt_contract_alert") {
-      const [overdueContracts, unpaidOrders] = await Promise.all([
+      const now = new Date();
+      const defaultOverdueCutoff = new Date(now.getTime() - 30 * 86_400_000);
+
+      const [activeContracts, unpaidOrders, partners] = await Promise.all([
         db
           .collection("hop_dong")
           .find({
             trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
             "dot_thanh_toan.trang_thai": "pending",
           })
-          .limit(10)
+          .project({ ma_hop_dong: 1, partner_name: 1, ngay_het_han: 1, ngay_ky: 1, dot_thanh_toan: 1 })
           .toArray(),
         db
           .collection("don_hang")
           .find({
             loai_don: "sale",
-            trang_thai: { $nin: ["cancelled", "deleted"] },
+            trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
             "thanh_toan.status": { $in: ["unpaid", "partial"] },
           })
-          .limit(10)
+          .project({
+            ma_dh: 1,
+            khach_hang_ten: 1,
+            doi_tac_id: 1,
+            ngay_dat: 1,
+            created_at: 1,
+            tong_tien: 1,
+            thanh_toan: 1,
+          })
+          .toArray(),
+        db
+          .collection("doi_tac")
+          .find({ trang_thai: { $ne: "deleted" } })
+          .project({ _id: 1, ten: 1, han_thanh_toan_ngay: 1 })
           .toArray(),
       ]);
 
-      title = "Cảnh Báo Công Nợ & Hợp Đồng B2B Quá Hạn";
-      summary = `${overdueContracts.length} hợp đồng còn đợt chờ thu · ${unpaidOrders.length} đơn hàng chưa thu đủ`;
+      // Map kỳ hạn thanh toán thực tế theo đối tác (mặc định 30 ngày)
+      const paymentTermsById = new Map();
+      const paymentTermsByName = new Map();
+      for (const p of partners) {
+        const termDays = Math.max(1, Number(p.han_thanh_toan_ngay || 30));
+        if (p._id) paymentTermsById.set(String(p._id), termDays);
+        if (p.ten) paymentTermsByName.set(String(p.ten).trim().toLowerCase(), termDays);
+      }
 
-      if (trigger === "cron" && overdueContracts.length === 0 && unpaidOrders.length === 0) {
-        return { ok: true, skipped: true, summary: "Không có công nợ quá hạn" };
+      // Lọc hợp đồng có đợt thanh toán thực sự quá hạn (han_thanh_toan < now hoặc HĐ đã hết hạn)
+      const overdueContracts = activeContracts.filter((c) => {
+        const contractExpired = c.ngay_het_han && new Date(c.ngay_het_han) < now;
+        const hasOverdueMilestone = (c.dot_thanh_toan || []).some((m) => {
+          if (m.trang_thai !== "pending") return false;
+          if (m.han_thanh_toan) return new Date(m.han_thanh_toan) < now;
+          return contractExpired;
+        });
+        return hasOverdueMilestone;
+      });
+
+      // Lọc đơn bán quá hạn thanh toán theo kỳ hạn thực tế của từng khách hàng
+      const overdueOrders = unpaidOrders.filter((o) => {
+        const remaining = Math.max(0, Number(o.tong_tien || 0) - Number(o.thanh_toan?.da_thanh_toan || 0));
+        if (remaining <= 0) return false;
+        const orderDate = new Date(o.ngay_dat || o.created_at || now);
+        const termDays =
+          paymentTermsById.get(String(o.doi_tac_id || "")) ||
+          paymentTermsByName.get(String(o.khach_hang_ten || "").trim().toLowerCase()) ||
+          30;
+        const dueDate = new Date(orderDate.getTime() + termDays * 86_400_000);
+        return dueDate < now || orderDate < defaultOverdueCutoff && termDays <= 30;
+      });
+
+      title = "Cảnh Báo Công Nợ & Hợp Đồng B2B Quá Hạn";
+      summary = `${overdueContracts.length} hợp đồng quá hạn đợt thu · ${overdueOrders.length} đơn hàng quá hạn thanh toán`;
+
+      if (trigger === "cron" && overdueContracts.length === 0 && overdueOrders.length === 0) {
+        return { ok: true, skipped: true, summary: "Không có công nợ hoặc hợp đồng quá hạn" };
       }
 
       message =
-        `💳 <b>[CẢNH BÁO CÔNG NỢ & HỢP ĐỒNG]</b>\n` +
-        `📄 Hợp đồng B2B còn đợt thanh toán chờ thu: <b>${overdueContracts.length}</b>\n` +
-        `🧾 Đơn bán hàng chưa thu đủ tiền: <b>${unpaidOrders.length}</b>\n` +
+        `💳 <b>[CẢNH BÁO CÔNG NỢ & HỢP ĐỒNG QUÁ HẠN]</b>\n` +
+        `📄 Hợp đồng B2B quá hạn đợt thanh toán: <b>${overdueContracts.length}</b>\n` +
+        `🧾 Đơn bán hàng quá hạn thanh toán: <b>${overdueOrders.length}</b>\n` +
         `👉 Bộ phận Kế toán & Kinh doanh vui lòng đôn đốc thu hồi công nợ.`;
     } else if (jobKey === "production_bottleneck_alert") {
       const thresholdHours = Number(jobCfg.threshold_hours || 48);
@@ -260,6 +321,106 @@ export async function runAutomationJob(jobKey, trigger = "manual") {
           `🏷️ Mã đơn: <b>${createdPOs.map((c) => c.ma_dh).join(", ")}</b>\n` +
           `👉 Vui lòng vào <b>Trung tâm Phê duyệt (/approvals)</b> để kiểm tra và duyệt đặt hàng.`;
       }
+    } else if (jobKey === "anomaly_detection") {
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
+      const last48h = new Date(now.getTime() - 48 * 3600_000);
+
+      const [dailySalesAgg, recentSalesOrders, baselineExpenses, recentExpenses, productionOrders] =
+        await Promise.all([
+          db
+            .collection("don_hang")
+            .aggregate([
+              {
+                $match: {
+                  loai_don: "sale",
+                  trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+                  created_at: { $gte: thirtyDaysAgo },
+                },
+              },
+              {
+                $group: {
+                  _id: { $dateToString: { format: "%Y-%m-%d", date: "$created_at" } },
+                  total: { $sum: { $ifNull: ["$tong_tien", 0] } },
+                },
+              },
+              { $sort: { _id: 1 } },
+            ])
+            .toArray(),
+          db
+            .collection("don_hang")
+            .find({
+              loai_don: "sale",
+              trang_thai: { $nin: ["cancelled", "deleted"] },
+              created_at: { $gte: last48h },
+              giam_gia: { $gt: 0 },
+            })
+            .project({ ma_dh: 1, tam_tinh: 1, tong_tien: 1, giam_gia: 1 })
+            .toArray(),
+          db
+            .collection("so_quy")
+            .find({
+              loai_phieu: "chi",
+              trang_thai: "active",
+              created_at: { $gte: thirtyDaysAgo, $lt: last48h },
+            })
+            .project({ so_tien: 1, hang_muc: 1 })
+            .toArray(),
+          db
+            .collection("so_quy")
+            .find({
+              loai_phieu: "chi",
+              trang_thai: "active",
+              created_at: { $gte: last48h },
+            })
+            .project({ ma_phieu: 1, so_tien: 1, hang_muc: 1 })
+            .toArray(),
+          db
+            .collection("don_hang")
+            .find({
+              loai_don: { $in: ["prod_receipt", "production_receipt"] },
+              trang_thai: { $nin: ["cancelled", "deleted"] },
+              updated_at: { $gte: last48h },
+            })
+            .project({ ma_dh: 1, so_luong_san_xuat: 1, tong_so_luong: 1, so_luong_phe_pham: 1, tong_phe_pham: 1 })
+            .toArray(),
+        ]);
+
+      const report = detectEnterpriseAnomalies({
+        dailyRevenueSeries: dailySalesAgg.map((d) => Number(d.total || 0)),
+        recentSalesOrders,
+        baselineExpenses,
+        recentExpenses,
+        productionOrders,
+        thresholds: {
+          revenueDropPct: Number(jobCfg.revenue_drop_pct || 40),
+          discountAlertPct: Number(jobCfg.discount_alert_pct || 25),
+          scrapRateAlertPct: Number(jobCfg.scrap_rate_alert_pct || 10),
+        },
+      });
+
+      if (!report.hasAnomalies) {
+        if (trigger === "cron") {
+          return { ok: true, skipped: true, summary: "Không phát hiện bất thường vận hành nào" };
+        }
+        title = "Giám Sát Bất Thường Hệ Thống (Anomaly Detection)";
+        summary = "Các chỉ số doanh thu, chiết khấu, QC và OPEX đang trong ngưỡng an toàn";
+        message = `🛡️ <b>[GIÁM SÁT BẤT THƯỜNG]</b>\n✅ Không phát hiện dấu hiệu bất thường trong 48h qua.`;
+      } else {
+        title = `Phát Hiện ${report.totalAnomalies} Bất Thường Vận Hành`;
+        summary = `${report.criticalCount} nghiêm trọng · ${report.warningCount} cảnh báo: ${report.anomalies
+          .slice(0, 2)
+          .map((a) => a.title)
+          .join("; ")}`;
+        const lines = report.anomalies
+          .slice(0, 5)
+          .map((a) => `${a.severity === "critical" ? "🔴" : "🟠"} <b>${a.title}</b>: ${a.detail}`)
+          .join("\n");
+        message =
+          `🚨 <b>[PHÁT HIỆN BẤT THƯỜNG DOANH NGHIỆP]</b>\n` +
+          `${lines}\n` +
+          `👉 Vui lòng kiểm tra Dashboard Tài chính & Nhật ký hệ thống.`;
+      }
     } else {
       return { ok: false, error: `Tác vụ không hợp lệ: ${jobKey}` };
     }
@@ -327,7 +488,7 @@ async function schedulerTick() {
     }
 
     // Interval jobs (minutes)
-    for (const intKey of ["low_stock_fefo_alert", "production_bottleneck_alert"]) {
+    for (const intKey of ["low_stock_fefo_alert", "production_bottleneck_alert", "anomaly_detection"]) {
       const j = jobs[intKey];
       if (!j?.enabled) continue;
       const intervalMs = Math.max(15, Number(j.interval_minutes || 120)) * 60_000;

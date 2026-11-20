@@ -85,6 +85,14 @@ const DEFAULT_CONFIG: AutomationConfigPayload = {
       channel: "both",
     },
     auto_reorder: { enabled: false, time: "08:30", channel: "both" },
+    anomaly_detection: {
+      enabled: false,
+      interval_minutes: 240,
+      revenue_drop_pct: 40,
+      discount_alert_pct: 25,
+      scrap_rate_alert_pct: 10,
+      channel: "both",
+    },
   },
 };
 
@@ -834,6 +842,92 @@ export default function AutomationAdminPage() {
                     className="h-8 gap-1 text-xs"
                     disabled={runningJob === "auto_reorder"}
                     onClick={() => handleRunJobNow("auto_reorder")}
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Chạy ngay
+                  </Button>
+                </div>
+              </div>
+
+              {/* Job 6: Anomaly Detection */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-lg border p-4 bg-muted/20">
+                <div className="flex items-start gap-3">
+                  <Checkbox
+                    checked={Boolean(config.jobs.anomaly_detection?.enabled)}
+                    onCheckedChange={(checked) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        jobs: {
+                          ...prev.jobs,
+                          anomaly_detection: {
+                            interval_minutes: prev.jobs.anomaly_detection?.interval_minutes || 240,
+                            revenue_drop_pct: prev.jobs.anomaly_detection?.revenue_drop_pct || 40,
+                            discount_alert_pct: prev.jobs.anomaly_detection?.discount_alert_pct || 25,
+                            scrap_rate_alert_pct: prev.jobs.anomaly_detection?.scrap_rate_alert_pct || 10,
+                            channel: prev.jobs.anomaly_detection?.channel || "both",
+                            enabled: Boolean(checked),
+                          },
+                        },
+                      }))
+                    }
+                  />
+                  <div>
+                    <div className="font-semibold text-sm">
+                      6. Phát hiện bất thường doanh nghiệp tự động (Anomaly Detection)
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Tự động quét sụt giảm doanh thu bất thường, chiết khấu quá ngưỡng, phế phẩm QC tăng vọt và phiếu chi OPEX đột biến (Z-score).
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    type="number"
+                    min={30}
+                    max={1440}
+                    className="w-24 h-8 text-xs"
+                    title="Chu kỳ quét (phút)"
+                    value={config.jobs.anomaly_detection?.interval_minutes || 240}
+                    onChange={(e) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        jobs: {
+                          ...prev.jobs,
+                          anomaly_detection: {
+                            enabled: Boolean(prev.jobs.anomaly_detection?.enabled),
+                            revenue_drop_pct: prev.jobs.anomaly_detection?.revenue_drop_pct || 40,
+                            discount_alert_pct: prev.jobs.anomaly_detection?.discount_alert_pct || 25,
+                            scrap_rate_alert_pct: prev.jobs.anomaly_detection?.scrap_rate_alert_pct || 10,
+                            channel: prev.jobs.anomaly_detection?.channel || "both",
+                            interval_minutes: Math.max(30, Number(e.target.value) || 240),
+                          },
+                        },
+                      }))
+                    }
+                  />
+                  <span className="text-xs text-muted-foreground">phút</span>
+                  {renderChannelSelect(config.jobs.anomaly_detection?.channel || "both", (val) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      jobs: {
+                        ...prev.jobs,
+                        anomaly_detection: {
+                          enabled: Boolean(prev.jobs.anomaly_detection?.enabled),
+                          interval_minutes: prev.jobs.anomaly_detection?.interval_minutes || 240,
+                          revenue_drop_pct: prev.jobs.anomaly_detection?.revenue_drop_pct || 40,
+                          discount_alert_pct: prev.jobs.anomaly_detection?.discount_alert_pct || 25,
+                          scrap_rate_alert_pct: prev.jobs.anomaly_detection?.scrap_rate_alert_pct || 10,
+                          channel: val,
+                        },
+                      },
+                    }))
+                  )}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-8 gap-1 text-xs"
+                    disabled={runningJob === "anomaly_detection"}
+                    onClick={() => handleRunJobNow("anomaly_detection")}
                   >
                     <Play className="h-3.5 w-3.5" />
                     Chạy ngay

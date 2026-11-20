@@ -62,8 +62,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   capNhatDoiTacAction,
   ChiTietDoiTacResponse,
+  CrmRfmIntelligenceResponse,
   DoiTacItem,
   fetchChiTietDoiTacAction,
+  fetchCrmRfmIntelligenceAction,
   fetchDoiTacAction,
   fetchTongQuanCRMAction,
   taoDoiTacAction,
@@ -117,7 +119,25 @@ export default function PartnersPage() {
   const [profile360, setProfile360] = React.useState<ChiTietDoiTacResponse | null>(null);
   const [loading360, setLoading360] = React.useState(false);
 
+  // CRM Intelligence: RFM & Churn Risk
+  const [rfmData, setRfmData] = React.useState<CrmRfmIntelligenceResponse | null>(null);
+  const [loadingRfm, setLoadingRfm] = React.useState(false);
+  const [churnFilter, setChurnFilter] = React.useState<"all" | "high" | "at_risk">("all");
+
   const loadData = React.useCallback(async () => {
+    if (activeTab === "rfm-churn") {
+      setLoadingRfm(true);
+      try {
+        const res = await fetchCrmRfmIntelligenceAction();
+        if (res.success && res.data) setRfmData(res.data);
+      } catch (err: any) {
+        toast.error(err?.message || "Không thể tải phân tích RFM & Churn");
+      } finally {
+        setLoadingRfm(false);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const loai = activeTab === "khach-hang" ? "khach_hang" : "nha_cung_cap";
@@ -408,6 +428,10 @@ export default function PartnersPage() {
             <IconBuildingStore className="w-4 h-4" />
             Nhà Cung Cấp ({activeTab === "nha-cung-cap" ? partners.length : tongQuan.tong_nha_cung_cap})
           </TabsTrigger>
+          <TabsTrigger value="rfm-churn" className="font-semibold flex items-center gap-1.5">
+            <IconTrendingUp className="w-4 h-4" />
+            Phân Tích RFM & Rời Bỏ
+          </TabsTrigger>
         </TabsList>
 
         {/* TAB 1: KHÁCH HÀNG */}
@@ -679,6 +703,154 @@ export default function PartnersPage() {
                           </TableRow>
                         );
                       })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 3: PHÂN TÍCH RFM & DỰ BÁO CHURN RISK */}
+        <TabsContent value="rfm-churn" className="space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <Card className="border shadow-sm bg-white">
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground">Khách VIP (Champions)</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {rfmData?.summary.championsCount ?? 0}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border shadow-sm bg-white">
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground">Trung thành (Loyal)</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {rfmData?.summary.loyalCount ?? 0}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border shadow-sm bg-white">
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground">Cần giữ chân (At Risk)</div>
+                <div className="text-2xl font-bold text-amber-600">
+                  {rfmData?.summary.atRiskCount ?? 0}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border shadow-sm bg-white">
+              <CardContent className="p-4">
+                <div className="text-xs text-muted-foreground">Nguy cơ rời bỏ cao</div>
+                <div className="text-2xl font-bold text-rose-600">
+                  {rfmData?.summary.highChurnCount ?? 0}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border shadow-sm bg-white">
+            <CardContent className="p-4 sm:p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-semibold">
+                  Bảng phân hạng RFM & Cảnh báo chu kỳ mua hàng
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={churnFilter === "all" ? "default" : "outline"}
+                    onClick={() => setChurnFilter("all")}
+                  >
+                    Tất cả
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={churnFilter === "high" ? "destructive" : "outline"}
+                    onClick={() => setChurnFilter("high")}
+                  >
+                    Nguy cơ rời bỏ cao
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={churnFilter === "at_risk" ? "default" : "outline"}
+                    onClick={() => setChurnFilter("at_risk")}
+                  >
+                    Nhóm At Risk
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-semibold">Khách hàng</TableHead>
+                      <TableHead className="font-semibold text-center">Điểm RFM</TableHead>
+                      <TableHead className="font-semibold">Phân khúc</TableHead>
+                      <TableHead className="font-semibold text-center">Đơn / Chu kỳ TB</TableHead>
+                      <TableHead className="font-semibold text-right">Doanh số LTV</TableHead>
+                      <TableHead className="font-semibold">Cảnh báo Churn</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingRfm ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Đang phân tích dữ liệu lịch sử mua hàng...
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (rfmData?.customers || [])
+                        .filter((c) => {
+                          if (churnFilter === "high") return c.churnRisk === "high";
+                          if (churnFilter === "at_risk") return c.segmentCode === "AT_RISK";
+                          return true;
+                        })
+                        .map((c) => (
+                          <TableRow key={c._id}>
+                            <TableCell>
+                              <div className="font-medium">{c.ten}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {c.ma_doi_tac || "—"} {c.so_dien_thoai ? `• ${c.so_dien_thoai}` : ""}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center font-mono font-semibold">
+                              {c.rfm.score}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{c.segmentLabel}</Badge>
+                            </TableCell>
+                            <TableCell className="text-center text-xs">
+                              {c.frequency} đơn
+                              {c.avgCycleDays !== null ? ` • ~${c.avgCycleDays} ngày/lần` : ""}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {new Intl.NumberFormat("vi-VN", {
+                                style: "currency",
+                                currency: "VND",
+                              }).format(c.monetary)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  c.churnRisk === "high"
+                                    ? "destructive"
+                                    : c.churnRisk === "medium"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
+                                {c.churnRisk === "high"
+                                  ? "Cao"
+                                  : c.churnRisk === "medium"
+                                  ? "Trung bình"
+                                  : "Ổn định"}
+                              </Badge>
+                              <div className="text-[11px] text-muted-foreground mt-0.5">
+                                {c.churnReason}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
                     )}
                   </TableBody>
                 </Table>

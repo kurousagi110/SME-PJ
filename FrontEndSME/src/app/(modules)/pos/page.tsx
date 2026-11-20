@@ -46,7 +46,13 @@ import {
 import { useMyProfile } from "@/hooks/use-account";
 import { useProductList } from "@/hooks/use-product";
 import { fetchDoiTacAction, type DoiTacItem } from "@/app/actions/partner";
-import { checkoutPosAction, type PosOrderItemPayload } from "@/app/actions/pos";
+import {
+  checkoutPosAction,
+  fetchSmartCartInsightsAction,
+  type PosOrderItemPayload,
+  type SmartCrossSellItem,
+  type CartMarginGuardResult,
+} from "@/app/actions/pos";
 import { printPosThermalReceipt, type PosReceiptData } from "@/lib/barcode";
 import { VietQRDialog } from "@/components/payment/vietqr-dialog";
 
@@ -172,6 +178,36 @@ export default function PosCashierPage() {
     updateActiveTab((t) => ({ ...t, paymentMethod: val }));
   const setCashGiven = (val: number) => updateActiveTab((t) => ({ ...t, cashGiven: val }));
   const setNotes = (val: string) => updateActiveTab((t) => ({ ...t, notes: val }));
+
+  // Gợi ý bán chéo (Cross-sell) & Cảnh báo biên lợi nhuận (Margin Guard)
+  const [crossSellItems, setCrossSellItems] = useState<SmartCrossSellItem[]>([]);
+  const [marginGuard, setMarginGuard] = useState<CartMarginGuardResult | null>(null);
+
+  useEffect(() => {
+    if (cart.length === 0) {
+      setCrossSellItems([]);
+      setMarginGuard(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchSmartCartInsightsAction({
+        items: cart.map((c) => ({
+          san_pham_id: c.san_pham_id,
+          ma_sp: c.ma_sp,
+          don_gia: c.don_gia,
+          so_luong: c.so_luong,
+        })),
+        discountAmount: Number(discount) || 0,
+        minMarginPct: 10,
+      }).then((res) => {
+        if (res.success && res.data) {
+          setCrossSellItems(res.data.recommendations || []);
+          setMarginGuard(res.data.marginGuard || null);
+        }
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [cart, discount]);
 
   const handleAddHeldTab = () => {
     if (tabs.length >= 5) {
@@ -792,6 +828,53 @@ export default function PosCashierPage() {
 
           {/* Payment Details & Calculations (Pinned Bottom) */}
           <div className="p-3 border-t bg-muted/10 space-y-3 shrink-0">
+            {/* Cross-sell Recommendations (Khách thường mua kèm) */}
+            {crossSellItems.length > 0 && (
+              <div className="rounded-lg border border-indigo-200/70 bg-indigo-50/50 dark:bg-indigo-950/20 p-2 space-y-1.5">
+                <div className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">
+                  ✨ Khách thường mua kèm:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {crossSellItems.map((rec) => (
+                    <button
+                      key={rec.san_pham_id}
+                      type="button"
+                      onClick={() =>
+                        addToCart({
+                          _id: rec.san_pham_id,
+                          ma_sp: rec.ma_sp,
+                          ten_sp: rec.ten_sp,
+                          don_gia: rec.don_gia,
+                          so_luong: rec.so_luong_ton,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-[11px] border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
+                      title={rec.reason}
+                    >
+                      <IconPlus className="h-3 w-3 text-indigo-600" />
+                      <span className="max-w-[130px] truncate font-medium">{rec.ten_sp}</span>
+                      <span className="text-muted-foreground">
+                        ({rec.don_gia.toLocaleString("vi-VN")}đ)
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Margin Guard Live Alert */}
+            {marginGuard && marginGuard.status !== "HEALTHY" && marginGuard.warningMessage && (
+              <div
+                className={`rounded-lg border px-2.5 py-2 text-[11px] font-medium ${
+                  marginGuard.status === "LOSS"
+                    ? "border-red-300 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                    : "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                }`}
+              >
+                ⚠️ {marginGuard.warningMessage}
+              </div>
+            )}
+
             {/* Calculation summary */}
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between text-muted-foreground">

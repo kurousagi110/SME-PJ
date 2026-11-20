@@ -4,6 +4,7 @@ import ApiError from "../utils/ApiError.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
+import { withCache, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 export default class PartnerController {
   /* ─── 1. Danh sách đối tác ─── */
@@ -31,11 +32,28 @@ export default class PartnerController {
 
   /* ─── 2. Thống kê CRM ─── */
   static getTongQuan = asyncHandler(async (req, res) => {
-    const result = await DoiTacDAO.layTongQuanCRM();
+    const result = await withCache(
+      `${REPORT_CACHE_PREFIXES.CRM}overview`,
+      () => DoiTacDAO.layTongQuanCRM(),
+      60
+    );
     if (result.error) {
       throw ApiError.internal("Không thể lấy tổng quan CRM: " + result.error.message);
     }
     return sendSuccess(res, result, "Lấy tổng quan CRM thành công");
+  });
+
+  /* ─── 2b. CRM Intelligence: Phân khúc RFM & Dự báo Churn Risk ─── */
+  static getRfmIntelligence = asyncHandler(async (req, res) => {
+    const result = await withCache(
+      `${REPORT_CACHE_PREFIXES.CRM}rfm_churn`,
+      () => DoiTacDAO.layPhanTichRfmVaChurn(),
+      120
+    );
+    if (result.error) {
+      throw ApiError.internal("Không thể phân tích RFM & Churn: " + result.error.message);
+    }
+    return sendSuccess(res, result, "Phân tích phân khúc RFM & nguy cơ rời bỏ thành công");
   });
 
   /* ─── 3. Chi tiết hồ sơ Customer 360 ─── */
