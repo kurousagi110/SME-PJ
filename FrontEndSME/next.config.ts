@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   output: "standalone", // needed for Docker multi-stage build
   poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@tabler/icons-react",
+      "recharts",
+      "date-fns",
+    ],
+  },
   async rewrites() {
     // When deploying to Vercel without Nginx, rewrite /api/v1 calls to the remote backend
     const backendUrl = process.env.API_INTERNAL_URL;

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Tabs,
@@ -61,8 +62,14 @@ import {
   type ABCItem,
   type AlertsData,
 } from "@/app/actions/planning";
-import { EcommercePlanningTab } from "./ecommerce-tab";
-import { SupplierAndAtpTab } from "@/components/supplier-atp-tab";
+const EcommercePlanningTab = dynamic(
+  () => import("./ecommerce-tab").then((mod) => mod.EcommercePlanningTab),
+  { ssr: false }
+);
+const SupplierAndAtpTab = dynamic(
+  () => import("@/components/supplier-atp-tab").then((mod) => mod.SupplierAndAtpTab),
+  { ssr: false }
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

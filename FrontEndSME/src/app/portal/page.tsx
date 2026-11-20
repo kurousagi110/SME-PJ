@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import {
   Search,
   Package,
@@ -19,7 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CameraBarcodeScanner } from "@/components/camera-barcode-scanner";
+const CameraBarcodeScanner = dynamic(
+  () => import("@/components/camera-barcode-scanner").then((mod) => mod.CameraBarcodeScanner),
+  { ssr: false }
+);
 
 interface PortalOrderData {
   type: "order";
