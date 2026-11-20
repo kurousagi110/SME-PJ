@@ -6,12 +6,12 @@ import AiConfigDAO from "../models/aiConfigDAO.js";
 
 export default class AiCopilotController {
   static query = asyncHandler(async (req, res) => {
-    const { query } = req.body;
+    const { query, history = [] } = req.body || {};
     if (!query || typeof query !== "string" || !query.trim()) {
       throw ApiError.badRequest("Vui lòng nhập nội dung câu hỏi cho AI Copilot");
     }
 
-    const result = await AiCopilotDAO.processQuery(query, req.user);
+    const result = await AiCopilotDAO.processQuery(query, req.user, history);
     return sendSuccess(res, result, "Phân tích câu hỏi thành công");
   });
 

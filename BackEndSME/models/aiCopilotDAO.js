@@ -2,7 +2,16 @@ import logger from "../utils/logger.js";
 import { EcommercePolicyDAO, DEFAULT_ECOMMERCE_POLICIES } from "./ecommercePolicyDAO.js";
 import AiConfigDAO from "./aiConfigDAO.js";
 import FinancialReportDAO from "./financialReportDAO.js";
-import { detectAgenticIntent, parseInvoiceTextOrLines } from "../utils/aiAgentParser.js";
+import { PlanningDAO } from "./planningDAO.js";
+import {
+  detectAgenticIntent,
+  parseInvoiceTextOrLines,
+  parseStructuredOcrJson,
+  sanitizeChatHistory,
+  getAllowedAiTools,
+} from "../utils/aiAgentParser.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { withCache, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 let dbInstance = null;
 let donHangCol = null;
@@ -72,131 +81,448 @@ export default class AiCopilotDAO {
     ];
   }
 
-  /* ─── LLM Calling Helpers ─── */
-  static async callGemini(apiKey, model, systemPrompt, userQuery) {
+  /* ─── Thực thi Tool Calling có kiểm soát RBAC (Fail-Closed) ─── */
+  static async executeToolCall(toolName, args = {}, user = {}, allowedTools = []) {
+    const toolMeta = allowedTools.find((t) => t.name === toolName);
+    if (!toolMeta) {
+      return { error: `Người dùng không có quyền sử dụng công cụ ${toolName}` };
+    }
+
+    try {
+      if (toolName === "lookup_order") {
+        const keyword = String(args?.keyword || "").trim();
+        if (!keyword) return { error: "Thiếu từ khóa tra cứu đơn hàng" };
+        const rx = new RegExp(escapeSafeRegexPattern(keyword, 60), "i");
+        const orders = await donHangCol
+          .find({
+            trang_thai: { $ne: "deleted" },
+            $or: [{ ma_dh: rx }, { khach_hang_ten: rx }, { nha_cung_cap_ten: rx }],
+          })
+          .sort({ created_at: -1 })
+          .limit(5)
+          .project({
+            ma_dh: 1,
+            loai_don: 1,
+            trang_thai: 1,
+            khach_hang_ten: 1,
+            nha_cung_cap_ten: 1,
+            tong_tien: 1,
+            thanh_toan: 1,
+            ngay_dat: 1,
+            created_at: 1,
+          })
+          .toArray();
+        return { count: orders.length, orders };
+      }
+
+      if (toolName === "lookup_partner_debt") {
+        const partnerName = String(args?.partner_name || "").trim();
+        if (!partnerName) return { error: "Thiếu tên đối tác cần tra cứu" };
+        const rx = new RegExp(escapeSafeRegexPattern(partnerName, 60), "i");
+        const partners = await doiTacCol
+          .find({ trang_thai: { $ne: "deleted" }, $or: [{ ten: rx }, { ma_doi_tac: rx }, { so_dien_thoai: rx }] })
+          .limit(5)
+          .project({ ma_doi_tac: 1, ten: 1, loai_doi_tac: 1, han_muc_cong_no: 1, han_thanh_toan_ngay: 1, so_dien_thoai: 1 })
+          .toArray();
+
+        const unpaidOrders = await donHangCol
+          .find({
+            trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+            "thanh_toan.status": { $ne: "paid" },
+            $or: [{ khach_hang_ten: rx }, { nha_cung_cap_ten: rx }],
+          })
+          .limit(10)
+          .project({ ma_dh: 1, loai_don: 1, tong_tien: 1, thanh_toan: 1, ngay_dat: 1, created_at: 1 })
+          .toArray();
+
+        const totalDebt = unpaidOrders.reduce(
+          (sum, o) => sum + Math.max(0, Number(o.tong_tien || 0) - Number(o.thanh_toan?.da_thanh_toan || 0)),
+          0
+        );
+        return { partners, unpaidOrdersCount: unpaidOrders.length, totalDebt, sampleOrders: unpaidOrders.slice(0, 5) };
+      }
+
+      if (toolName === "get_low_stock_and_fefo") {
+        const fefoDays = Math.min(90, Math.max(1, Number(args?.fefo_days || 15)));
+        const cutoff = new Date(Date.now() + fefoDays * 86_400_000);
+        const [lowMaterials, lowProducts, expiringBatches] = await Promise.all([
+          nguyenLieuCol
+            .find({
+              trang_thai: { $ne: "deleted" },
+              $expr: { $lte: [{ $ifNull: ["$so_luong", 0] }, { $ifNull: ["$ton_toi_thieu", 10] }] },
+            })
+            .limit(10)
+            .project({ ma_nl: 1, ten_nl: 1, so_luong: 1, ton_toi_thieu: 1, don_vi: 1 })
+            .toArray(),
+          sanPhamCol
+            .find({
+              trang_thai: { $ne: "deleted" },
+              $expr: { $lte: [{ $ifNull: ["$so_luong", 0] }, { $ifNull: ["$ton_toi_thieu", 5] }] },
+            })
+            .limit(10)
+            .project({ ma_sp: 1, ten_sp: 1, so_luong: 1, ton_toi_thieu: 1 })
+            .toArray(),
+          dbInstance
+            .collection("lo_san_xuat")
+            .find({ trang_thai: "active", so_luong_ton: { $gt: 0 }, han_su_dung: { $lte: cutoff, $gte: new Date() } })
+            .limit(10)
+            .project({ so_lo: 1, ten_hang: 1, so_luong_ton: 1, han_su_dung: 1 })
+            .toArray(),
+        ]);
+        return { lowMaterials, lowProducts, expiringBatches };
+      }
+
+      if (toolName === "estimate_atp") {
+        const keyword = String(args?.product_keyword || "").trim();
+        const qty = Math.max(1, Number(args?.quantity || 1));
+        if (!keyword) return { error: "Thiếu tên hoặc mã sản phẩm" };
+        const rx = new RegExp(escapeSafeRegexPattern(keyword, 60), "i");
+        const sp = await sanPhamCol.findOne({ trang_thai: { $ne: "deleted" }, $or: [{ ma_sp: rx }, { ten_sp: rx }] });
+        if (!sp) return { error: `Không tìm thấy sản phẩm khớp với "${keyword}"` };
+        const atp = await PlanningDAO.checkATP([{ san_pham_id: String(sp._id), ten_sp: sp.ten_sp, so_luong: qty }]);
+        return atp;
+      }
+
+      if (toolName === "get_cashflow_health") {
+        const days = Math.min(180, Math.max(7, Number(args?.days || 90)));
+        const cf = await FinancialReportDAO.getCashFlowForecast({ days });
+        if (cf?.error) return { error: cf.error };
+        return {
+          currentCashBalance: cf.currentCashBalance,
+          monthlyBurnRate: cf.monthlyBurnRate,
+          runwayMonths: cf.runwayMonths,
+          healthStatus: cf.healthStatus,
+          healthAdvice: cf.healthAdvice,
+          totalProjectedInflow: cf.totalProjectedInflow,
+          totalProjectedOutflow: cf.totalProjectedOutflow,
+          deficitWeeks: (cf.weeklyBuckets || []).filter((w) => w.isDeficit).map((w) => w.week),
+        };
+      }
+
+      return { error: `Công cụ không được hỗ trợ: ${toolName}` };
+    } catch (err) {
+      logger.warn(`AI Tool ${toolName} execution failed`, { error: err.message });
+      return { error: err.message };
+    }
+  }
+
+  /* ─── LLM Calling Helpers (Multi-turn + Native Tool Calling) ─── */
+  static async callGemini(apiKey, model, systemPrompt, userQuery, { history = [], allowedTools = [], user = {} } = {}) {
     const m = model || "gemini-1.5-flash";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemPrompt }],
-        },
-        contents: [
-          {
-            parts: [{ text: userQuery }],
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    const contents = [
+      ...history.map((h) => ({
+        role: h.role === "user" ? "user" : "model",
+        parts: [{ text: h.content }],
+      })),
+      { role: "user", parts: [{ text: userQuery }] },
+    ];
+
+    const toolsPayload =
+      allowedTools.length > 0
+        ? [
+            {
+              functionDeclarations: allowedTools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              })),
+            },
+          ]
+        : undefined;
+
+    const toolsUsed = [];
+
+    for (let round = 0; round < 3; round++) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          ...(toolsPayload ? { tools: toolsPayload } : {}),
+          generationConfig: {
+            temperature: 0.6,
+            maxOutputTokens: 2000,
           },
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000,
-        },
-      }),
-    });
+        }),
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `Gemini API HTTP ${res.status}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `Gemini API HTTP ${res.status}`);
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      const data = await res.json();
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const fnCalls = parts.filter((p) => p.functionCall);
+
+      if (fnCalls.length === 0 || round === 2) {
+        const text = parts
+          .map((p) => p.text || "")
+          .join("")
+          .trim();
+        return { text, toolsUsed };
+      }
+
+      contents.push({ role: "model", parts });
+      const responseParts = [];
+      for (const fcPart of fnCalls) {
+        const { name, args } = fcPart.functionCall;
+        const toolMeta = allowedTools.find((t) => t.name === name);
+        if (toolMeta && !toolsUsed.includes(toolMeta.label)) toolsUsed.push(toolMeta.label);
+        // eslint-disable-next-line no-await-in-loop
+        const result = await this.executeToolCall(name, args || {}, user, allowedTools);
+        responseParts.push({
+          functionResponse: { name, response: { result } },
+        });
+      }
+      contents.push({ role: "user", parts: responseParts });
     }
 
-    const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return { text: "", toolsUsed };
   }
 
-  static async callOpenAI(apiKey, model, systemPrompt, userQuery) {
+  static async callOpenAI(apiKey, model, systemPrompt, userQuery, { history = [], allowedTools = [], user = {} } = {}) {
     const m = model || "gpt-4o-mini";
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: m,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userQuery },
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
-    });
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...history.map((h) => ({ role: h.role, content: h.content })),
+      { role: "user", content: userQuery },
+    ];
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `OpenAI API HTTP ${res.status}`);
+    const toolsPayload =
+      allowedTools.length > 0
+        ? allowedTools.map((t) => ({
+            type: "function",
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: t.parameters,
+            },
+          }))
+        : undefined;
+
+    const toolsUsed = [];
+
+    for (let round = 0; round < 3; round++) {
+      // eslint-disable-next-line no-await-in-loop
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: m,
+          messages,
+          ...(toolsPayload ? { tools: toolsPayload, tool_choice: "auto" } : {}),
+          temperature: 0.6,
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message || `OpenAI API HTTP ${res.status}`);
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      const data = await res.json();
+      const msg = data?.choices?.[0]?.message;
+      const toolCalls = msg?.tool_calls || [];
+
+      if (toolCalls.length === 0 || round === 2) {
+        return { text: String(msg?.content || "").trim(), toolsUsed };
+      }
+
+      messages.push(msg);
+      for (const tc of toolCalls) {
+        const name = tc.function?.name;
+        let parsedArgs = {};
+        try {
+          parsedArgs = JSON.parse(tc.function?.arguments || "{}");
+        } catch {
+          parsedArgs = {};
+        }
+        const toolMeta = allowedTools.find((t) => t.name === name);
+        if (toolMeta && !toolsUsed.includes(toolMeta.label)) toolsUsed.push(toolMeta.label);
+        // eslint-disable-next-line no-await-in-loop
+        const result = await this.executeToolCall(name, parsedArgs, user, allowedTools);
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(result),
+        });
+      }
     }
 
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content || "";
+    return { text: "", toolsUsed };
   }
 
-  /* ─── Tóm tắt nhanh dữ liệu thời gian thực làm context cho LLM ─── */
+  /* ─── Tóm tắt nhanh dữ liệu thời gian thực làm context cho LLM (Aggregation + Cache) ─── */
   static async gatherEnterpriseContext() {
     try {
-      const [orders, products, materials, vouchers, shipments, partners] = await Promise.all([
-        donHangCol.find({ $or: [{ loai_don: "sale" }, { loai_don: "xuat" }], trang_thai: { $ne: "cancelled" } }).toArray(),
-        sanPhamCol.find({ trang_thai: { $ne: "ngung_kinh_doanh" } }).toArray(),
-        nguyenLieuCol.find({}).toArray(),
-        soQuyCol.find({ trang_thai: "active" }).toArray(),
-        vanChuyenCol.find({}).toArray(),
-        doiTacCol.find({ trang_thai: "active" }).toArray(),
-      ]);
+      return await withCache(
+        `${REPORT_CACHE_PREFIXES.AI}enterprise_context`,
+        async () => {
+          const now = new Date();
+          const currentYear = now.getFullYear();
+          const currentMonth = now.getMonth() + 1;
+          const startOfMonth = new Date(currentYear, currentMonth - 1, 1);
 
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
+          const [orderStats, productStats, materialStats, cashStats, shippingStats] = await Promise.all([
+            donHangCol
+              .aggregate([
+                {
+                  $match: {
+                    loai_don: { $in: ["sale", "xuat"] },
+                    trang_thai: { $nin: ["cancelled", "deleted"] },
+                  },
+                },
+                {
+                  $project: {
+                    tong_tien: { $ifNull: ["$tong_tien", 0] },
+                    da_thanh_toan: {
+                      $ifNull: ["$thanh_toan.da_thanh_toan", { $ifNull: ["$da_thanh_toan", 0] }],
+                    },
+                    orderDate: { $ifNull: ["$ngay_dat", { $ifNull: ["$created_at", "$createAt"] }] },
+                  },
+                },
+                {
+                  $group: {
+                    _id: null,
+                    orderCount: { $sum: 1 },
+                    totalRevenue: { $sum: "$tong_tien" },
+                    thisMonthRevenue: {
+                      $sum: { $cond: [{ $gte: ["$orderDate", startOfMonth] }, "$tong_tien", 0] },
+                    },
+                    totalCustomerDebt: {
+                      $sum: { $max: [0, { $subtract: ["$tong_tien", "$da_thanh_toan"] }] },
+                    },
+                  },
+                },
+              ])
+              .toArray(),
+            sanPhamCol
+              .aggregate([
+                { $match: { trang_thai: { $nin: ["ngung_kinh_doanh", "deleted"] } } },
+                {
+                  $addFields: {
+                    _qty: { $ifNull: ["$so_luong", { $ifNull: ["$so_luong_ton", 0] }] },
+                    _min: { $ifNull: ["$ton_toi_thieu", { $ifNull: ["$muc_ton_an_toan", 10] }] },
+                  },
+                },
+                {
+                  $facet: {
+                    summary: [
+                      {
+                        $group: {
+                          _id: null,
+                          total: { $sum: 1 },
+                          lowCount: { $sum: { $cond: [{ $lte: ["$_qty", "$_min"] }, 1, 0] } },
+                        },
+                      },
+                    ],
+                    lowSamples: [
+                      { $match: { $expr: { $lte: ["$_qty", "$_min"] } } },
+                      { $sort: { _qty: 1 } },
+                      { $limit: 5 },
+                      { $project: { ten_sp: 1, ma_sp: 1, _qty: 1 } },
+                    ],
+                  },
+                },
+              ])
+              .toArray(),
+            nguyenLieuCol
+              .aggregate([
+                { $match: { trang_thai: { $ne: "deleted" } } },
+                {
+                  $addFields: {
+                    _qty: { $ifNull: ["$so_luong", { $ifNull: ["$so_luong_ton", 0] }] },
+                    _min: { $ifNull: ["$ton_toi_thieu", { $ifNull: ["$muc_ton_an_toan", 20] }] },
+                  },
+                },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: 1 },
+                    lowCount: { $sum: { $cond: [{ $lte: ["$_qty", "$_min"] }, 1, 0] } },
+                  },
+                },
+              ])
+              .toArray(),
+            soQuyCol
+              .aggregate([
+                { $match: { trang_thai: "active" } },
+                {
+                  $group: {
+                    _id: "$loai_phieu",
+                    total: { $sum: { $ifNull: ["$so_tien", 0] } },
+                  },
+                },
+              ])
+              .toArray(),
+            vanChuyenCol
+              .aggregate([
+                { $group: { _id: "$trang_thai", count: { $sum: 1 } } },
+              ])
+              .toArray(),
+          ]);
 
-      let totalRevenue = 0;
-      let thisMonthRevenue = 0;
-      orders.forEach((o) => {
-        const val = Number(o.tong_tien) || 0;
-        totalRevenue += val;
-        const d = o.ngay_dat || o.createAt ? new Date(o.ngay_dat || o.createAt) : null;
-        if (d && d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth) {
-          thisMonthRevenue += val;
-        }
-      });
+          const ord = orderStats[0] || {
+            orderCount: 0,
+            totalRevenue: 0,
+            thisMonthRevenue: 0,
+            totalCustomerDebt: 0,
+          };
+          const spSummary = productStats[0]?.summary?.[0] || { total: 0, lowCount: 0 };
+          const lowProductSamples = productStats[0]?.lowSamples || [];
+          const nlSummary = materialStats[0] || { total: 0, lowCount: 0 };
 
-      const lowStockProducts = products.filter((p) => (p.so_luong_ton || 0) <= (p.muc_ton_an_toan || 15));
-      const lowStockMaterials = materials.filter((m) => (m.so_luong_ton || 0) <= (m.muc_ton_an_toan || 20));
+          let totalThu = 0;
+          let totalChi = 0;
+          for (const row of cashStats) {
+            if (row._id === "thu") totalThu = Number(row.total || 0);
+            else if (row._id === "chi") totalChi = Number(row.total || 0);
+          }
 
-      let totalThu = 0;
-      let totalChi = 0;
-      vouchers.forEach((v) => {
-        const amt = Number(v.so_tien) || 0;
-        if (v.loai_phieu === "thu") totalThu += amt;
-        else totalChi += amt;
-      });
+          let shippingDangGiao = 0;
+          let shippingGiaoThanhCong = 0;
+          for (const row of shippingStats) {
+            if (row._id === "dang_giao") shippingDangGiao = row.count;
+            if (row._id === "giao_thanh_cong") shippingGiaoThanhCong = row.count;
+          }
 
-      let totalCustomerDebt = 0;
-      orders.forEach((o) => {
-        const debt = (Number(o.tong_tien) || 0) - (Number(o.da_thanh_toan) || 0);
-        if (debt > 0) totalCustomerDebt += debt;
-      });
-
-      const shippingDangGiao = shipments.filter((s) => s.trang_thai === "dang_giao").length;
-      const shippingGiaoThanhCong = shipments.filter((s) => s.trang_thai === "giao_thanh_cong").length;
-
-      return `
+          return `
 DỮ LIỆU THỰC TẾ HỆ THỐNG DOANH NGHIỆP HIỆN TẠI:
-- Bán hàng: Tổng ${orders.length} đơn bán, tổng doanh thu tích lũy: ${fmtVND(totalRevenue)}, doanh thu tháng ${currentMonth}/${currentYear}: ${fmtVND(thisMonthRevenue)}.
-- Tồn kho: ${products.length} sản phẩm (${lowStockProducts.length} mặt hàng sắp hết), ${materials.length} nguyên vật liệu (${lowStockMaterials.length} loại cần mua gấp). Mặt hàng sắp hết tiêu biểu: ${lowStockProducts.slice(0, 3).map((p) => p.ten_sp).join(", ") || "Không có"}.
+- Bán hàng: Tổng ${ord.orderCount} đơn bán, tổng doanh thu tích lũy: ${fmtVND(ord.totalRevenue)}, doanh thu tháng ${currentMonth}/${currentYear}: ${fmtVND(ord.thisMonthRevenue)}.
+- Tồn kho: ${spSummary.total} sản phẩm (${spSummary.lowCount} mặt hàng dưới mức tồn tối thiểu), ${nlSummary.total} nguyên vật liệu (${nlSummary.lowCount} loại cần mua gấp). Mặt hàng sắp hết tiêu biểu: ${
+            lowProductSamples.map((p) => `${p.ten_sp} (còn ${p._qty})`).join(", ") || "Không có"
+          }.
 - Tài chính: Tổng thu ${fmtVND(totalThu)}, tổng chi ${fmtVND(totalChi)}, tồn quỹ ròng ${fmtVND(totalThu - totalChi)}.
-- Công nợ khách hàng: Tổng nợ phải thu ${fmtVND(totalCustomerDebt)}.
+- Công nợ khách hàng: Tổng nợ phải thu ${fmtVND(ord.totalCustomerDebt)}.
 - Vận chuyển: Đang giao ${shippingDangGiao} kiện, đã giao thành công ${shippingGiaoThanhCong} kiện.
 - Biểu phí sàn TMĐT tham khảo: Shopee khấu hao ~16%, TikTok Shop ~18.5% (đã gồm 10% affiliate KOC), Lazada ~14.5%, Bán trực tiếp 0% phí sàn.
 `;
+        },
+        90
+      );
     } catch (err) {
+      logger.warn("AiCopilotDAO.gatherEnterpriseContext failed", { error: err.message });
       return "Dữ liệu thời gian thực hiện chưa sẵn sàng.";
     }
   }
 
-  static async processQuery(query, user = {}) {
+  static async processQuery(query, user = {}, history = []) {
     try {
       const q = removeVietnameseTones(query);
       const originalQuery = query.trim();
+      const cleanHistory = sanitizeChatHistory(history);
+      const allowedTools = getAllowedAiTools(user);
       const suggestedAction = detectAgenticIntent(originalQuery);
 
       // Kiểm tra có LLM bên ngoài được cấu hình không
@@ -211,22 +537,25 @@ Bạn hỗ trợ lãnh đạo và nhân viên giải quyết mọi bài toán qu
 YÊU CẦU TRẢ LỜI:
 1. Trả lời hoàn toàn bằng tiếng Việt chuyên nghiệp, lịch sự, mạch lạc và sâu sắc.
 2. Sử dụng định dạng Markdown đẹp mắt: Tiêu đề rõ ràng (###), in đậm số liệu quan trọng, danh sách gạch đầu dòng có emoji sinh động.
-3. Nếu người dùng hỏi về số liệu nội bộ công ty (doanh thu, tồn kho, công nợ, giao hàng), hãy căn cứ vào DỮ LIỆU THỜI GIAN THỰC dưới đây để trả lời chính xác từng con số:
+3. Khi người dùng hỏi chi tiết về đơn hàng cụ thể, công nợ đối tác cụ thể, tồn kho/lô FEFO, lịch giao ATP hoặc sức khỏe dòng tiền, HÃY GỌI CÔNG CỤ (Function Calling) được cung cấp để lấy số liệu chính xác nhất từ CSDL.
+4. Nếu người dùng hỏi tổng quan nhanh, có thể tham chiếu DỮ LIỆU THỜI GIAN THỰC dưới đây:
 ${context}
-4. Nếu người dùng hỏi các câu hỏi kiến thức mở ngoài hệ thống (soạn email, marketing, kịch bản, lời khuyên chiến lược), hãy phát huy tối đa tư duy chuyên gia kinh doanh của bạn để đưa ra câu trả lời xuất sắc, có mẫu sẵn có thể copy dùng ngay.`;
+5. Nếu người dùng hỏi các câu hỏi kiến thức mở ngoài hệ thống (soạn email, marketing, kịch bản, lời khuyên chiến lược), hãy phát huy tối đa tư duy chuyên gia kinh doanh của bạn để đưa ra câu trả lời xuất sắc, có mẫu sẵn có thể copy dùng ngay.`;
 
-          let llmText = "";
+          let llmRes = { text: "", toolsUsed: [] };
+          const opts = { history: cleanHistory, allowedTools, user };
           if (config.provider === "openai") {
-            llmText = await this.callOpenAI(config.apiKey, config.model, systemPrompt, originalQuery);
+            llmRes = await this.callOpenAI(config.apiKey, config.model, systemPrompt, originalQuery, opts);
           } else {
-            llmText = await this.callGemini(config.apiKey, config.model, systemPrompt, originalQuery);
+            llmRes = await this.callGemini(config.apiKey, config.model, systemPrompt, originalQuery, opts);
           }
 
-          if (llmText && llmText.trim()) {
+          if (llmRes?.text && llmRes.text.trim()) {
             return {
-              answer: llmText.trim(),
+              answer: llmRes.text.trim(),
               provider: config.provider,
               model: config.model,
+              toolsUsed: llmRes.toolsUsed || [],
               suggestedAction,
               suggestions: await this.getSuggestions(),
             };
@@ -236,8 +565,8 @@ ${context}
         }
       }
 
-      // FALLBACK TO INTERNAL DATABASE NLP ENGINE
-      const internalRes = await this.processInternalQuery(q, originalQuery);
+      // FALLBACK TO INTERNAL DATABASE NLP ENGINE (có hỗ trợ tra cứu sâu đơn hàng & dòng tiền)
+      const internalRes = await this.processInternalQuery(q, originalQuery, user, allowedTools);
       return {
         ...internalRes,
         suggestedAction: suggestedAction || internalRes?.suggestedAction || null,
@@ -251,7 +580,50 @@ ${context}
     }
   }
 
-  static async processInternalQuery(q, originalQuery) {
+  static async processInternalQuery(q, originalQuery, user = {}, allowedTools = []) {
+    // 0a. Tra cứu nhanh mã đơn hàng cụ thể (DH-..., PO-..., LSX-...) trong chế độ nội bộ
+    const codeMatch = String(originalQuery || "").toUpperCase().match(/\b(?:DH|PO|LSX)[-_][A-Z0-9-]{3,24}\b/);
+    if (codeMatch && allowedTools.some((t) => t.name === "lookup_order")) {
+      const data = await this.executeToolCall("lookup_order", { keyword: codeMatch[0] }, user, allowedTools);
+      if (data?.orders?.length > 0) {
+        const ord = data.orders[0];
+        const remaining = Math.max(0, Number(ord.tong_tien || 0) - Number(ord.thanh_toan?.da_thanh_toan || 0));
+        return {
+          answer:
+            `### 🧾 Thông Tin Chứng Từ **${ord.ma_dh}**\n\n` +
+            `- **Loại chứng từ:** ${ord.loai_don}\n` +
+            `- **Trạng thái:** **${ord.trang_thai}**\n` +
+            `- **Đối tác:** ${ord.khach_hang_ten || ord.nha_cung_cap_ten || "Nội bộ"}\n` +
+            `- **Tổng giá trị:** **${fmtVND(ord.tong_tien)}** (Còn phải thanh toán: **${fmtVND(remaining)}**)\n`,
+          toolsUsed: ["Tra cứu đơn hàng"],
+          action: { title: "Mở Danh Sách Đơn Hàng", url: ord.loai_don === "purchase_receipt" ? "/material/orders" : "/sales" },
+          suggestions: await this.getSuggestions(),
+        };
+      }
+    }
+
+    // 0b. DỰ BÁO DÒNG TIỀN / RUNWAY / BURN RATE
+    if (
+      (q.includes("dong tien") || q.includes("runway") || q.includes("burn rate") || q.includes("tham hut")) &&
+      allowedTools.some((t) => t.name === "get_cashflow_health")
+    ) {
+      const cf = await this.executeToolCall("get_cashflow_health", { days: 90 }, user, allowedTools);
+      if (cf && !cf.error) {
+        return {
+          answer:
+            `### 💧 Dự Báo Dòng Tiền & Sức Khỏe Ngân Quỹ (90 Ngày)\n\n` +
+            `- **Số dư tiền mặt hiện tại:** **${fmtVND(cf.currentCashBalance)}**\n` +
+            `- **Chi phí vận hành trung bình/tháng (Burn Rate):** **${fmtVND(cf.monthlyBurnRate)}**\n` +
+            `- **Thời gian dự trữ ngân quỹ (Runway):** **${cf.runwayMonths} tháng** (${cf.healthStatus})\n` +
+            `- **Dự thu 90 ngày tới:** **${fmtVND(cf.totalProjectedInflow)}** | **Dự chi:** **${fmtVND(cf.totalProjectedOutflow)}**\n\n` +
+            `👉 ${cf.healthAdvice}`,
+          toolsUsed: ["Sức khỏe dòng tiền"],
+          action: { title: "Mở Dự Báo Dòng Tiền", url: "/financial-reports?tab=cashflow" },
+          suggestions: await this.getSuggestions(),
+        };
+      }
+    }
+
     // 0. BÁO CÁO TÀI CHÍNH / LÃI LỖ / P&L / GIÁ VỐN COGS
     if (
       q.includes("pnl") ||
@@ -777,8 +1149,9 @@ ${context}
   }
 
   /**
-   * AI OCR Invoice / Receipt Parser
-   * Hỗ trợ bóc tách hóa đơn/bảng kê từ text hoặc ảnh Base64 (qua Gemini Vision nếu có cấu hình).
+   * AI OCR Invoice / Receipt Parser v2
+   * Hỗ trợ bóc tách hóa đơn/bảng kê từ text hoặc ảnh Base64 qua cả Gemini Vision và OpenAI Vision
+   * với JSON có cấu trúc và ghép mờ (fuzzy matching) vào danh mục kho.
    */
   static async parseInvoiceOCR({ text = "", imageBase64 = "" } = {}) {
     const [materials, products] = await Promise.all([
@@ -788,13 +1161,22 @@ ${context}
     const catalog = [...materials, ...products];
 
     let extractedText = String(text || "").trim();
+    let structuredPayload = null;
 
     if (!extractedText && imageBase64) {
       const config = await AiConfigDAO.getActiveConfig();
+      const rawImg = String(imageBase64);
+      const mimeMatch = rawImg.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+      const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const cleanB64 = rawImg.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+      const ocrPrompt =
+        'Trích xuất toàn bộ các dòng hàng hóa trên hóa đơn thành JSON hợp lệ dạng: {"items":[{"name":"Tên hàng","qty":1,"unit_price":0}]}. Chỉ trả về JSON, không thêm giải thích.';
+
       if (config && config.apiKey && config.provider === "gemini") {
         try {
-          const cleanB64 = String(imageBase64).replace(/^data:image\/\w+;base64,/, "");
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model || "gemini-1.5-flash")}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+            config.model || "gemini-1.5-flash"
+          )}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
           const resp = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -802,26 +1184,53 @@ ${context}
               contents: [
                 {
                   parts: [
-                    {
-                      text: "Hãy trích xuất từng dòng mặt hàng trong hóa đơn này theo định dạng chuẩn mỗi dòng: Tên hàng | Số lượng | Đơn giá. Chỉ trả về các dòng mặt hàng.",
-                    },
-                    {
-                      inline_data: {
-                        mime_type: "image/jpeg",
-                        data: cleanB64,
-                      },
-                    },
+                    { text: ocrPrompt },
+                    { inline_data: { mime_type: mimeType, data: cleanB64 } },
                   ],
                 },
               ],
+              generationConfig: { responseMimeType: "application/json" },
             }),
           });
           if (resp.ok) {
             const json = await resp.json();
-            extractedText = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            structuredPayload = json?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            extractedText = structuredPayload;
           }
         } catch (err) {
-          logger.warn("Gemini OCR fallback error", { error: err.message });
+          logger.warn("Gemini Vision OCR error", { error: err.message });
+        }
+      } else if (config && config.apiKey && config.provider === "openai") {
+        try {
+          const dataUrl = `data:${mimeType};base64,${cleanB64}`;
+          const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${config.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: config.model || "gpt-4o-mini",
+              response_format: { type: "json_object" },
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "text", text: ocrPrompt },
+                    { type: "image_url", image_url: { url: dataUrl } },
+                  ],
+                },
+              ],
+              max_tokens: 1500,
+            }),
+          });
+          if (resp.ok) {
+            const json = await resp.json();
+            structuredPayload = json?.choices?.[0]?.message?.content || "";
+            extractedText = structuredPayload;
+          }
+        } catch (err) {
+          logger.warn("OpenAI Vision OCR error", { error: err.message });
         }
       }
     }
@@ -832,11 +1241,13 @@ ${context}
         total_items: 0,
         total_amount: 0,
         extracted_text: "",
-        note: "Vui lòng dán nội dung bảng kê hoặc cấu hình Gemini API Key để đọc ảnh hóa đơn.",
+        note: "Vui lòng dán nội dung bảng kê hoặc cấu hình Gemini / OpenAI API Key để đọc ảnh hóa đơn.",
       };
     }
 
-    const parsed = parseInvoiceTextOrLines(extractedText, catalog);
+    const parsed = structuredPayload
+      ? parseStructuredOcrJson(structuredPayload, catalog)
+      : parseInvoiceTextOrLines(extractedText, catalog);
     return {
       ...parsed,
       extracted_text: extractedText,

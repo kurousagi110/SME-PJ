@@ -12,8 +12,16 @@ export interface SuggestedAction {
   route?: string;
 }
 
+export interface AiHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface AiQueryResult {
   answer: string;
+  provider?: string;
+  model?: string;
+  toolsUsed?: string[];
   action?: {
     title: string;
     url: string;
@@ -25,9 +33,15 @@ export interface AiQueryResult {
   }>;
 }
 
-export async function askAiCopilotAction(query: string): Promise<AiQueryResult | null> {
+export async function askAiCopilotAction(
+  query: string,
+  history: AiHistoryMessage[] = []
+): Promise<AiQueryResult | null> {
   try {
-    const res = await http.post<{ success: boolean; data: AiQueryResult }>("/ai-copilot/query", { query });
+    const res = await http.post<{ success: boolean; data: AiQueryResult }>("/ai-copilot/query", {
+      query,
+      history: history.slice(-10),
+    });
     return res?.data || null;
   } catch (err: any) {
     console.error("askAiCopilotAction error", err);

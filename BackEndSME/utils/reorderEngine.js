@@ -1,8 +1,12 @@
 /**
  * reorderEngine.js — Tính toán đặt hàng lại tự động (Auto-Reorder)
- * - Lọc nguyên vật liệu có tồn kho <= tồn tối thiểu (`ton_toi_thieu > 0`)
+ * - Hỗ trợ cả 2 chế độ:
+ *   1) Dynamic Safety Stock & ROP khi có dữ liệu tốc độ tiêu thụ + lead time NCC:
+ *      SafetyStock = ceil(Z * dailyStdDev * sqrt(leadTimeDays))
+ *      ROP = ceil(dailyAvgDemand * leadTimeDays + SafetyStock)
+ *   2) Fallback chuẩn theo ngưỡng tĩnh (`ton_toi_thieu`):
+ *      SL đặt = max(ton_toi_thieu * 2 - so_luong, MOQ)
  * - Loại trừ vật tư đã có đơn mua hàng đang chờ duyệt / đang nhập
- * - Tính SL đặt = max(ton_toi_thieu * 2 - so_luong, MOQ)
  * - Nhóm theo nhà cung cấp gần nhất để tạo đơn nháp (chờ duyệt tại /approvals)
  */
 
@@ -56,13 +60,50 @@ export function buildLatestSupplierByMaterial(recentPurchaseOrders = []) {
   return { byId, byCode };
 }
 
-export function computeReorderQty(material) {
+/**
+ * Tính Tồn kho an toàn động (Dynamic Safety Stock) và Điểm đặt hàng lại (ROP).
+ * @param {{ dailyAvgDemand: number, dailyStdDev?: number, leadTimeDays?: number, serviceLevelZ?: number }} params
+ */
+export function computeDynamicSafetyStock({
+  dailyAvgDemand = 0,
+  dailyStdDev = 0,
+  leadTimeDays = 5,
+  serviceLevelZ = 1.65, // ~95% service level
+} = {}) {
+  const avg = Math.max(0, Number(dailyAvgDemand) || 0);
+  const std = Math.max(0, Number(dailyStdDev) || 0);
+  const lead = Math.max(1, Number(leadTimeDays) || 5);
+  const z = Math.max(0.5, Number(serviceLevelZ) || 1.65);
+
+  const safetyStock = Math.ceil(z * std * Math.sqrt(lead));
+  const reorderPoint = Math.ceil(avg * lead + safetyStock);
+  return { safetyStock, reorderPoint, leadTimeDays: lead };
+}
+
+/**
+ * Tính số lượng cần đặt lại cho một vật tư.
+ * Nếu có `demandStats` ({ dailyAvgDemand, dailyStdDev, leadTimeDays, cycleDays }),
+ * dùng công thức Dynamic Safety Stock + ROP; ngược lại dùng ngưỡng tĩnh `ton_toi_thieu`.
+ */
+export function computeReorderQty(material, demandStats = null) {
   const stock = Number(material?.so_luong ?? 0);
+  const moq = Math.max(1, Number(material?.moq ?? material?.so_luong_dat_toi_thieu ?? 1) || 1);
+
+  if (demandStats && Number(demandStats.dailyAvgDemand) > 0) {
+    const { safetyStock, reorderPoint } = computeDynamicSafetyStock(demandStats);
+    const effectiveMin = Math.max(reorderPoint, Number(material?.ton_toi_thieu ?? 0));
+    if (stock > effectiveMin) return 0;
+
+    const cycleDays = Math.max(7, Number(demandStats.cycleDays || 14));
+    const targetLevel = Math.ceil(effectiveMin + Number(demandStats.dailyAvgDemand) * cycleDays);
+    const desired = Math.max(targetLevel - stock, safetyStock);
+    return Math.max(1, Math.ceil(Math.max(desired, moq)));
+  }
+
   const minStock = Number(material?.ton_toi_thieu ?? 0);
   if (!Number.isFinite(minStock) || minStock <= 0) return 0;
   if (stock > minStock) return 0;
 
-  const moq = Math.max(1, Number(material?.moq ?? material?.so_luong_dat_toi_thieu ?? 1) || 1);
   const desired = minStock * 2 - stock;
   return Math.max(1, Math.ceil(Math.max(desired, moq)));
 }
@@ -71,6 +112,7 @@ export function planAutoReorderBatches({
   materials = [],
   pendingPurchaseOrders = [],
   recentPurchaseOrders = [],
+  demandStatsByMaterialId = null,
   defaultSupplier = "Nhà cung cấp tổng hợp",
 } = {}) {
   const pending = buildPendingMaterialIds(pendingPurchaseOrders);
@@ -84,10 +126,11 @@ export function planAutoReorderBatches({
     const status = String(mat.trang_thai || "active").toLowerCase();
     if (status === "deleted" || status === "inactive") continue;
 
-    const qty = computeReorderQty(mat);
+    const id = String(mat._id || "");
+    const demandStats = demandStatsByMaterialId instanceof Map ? demandStatsByMaterialId.get(id) : null;
+    const qty = computeReorderQty(mat, demandStats);
     if (qty <= 0) continue;
 
-    const id = String(mat._id || "");
     const code = String(mat.ma_nl || "").trim().toUpperCase();
     if ((id && pending.ids.has(id)) || (code && pending.codes.has(code))) {
       skippedDuplicateCount++;
