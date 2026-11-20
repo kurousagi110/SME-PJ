@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
 import { sanitizeNumber } from "../utils/number.js";
+import { ROLE_DEFINITIONS } from "../utils/permissions.js";
 
 let phongban_chucvu;
 
@@ -48,15 +49,25 @@ export default class phongban_chucvuDAO {
 
     return arr
       .filter((cv) => cv && (cv.ten_chuc_vu || "").trim())
-      .map((cv) => ({
-        _id: new ObjectId(),
-        ten_chuc_vu: String(cv.ten_chuc_vu || "").trim(),
-        mo_ta: String(cv.mo_ta || "").trim(),
-        he_so_luong: sanitizeNumber(cv.he_so_luong, 1),
-        trang_thai: STATUS.ACTIVE,
-        createAt: new Date(),
-        updateAt: new Date(),
-      }));
+      .map((cv) => {
+        const rawRoleCode = String(cv.role_code || "user").trim().toLowerCase();
+        const role_code = ROLE_DEFINITIONS[rawRoleCode] ? rawRoleCode : "user";
+        const quyen_han = Array.isArray(cv.quyen_han)
+          ? [...new Set(cv.quyen_han.map((q) => String(q).trim()).filter(Boolean))]
+          : [...(ROLE_DEFINITIONS[role_code]?.permissions || [])];
+
+        return {
+          _id: new ObjectId(),
+          ten_chuc_vu: String(cv.ten_chuc_vu || "").trim(),
+          mo_ta: String(cv.mo_ta || "").trim(),
+          he_so_luong: sanitizeNumber(cv.he_so_luong, 1),
+          role_code,
+          quyen_han,
+          trang_thai: STATUS.ACTIVE,
+          createAt: new Date(),
+          updateAt: new Date(),
+        };
+      });
   }
 
   /* ========== CREATE ========== */
@@ -263,6 +274,15 @@ export default class phongban_chucvuDAO {
       $set["chuc_vu.$[cv].mo_ta"] = String(payload.mo_ta || "").trim();
     if (payload.he_so_luong !== undefined)
       $set["chuc_vu.$[cv].he_so_luong"] = sanitizeNumber(payload.he_so_luong, 1);
+    if (payload.role_code !== undefined) {
+      const rc = String(payload.role_code || "user").trim().toLowerCase();
+      $set["chuc_vu.$[cv].role_code"] = ROLE_DEFINITIONS[rc] ? rc : "user";
+    }
+    if (payload.quyen_han !== undefined && Array.isArray(payload.quyen_han)) {
+      $set["chuc_vu.$[cv].quyen_han"] = [
+        ...new Set(payload.quyen_han.map((q) => String(q).trim()).filter(Boolean)),
+      ];
+    }
     if (payload.trang_thai !== undefined)
       $set["chuc_vu.$[cv].trang_thai"] = payload.trang_thai;
 

@@ -3,6 +3,7 @@ import logger from "./logger.js";
 import jwt from "jsonwebtoken";
 import { ObjectId } from "mongodb";
 import ThongBaoDAO from "../models/thongBaoDAO.js";
+import { isAdminUserRecord } from "./permissions.js";
 
 let io = null;
 let usersCol = null;
@@ -51,6 +52,7 @@ export function initSocket(httpServer) {
       if (!token) return next(new Error("MISSING_TOKEN"));
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded?.purpose) return next(new Error("INVALID_TOKEN_PURPOSE"));
       const userId = decoded?.uid;
       if (!userId || !ObjectId.isValid(userId)) return next(new Error("INVALID_TOKEN"));
 
@@ -58,7 +60,15 @@ export function initSocket(httpServer) {
 
       const user = await usersCol.findOne(
         { _id: new ObjectId(userId), trang_thai: { $ne: 0 } },
-        { projection: { mat_khau: 0, tokens: 0 } }
+        {
+          projection: {
+            mat_khau: 0,
+            tokens: 0,
+            two_factor_secret: 0,
+            two_factor_pending_secret: 0,
+            two_factor_recovery_codes: 0,
+          },
+        }
       );
 
       if (!user) return next(new Error("USER_NOT_FOUND"));
@@ -86,7 +96,7 @@ export function initSocket(httpServer) {
     // Tất cả user đăng nhập đều join room chung
     socket.join("room:all_users");
 
-    if (deptName.includes("giám đốc") || posName.includes("giám đốc")) {
+    if (isAdminUserRecord(socket.user)) {
       socket.join("room:admin");
       logger.info(`[Socket] ${tai_khoan} joined room:admin`);
     }

@@ -67,3 +67,17 @@ export async function fetchRevenueStatsAction() {
     };
   }
 }
+
+export async function validateCouponAction(payload: { code: string; orderAmount: number }): Promise<{
+  success: boolean;
+  data?: { code: string; discountAmount: number; message: string };
+  error?: string;
+}> {
+  try {
+    const res: any = await http.post("/orders/validate-coupon", payload);
+    return { success: true, data: res?.data };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Mã ưu đãi không hợp lệ" };
+  }
+}
+

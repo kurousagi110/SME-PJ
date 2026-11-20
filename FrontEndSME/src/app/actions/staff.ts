@@ -34,10 +34,22 @@ export async function fetchStaffById(id: string) {
 }
 export async function createStaff(data: any) {
   try {
-    const result = await http.post("/users/register", data);
+    const result = await http.post("/users/admin-create", data);
     return { success: true, data: result.data };
   } catch (err: any) {
     throw new Error(err.message || "Tạo nhân viên không thành công");
+  }
+}
+export async function setStaffRole(
+  id: string,
+  role: string,
+  quyen_han?: string[]
+) {
+  try {
+    const result = await http.put(`/users/${id}/role`, { role, quyen_han });
+    return { success: true, data: result.data };
+  } catch (err: any) {
+    throw new Error(err.message || "Cập nhật phân quyền không thành công");
   }
 }
 export async function setStaffPosition(id: string, data: any) {
@@ -58,19 +70,20 @@ export async function setStaffDepartment(id: string, data: any) {
 }
 export async function updateStaffById(
   id: string,
-  // profile?: any,
   phong_ban?: any,
-  chuc_vu?: any
+  chuc_vu?: any,
+  role?: string,
+  quyen_han?: string[]
 ) {
   try {
-    // if (profile) {
-    //   await updateProfile(profile);
-    // }
     if (phong_ban) {
       await setStaffDepartment(id, phong_ban);
     }
     if (chuc_vu) {
       await setStaffPosition(id, chuc_vu);
+    }
+    if (role !== undefined || quyen_han !== undefined) {
+      await setStaffRole(id, role || "user", quyen_han);
     }
     return { success: true };
   } catch (err: any) {

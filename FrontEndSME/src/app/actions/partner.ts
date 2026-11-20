@@ -135,3 +135,45 @@ export async function xoaDoiTacAction(id: string) {
     throw new Error(err?.message || "Xóa đối tác thất bại");
   }
 }
+
+export interface CrmRfmCustomer {
+  _id: string;
+  ma_doi_tac: string | null;
+  ten: string;
+  so_dien_thoai: string;
+  nhom: string;
+  frequency: number;
+  monetary: number;
+  recencyDays: number | null;
+  avgCycleDays: number | null;
+  lastOrderDate: string | null;
+  rfm: { r: number; f: number; m: number; score: string };
+  segmentCode: "CHAMPIONS" | "LOYAL" | "POTENTIAL" | "AT_RISK" | "HIBERNATING" | "NEW_INACTIVE";
+  segmentLabel: string;
+  churnRisk: "high" | "medium" | "low";
+  churnReason: string;
+}
+
+export interface CrmRfmIntelligenceResponse {
+  summary: {
+    totalCustomers: number;
+    championsCount: number;
+    loyalCount: number;
+    atRiskCount: number;
+    highChurnCount: number;
+  };
+  customers: CrmRfmCustomer[];
+}
+
+export async function fetchCrmRfmIntelligenceAction(): Promise<{
+  success: boolean;
+  data?: CrmRfmIntelligenceResponse;
+  error?: string;
+}> {
+  try {
+    const res: any = await http.get("/doi-tac/intelligence/rfm");
+    return { success: true, data: res?.data as CrmRfmIntelligenceResponse };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Không thể tải phân tích RFM & Churn" };
+  }
+}

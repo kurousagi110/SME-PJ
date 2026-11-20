@@ -2,6 +2,8 @@ import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import SanPhamDAO from "./sanPhamDAO.js";
 import SoQuyDAO from "./soQuyDAO.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { invalidateReportCaches } from "../utils/cache.js";
 
 let rmaCol = null;
 let donHangCol = null;
@@ -251,6 +253,7 @@ export default class ReturnOrderDAO {
         }
       );
 
+      invalidateReportCaches();
       return {
         ok: true,
         ma_rma: rma.ma_rma,
@@ -271,7 +274,7 @@ export default class ReturnOrderDAO {
       const filter = {};
       if (trang_thai && trang_thai !== "all") filter.trang_thai = trang_thai;
       if (search && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
+        const regex = new RegExp(escapeSafeRegexPattern(search), "i");
         filter.$or = [{ ma_rma: regex }, { ma_dh: regex }, { "khach_hang.ten": regex }];
       }
 

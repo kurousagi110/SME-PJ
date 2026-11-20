@@ -1,6 +1,6 @@
 import express from "express";
 import SoQuyController from "../../controllers/soQuyController.js";
-import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
+import { verifyToken, verifyFinanceManager } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
@@ -20,11 +20,11 @@ router.post(
   SoQuyController.create
 );
 
-router.put("/:id/huy", verifyAdmin, SoQuyController.cancel);
+router.put("/:id/huy", verifyFinanceManager, SoQuyController.cancel);
 
 /* ─── 3. Quản lý kỳ kế toán & Chốt sổ ─── */
 router.get("/ky-ke-toan", SoQuyController.listPeriods);
-router.post("/ky-ke-toan/chot-so", verifyAdmin, requireBody("ky", "tu_ngay", "den_ngay"), SoQuyController.closePeriod);
-router.post("/ky-ke-toan/:ky/mo-khoa", verifyAdmin, SoQuyController.reopenPeriod);
+router.post("/ky-ke-toan/chot-so", verifyFinanceManager, requireBody("ky", "tu_ngay", "den_ngay"), SoQuyController.closePeriod);
+router.post("/ky-ke-toan/:ky/mo-khoa", verifyFinanceManager, SoQuyController.reopenPeriod);
 
 export default router;

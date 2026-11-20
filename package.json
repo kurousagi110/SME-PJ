@@ -1,0 +1,17 @@
+{
+  "name": "sme-erp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SME ERP Full-stack Monorepo",
+  "scripts": {
+    "prepare": "husky",
+    "test": "npm run test:backend && npm run test:e2e",
+    "test:backend": "cd BackEndSME && npm test",
+    "test:inventory-qc": "cd BackEndSME && node --test tests/stockAdjustmentAndInventory.test.js tests/batchFefoAndStockLedger.test.js tests/qcYieldAndRmaReturn.test.js",
+    "test:e2e": "node scratch/gstack_deep_qa_tester.js"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
+  }
+}

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let donHangCol;
 let sanXuatLogsCol;
@@ -365,9 +366,10 @@ export default class StockLedgerDAO {
       if (itemType === "product" || itemType === "all") {
         const pFilter = {};
         if (search) {
+          const safeSearch = escapeSafeRegexPattern(search);
           pFilter.$or = [
-            { ma_sp: { $regex: search, $options: "i" } },
-            { ten_sp: { $regex: search, $options: "i" } },
+            { ma_sp: { $regex: safeSearch, $options: "i" } },
+            { ten_sp: { $regex: safeSearch, $options: "i" } },
           ];
         }
         const products = await sanPhamCol.find(pFilter).limit(200).toArray();
@@ -380,10 +382,11 @@ export default class StockLedgerDAO {
       if (itemType === "material" || itemType === "all") {
         const mFilter = {};
         if (search) {
+          const safeSearch = escapeSafeRegexPattern(search);
           mFilter.$or = [
-            { ma_nl: { $regex: search, $options: "i" } },
-            { ma_vt: { $regex: search, $options: "i" } },
-            { ten_nl: { $regex: search, $options: "i" } },
+            { ma_nl: { $regex: safeSearch, $options: "i" } },
+            { ma_vt: { $regex: safeSearch, $options: "i" } },
+            { ten_nl: { $regex: safeSearch, $options: "i" } },
           ];
         }
         const materials = await nguyenLieuCol.find(mFilter).limit(200).toArray();

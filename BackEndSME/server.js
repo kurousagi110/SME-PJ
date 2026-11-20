@@ -75,8 +75,10 @@ const authLimiter = rateLimit({
   message: { success: false, message: "Quá nhiều lần đăng nhập, vui lòng thử lại sau." },
 });
 
-app.use("/api/v1/users/login",   authLimiter);
-app.use("/api/v1/users/refresh", authLimiter);
+app.use("/api/v1/users/login/2fa", authLimiter);
+app.use("/api/v1/users/login",     authLimiter);
+app.use("/api/v1/users/register",  authLimiter);
+app.use("/api/v1/users/refresh",   authLimiter);
 app.use(globalLimiter);
 
 /* ─── Body parser ───

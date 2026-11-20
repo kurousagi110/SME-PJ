@@ -19,6 +19,7 @@ import {
 
 import { useDanhSachNhanVien } from "@/hooks/use-users";
 import { useMyProfile } from "@/hooks/use-account";
+import { canManageAttendance, isAdminOrDirector } from "@/lib/permissions";
 import { myProfile } from "@/app/actions/auth";
 import { useChamCongByDate, useUpsertChamCong } from "@/hooks/check-in";
 
@@ -175,14 +176,13 @@ export function ChamCongManagement() {
   const myChucVu = useMemo(() => pickTenDeep(me?.chuc_vu), [me]);
 
   const isDirectorDepartment = useMemo(
-    () => safeStr(myPhongBan) === "Phòng giám đốc",
-    [myPhongBan]
+    () => isAdminOrDirector(me) || safeStr(myPhongBan) === "Phòng nhân sự",
+    [me, myPhongBan]
   );
 
   const canEdit = useMemo(() => {
-    if (isDirectorDepartment) return true;
-    return safeStr(myChucVu) === "Trưởng phòng";
-  }, [isDirectorDepartment, myChucVu]);
+    return canManageAttendance(me);
+  }, [me]);
 
   // ===== Filter (chỉ giám đốc) =====
   const [filterPhongBan, setFilterPhongBan] = useState("");

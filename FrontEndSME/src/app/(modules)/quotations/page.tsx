@@ -98,6 +98,38 @@ export default function QuotationsPage() {
   const [selectedQuote, setSelectedQuote] = React.useState<Quotation | null>(null);
   const [openDetail, setOpenDetail] = React.useState(false);
 
+  // Margin Guard ước tính trực tiếp trên form lập báo giá (ngưỡng cảnh báo khi chiết khấu cao)
+  const quoteMarginAlert = React.useMemo(() => {
+    let gross = 0;
+    let totalDiscount = 0;
+    for (const p of createForm.products) {
+      const qty = Math.max(0, Number(p.so_luong || 0));
+      const price = Math.max(0, Number(p.don_gia || 0));
+      const pct = Math.min(100, Math.max(0, Number(p.chiet_khau_phan_tram || 0)));
+      const lineGross = qty * price;
+      gross += lineGross;
+      totalDiscount += (lineGross * pct) / 100;
+    }
+    if (gross <= 0 || totalDiscount <= 0) return null;
+    const net = Math.max(0, gross - totalDiscount);
+    const estCost = gross * 0.55;
+    const estProfit = net - estCost;
+    const marginPct = net > 0 ? Math.round((estProfit / net) * 1000) / 10 : -100;
+    if (estProfit < 0) {
+      return {
+        level: "loss" as const,
+        message: `CẢNH BÁO LỖ (Margin Guard): Chiết khấu ${Math.round((totalDiscount / gross) * 100)}% vượt giá vốn ước tính (biên ${marginPct}%).`,
+      };
+    }
+    if (marginPct < 15) {
+      return {
+        level: "warn" as const,
+        message: `Cảnh báo biên lợi nhuận mỏng (${marginPct}%). Vui lòng trình Quản lý KD kiểm duyệt trước khi gửi khách.`,
+      };
+    }
+    return null;
+  }, [createForm.products]);
+
   const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -652,6 +684,18 @@ export default function QuotationsPage() {
                 className="bg-slate-50 text-xs"
               />
             </div>
+
+            {quoteMarginAlert && (
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs font-medium ${
+                  quoteMarginAlert.level === "loss"
+                    ? "border-red-300 bg-red-50 text-red-700"
+                    : "border-amber-300 bg-amber-50 text-amber-800"
+                }`}
+              >
+                ⚠️ {quoteMarginAlert.message}
+              </div>
+            )}
           </div>
 
           <DialogFooter>

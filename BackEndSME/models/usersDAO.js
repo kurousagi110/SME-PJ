@@ -1,14 +1,43 @@
 import { ObjectId } from "mongodb";
+import crypto from "node:crypto";
 import logger from "../utils/logger.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import { ROLE_DEFINITIONS } from "../utils/permissions.js";
+import {
+  generateTotpSecret,
+  verifyTotp,
+  buildOtpAuthUri,
+  encryptTotpSecret,
+  decryptTotpSecret,
+  generateRecoveryCodes,
+  normalizeRecoveryCode,
+} from "../utils/totp.js";
+
+const SAFE_USER_PROJECTION = {
+  mat_khau: 0,
+  tokens: 0,
+  two_factor_secret: 0,
+  two_factor_pending_secret: 0,
+  two_factor_recovery_codes: 0,
+};
 
 let users;
 
-const ACCESS_EXPIRES = "1h";
-const REFRESH_EXPIRES = "7d";
+const getAccessExpires = () => process.env.ACCESS_EXPIRES || "1h";
+const getRefreshExpires = () => process.env.REFRESH_EXPIRES || "7d";
 const SALT_ROUNDS = 12;
+
+/**
+ * Dẫn xuất khóa ký riêng cho tempToken 2FA để không bao giờ dùng được như accessToken.
+ */
+function getTwoFaChallengeKey() {
+  return crypto
+    .createHmac("sha256", String(process.env.JWT_SECRET || ""))
+    .update("sme_2fa_challenge_v1")
+    .digest("hex");
+}
 
 export default class UsersDAO {
   static async injectDB(conn) {
@@ -30,10 +59,10 @@ export default class UsersDAO {
   /* =============== JWT helpers =============== */
   static _signAccessToken(uid, role = null) {
     // role: {ten, heSoluong} hoặc null
-    return jwt.sign({ uid, role }, process.env.JWT_SECRET, { expiresIn: ACCESS_EXPIRES });
+    return jwt.sign({ uid, role }, process.env.JWT_SECRET, { expiresIn: getAccessExpires() });
   }
   static _signRefreshToken(uid, role = null) {
-    return jwt.sign({ uid, role }, process.env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+    return jwt.sign({ uid, role }, process.env.JWT_REFRESH_SECRET, { expiresIn: getRefreshExpires() });
   }
   static async _storeRefreshToken(userId, refreshToken) {
     const hashed = await bcrypt.hash(refreshToken, SALT_ROUNDS);
@@ -62,7 +91,7 @@ export default class UsersDAO {
       if (!ObjectId.isValid(id)) return { error: new Error("Invalid user id") };
       const user = await users.findOne(
         { _id: new ObjectId(id) },
-        { projection: { mat_khau: 0, tokens: 0 } }
+        { projection: SAFE_USER_PROJECTION }
       );
       if (!user) return { error: new Error("User not found") };
       return user;
@@ -73,7 +102,16 @@ export default class UsersDAO {
   }
 
   /* =============== User CRUD =============== */
-  static async registerUser(ho_ten, ngay_sinh, tai_khoan, password, chuc_vu, phong_ban) {
+  static async registerUser(
+    ho_ten,
+    ngay_sinh,
+    tai_khoan,
+    password,
+    chuc_vu,
+    phong_ban,
+    roleInput = "user",
+    quyenHanInput = []
+  ) {
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // chuẩn hóa: nếu truyền gì khác object thì thành null
@@ -81,6 +119,8 @@ export default class UsersDAO {
       ten: chuc_vu.ten || "",
       mo_ta: chuc_vu.mo_ta || "",
       heSoluong: chuc_vu.heSoluong ?? null,
+      ...(chuc_vu.role_code ? { role_code: chuc_vu.role_code } : {}),
+      ...(Array.isArray(chuc_vu.quyen_han) ? { quyen_han: chuc_vu.quyen_han } : {}),
     } : null;
 
     const dept = phong_ban && typeof phong_ban === "object" ? {
@@ -88,11 +128,20 @@ export default class UsersDAO {
       mo_ta: phong_ban.mo_ta || "",
     } : null;
 
+    const safeRole = ROLE_DEFINITIONS[String(roleInput || "user").toLowerCase()]
+      ? String(roleInput).toLowerCase()
+      : "user";
+    const safeQuyenHan = Array.isArray(quyenHanInput)
+      ? [...new Set(quyenHanInput.map((q) => String(q).trim()).filter(Boolean))]
+      : [];
+
     const doc = {
       ho_ten,
       ngay_sinh,
       tai_khoan,
       mat_khau: hashedPassword,
+      role: safeRole,
+      quyen_han: safeQuyenHan,
       trang_thai: 1,
       chuc_vu: role,       // <- object hoặc null
       phong_ban: dept,     // <- object hoặc null
@@ -124,7 +173,7 @@ export default class UsersDAO {
 
   static async getMyUser(id, { includeSensitive = false } = {}) {
     try {
-      const projection = includeSensitive ? {} : { mat_khau: 0, tokens: 0 };
+      const projection = includeSensitive ? {} : SAFE_USER_PROJECTION;
       const user = await users.findOne({ _id: new ObjectId(id) }, { projection });
       if (!user) return { error: new Error("User not found") };
       return user;
@@ -175,7 +224,7 @@ export default class UsersDAO {
     const skip = Math.max(0, (Number(page) - 1) * Number(limit));
     // SECURITY: Cap page size to prevent OOM via ?limit=99999999.
     const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 100);
-    const projection = { mat_khau: 0, tokens: 0 };
+    const projection = SAFE_USER_PROJECTION;
 
     const [items, total] = await Promise.all([
       users
@@ -211,16 +260,39 @@ export default class UsersDAO {
   }
 
 
-  /* =============== Chức vụ / Phòng ban (object) =============== */
+  /* =============== Chức vụ / Phòng ban / Role (object) =============== */
   // set/overwrite chức vụ
-  static async setChucVu(id_user, { ten = "", mo_ta = "", heSoluong = null } = {}) {
+  static async setChucVu(
+    id_user,
+    { ten = "", mo_ta = "", heSoluong = null, role_code = undefined, quyen_han = undefined } = {}
+  ) {
     try {
+      const chucVuObj = { ten, mo_ta, heSoluong };
+      if (role_code !== undefined) chucVuObj.role_code = role_code;
+      if (Array.isArray(quyen_han)) chucVuObj.quyen_han = quyen_han;
+
       return await users.updateOne(
         { _id: new ObjectId(id_user) },
-        { $set: { chuc_vu: { ten, mo_ta, heSoluong }, updateAt: new Date() } }
+        { $set: { chuc_vu: chucVuObj, updateAt: new Date() } }
       );
     } catch (e) {
       logger.error("setChucVu error", { error: e.message }); return { error: e };
+    }
+  }
+
+  static async setUserRole(id_user, { role = "user", quyen_han } = {}) {
+    try {
+      const safeRole = ROLE_DEFINITIONS[String(role || "user").toLowerCase()]
+        ? String(role).toLowerCase()
+        : "user";
+      const $set = { role: safeRole, updateAt: new Date() };
+      if (Array.isArray(quyen_han)) {
+        $set.quyen_han = [...new Set(quyen_han.map((q) => String(q).trim()).filter(Boolean))];
+      }
+      return await users.updateOne({ _id: new ObjectId(id_user) }, { $set });
+    } catch (e) {
+      logger.error("setUserRole error", { error: e.message });
+      return { error: e };
     }
   }
 
@@ -309,6 +381,16 @@ export default class UsersDAO {
       const ok = await bcrypt.compare(password, user.mat_khau);
       if (!ok) throw new Error(GENERIC_MSG);
 
+      // Nếu tài khoản đã bật 2FA (TOTP), trả về tempToken ký bằng khóa riêng (không có uid)
+      if (user.two_factor_enabled && user.two_factor_secret) {
+        const tempToken = jwt.sign(
+          { pendingUid: user._id.toString(), purpose: "2fa_challenge" },
+          getTwoFaChallengeKey(),
+          { expiresIn: "5m" }
+        );
+        return { requires2fa: true, tempToken };
+      }
+
       // vì là object nên role đơn giản
       const role = user.chuc_vu
         ? { ten: user.chuc_vu.ten || "", heSoluong: user.chuc_vu.heSoluong ?? null }
@@ -321,6 +403,169 @@ export default class UsersDAO {
       return { userId: user._id, accessToken, refreshToken };
     } catch (e) {
       logger.error("Unable to login user", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  static async _verifyTotpOrRecovery(user, code) {
+    const secret = decryptTotpSecret(user.two_factor_secret);
+    if (verifyTotp(secret, code, { window: 1 })) {
+      return { ok: true, usedRecoveryCode: false, matchedEntryId: null };
+    }
+
+    const normalized = normalizeRecoveryCode(code);
+    for (const entry of user.two_factor_recovery_codes || []) {
+      // eslint-disable-next-line no-await-in-loop
+      if (await bcrypt.compare(normalized, entry.hashed)) {
+        return { ok: true, usedRecoveryCode: true, matchedEntryId: entry.id };
+      }
+    }
+    return { ok: false, usedRecoveryCode: false, matchedEntryId: null };
+  }
+
+  static async verifyTwoFactorLogin(tempToken, code) {
+    try {
+      if (!tempToken || !code) throw new Error("Thiếu tempToken hoặc mã OTP");
+      const decoded = jwt.verify(tempToken, getTwoFaChallengeKey());
+      if (decoded?.purpose !== "2fa_challenge" || !ObjectId.isValid(decoded?.pendingUid)) {
+        throw new Error("Phiên xác thực 2FA không hợp lệ hoặc đã hết hạn");
+      }
+
+      const user = await users.findOne({ _id: new ObjectId(decoded.pendingUid), trang_thai: 1 });
+      if (!user || !user.two_factor_enabled || !user.two_factor_secret) {
+        throw new Error("Tài khoản chưa kích hoạt 2FA");
+      }
+
+      const check = await this._verifyTotpOrRecovery(user, code);
+      if (!check.ok) {
+        throw new Error("Mã OTP hoặc mã khôi phục không chính xác");
+      }
+
+      if (check.usedRecoveryCode && check.matchedEntryId) {
+        // Xóa atomic mã khôi phục đã sử dụng để chống dùng lại
+        const pulled = await users.findOneAndUpdate(
+          { _id: user._id, "two_factor_recovery_codes.id": check.matchedEntryId },
+          { $pull: { two_factor_recovery_codes: { id: check.matchedEntryId } }, $set: { updateAt: new Date() } }
+        );
+        if (!pulled) {
+          throw new Error("Mã khôi phục đã được sử dụng");
+        }
+      }
+
+      const role = user.chuc_vu
+        ? { ten: user.chuc_vu.ten || "", heSoluong: user.chuc_vu.heSoluong ?? null }
+        : null;
+
+      const accessToken = this._signAccessToken(user._id.toString(), role);
+      const refreshToken = this._signRefreshToken(user._id.toString(), role);
+      await this._storeRefreshToken(user._id, refreshToken);
+
+      return { userId: user._id, accessToken, refreshToken, usedRecoveryCode: check.usedRecoveryCode };
+    } catch (e) {
+      logger.error("verifyTwoFactorLogin error", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  static async setupTwoFactor(userId) {
+    try {
+      if (!ObjectId.isValid(userId)) throw new Error("Invalid userId");
+      const user = await users.findOne({ _id: new ObjectId(userId), trang_thai: 1 });
+      if (!user) throw new Error("User not found");
+
+      const secret = generateTotpSecret(20);
+      const encrypted = encryptTotpSecret(secret);
+      await users.updateOne(
+        { _id: user._id },
+        { $set: { two_factor_pending_secret: encrypted, updateAt: new Date() } }
+      );
+
+      const otpauthUri = buildOtpAuthUri({
+        secret,
+        accountName: user.tai_khoan || user.ho_ten || "user",
+        issuer: "SME ERP",
+      });
+
+      return { secret, otpauthUri };
+    } catch (e) {
+      logger.error("setupTwoFactor error", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  static async enableTwoFactor(userId, code) {
+    try {
+      if (!ObjectId.isValid(userId)) throw new Error("Invalid userId");
+      const user = await users.findOne({ _id: new ObjectId(userId), trang_thai: 1 });
+      if (!user || !user.two_factor_pending_secret) {
+        throw new Error("Vui lòng khởi tạo thiết lập 2FA trước");
+      }
+
+      const secret = decryptTotpSecret(user.two_factor_pending_secret);
+      if (!verifyTotp(secret, code, { window: 1 })) {
+        throw new Error("Mã OTP xác nhận không chính xác");
+      }
+
+      const recoveryCodes = generateRecoveryCodes(8);
+      const hashedCodes = await Promise.all(
+        recoveryCodes.map(async (c) => ({
+          id: new ObjectId().toString(),
+          hashed: await bcrypt.hash(normalizeRecoveryCode(c), 10),
+        }))
+      );
+
+      await users.updateOne(
+        { _id: user._id },
+        {
+          $set: {
+            two_factor_enabled: true,
+            two_factor_secret: user.two_factor_pending_secret,
+            two_factor_recovery_codes: hashedCodes,
+            two_factor_enabled_at: new Date(),
+            updateAt: new Date(),
+          },
+          $unset: { two_factor_pending_secret: "" },
+        }
+      );
+
+      return { enabled: true, recoveryCodes };
+    } catch (e) {
+      logger.error("enableTwoFactor error", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  static async disableTwoFactor(userId, password, code) {
+    try {
+      if (!ObjectId.isValid(userId)) throw new Error("Invalid userId");
+      const user = await users.findOne({ _id: new ObjectId(userId), trang_thai: 1 });
+      if (!user) throw new Error("User not found");
+
+      const passOk = await bcrypt.compare(String(password || ""), user.mat_khau);
+      if (!passOk) throw new Error("Mật khẩu không chính xác");
+
+      if (user.two_factor_enabled && user.two_factor_secret) {
+        const check = await this._verifyTotpOrRecovery(user, code);
+        if (!check.ok) {
+          throw new Error("Mã OTP hoặc mã khôi phục không chính xác");
+        }
+      }
+
+      await users.updateOne(
+        { _id: user._id },
+        {
+          $set: { two_factor_enabled: false, updateAt: new Date() },
+          $unset: {
+            two_factor_secret: "",
+            two_factor_pending_secret: "",
+            two_factor_recovery_codes: "",
+          },
+        }
+      );
+
+      return { enabled: false };
+    } catch (e) {
+      logger.error("disableTwoFactor error", { error: e.message });
       return { error: e };
     }
   }

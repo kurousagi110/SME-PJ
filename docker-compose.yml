@@ -145,6 +145,25 @@ services:
     networks:
       - sme_network
 
+  # ── Automated MongoDB Backup ─────────────────────────────────────────────────
+  backup:
+    image: mongo:7
+    container_name: sme_backup
+    restart: unless-stopped
+    entrypoint: ["/bin/bash", "/usr/local/bin/mongo-backup.sh"]
+    environment:
+      MONGO_URI: mongodb://${MONGO_ROOT_USERNAME:?must be set}:${MONGO_ROOT_PASSWORD:?must be set}@db:27017/?authSource=admin
+      BACKUP_CRON: ${BACKUP_CRON:-0 2 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/mongo-backup.sh:/usr/local/bin/mongo-backup.sh:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - sme_network
+
 # ─────────────────────────────────────────────────────────────────────────────
 volumes:
   mongodb_data:

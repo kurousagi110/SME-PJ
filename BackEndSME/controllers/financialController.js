@@ -3,6 +3,7 @@ import { sendSuccess } from "../utils/response.js";
 import FinancialReportDAO from "../models/financialReportDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
 import ApiError from "../utils/ApiError.js";
+import { withCache, invalidateReportCaches, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 export default class FinancialController {
   /**
@@ -11,12 +12,12 @@ export default class FinancialController {
    */
   static getPNL = asyncHandler(async (req, res) => {
     const { date_from, date_to, year, month } = req.query;
-    const report = await FinancialReportDAO.getProfitAndLoss({
-      date_from,
-      date_to,
-      year,
-      month,
-    });
+    const cacheKey = `${REPORT_CACHE_PREFIXES.FINANCIAL}pnl:${date_from || ""}:${date_to || ""}:${year || ""}:${month || ""}`;
+    const report = await withCache(
+      cacheKey,
+      () => FinancialReportDAO.getProfitAndLoss({ date_from, date_to, year, month }),
+      90
+    );
 
     if (report?.error) {
       throw ApiError.badRequest(report.error);
@@ -31,11 +32,12 @@ export default class FinancialController {
    */
   static getProductProfitability = asyncHandler(async (req, res) => {
     const { date_from, date_to, limit } = req.query;
-    const result = await FinancialReportDAO.getProductProfitability({
-      date_from,
-      date_to,
-      limit,
-    });
+    const cacheKey = `${REPORT_CACHE_PREFIXES.FINANCIAL}profitability:${date_from || ""}:${date_to || ""}:${limit || 20}`;
+    const result = await withCache(
+      cacheKey,
+      () => FinancialReportDAO.getProductProfitability({ date_from, date_to, limit }),
+      90
+    );
 
     if (result?.error) {
       throw ApiError.badRequest(result.error);
@@ -50,10 +52,12 @@ export default class FinancialController {
    */
   static getAgingDebt = asyncHandler(async (req, res) => {
     const { type = "customer", partner_id } = req.query;
-    const result = await FinancialReportDAO.getAgingDebtReport({
-      type,
-      partner_id,
-    });
+    const cacheKey = `${REPORT_CACHE_PREFIXES.FINANCIAL}aging:${type}:${partner_id || ""}`;
+    const result = await withCache(
+      cacheKey,
+      () => FinancialReportDAO.getAgingDebtReport({ type, partner_id }),
+      60
+    );
 
     if (result?.error) {
       throw ApiError.badRequest(result.error);
@@ -80,6 +84,40 @@ export default class FinancialController {
    */
   static recalculateCOGS = asyncHandler(async (req, res) => {
     const result = await FinancialReportDAO.recalculateHistoricalCOGS();
+    invalidateReportCaches([REPORT_CACHE_PREFIXES.FINANCIAL, REPORT_CACHE_PREFIXES.DASHBOARD, REPORT_CACHE_PREFIXES.AI]);
     return sendSuccess(res, result, "Đã tính toán lại giá vốn cho các đơn hàng");
   });
+
+  /**
+   * Dự Báo Dòng Tiền & Runway (Cashflow Forecast)
+   * GET /api/v1/financial/cashflow-forecast?days=90
+   */
+  static getCashFlowForecast = asyncHandler(async (req, res) => {
+    const { days = 90 } = req.query;
+    const numDays = Math.min(365, Math.max(7, Number(days) || 90));
+    const cacheKey = `${REPORT_CACHE_PREFIXES.FINANCIAL}cashflow:${numDays}`;
+    const result = await withCache(
+      cacheKey,
+      () => FinancialReportDAO.getCashFlowForecast({ days: numDays }),
+      90
+    );
+    if (result?.error) {
+      throw ApiError.badRequest(result.error);
+    }
+    return sendSuccess(res, result, "Lấy dự báo dòng tiền và ngân quỹ thành công");
+  });
+
+  /**
+   * Đối Soát Sao Kê Ngân Hàng (Bank Statement Reconciliation)
+   * POST /api/v1/financial/bank-reconcile
+   */
+  static reconcileBank = asyncHandler(async (req, res) => {
+    const { transactions = [] } = req.body;
+    const result = await FinancialReportDAO.reconcileBankStatement({ transactions });
+    if (result?.error) {
+      throw ApiError.badRequest(result.error);
+    }
+    return sendSuccess(res, result, "Đối soát sao kê ngân hàng thành công");
+  });
 }
+

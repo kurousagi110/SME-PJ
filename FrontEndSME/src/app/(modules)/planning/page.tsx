@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import dynamic from "next/dynamic";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Tabs,
   TabsContent,
@@ -60,7 +62,14 @@ import {
   type ABCItem,
   type AlertsData,
 } from "@/app/actions/planning";
-import { EcommercePlanningTab } from "./ecommerce-tab";
+const EcommercePlanningTab = dynamic(
+  () => import("./ecommerce-tab").then((mod) => mod.EcommercePlanningTab),
+  { ssr: false }
+);
+const SupplierAndAtpTab = dynamic(
+  () => import("@/components/supplier-atp-tab").then((mod) => mod.SupplierAndAtpTab),
+  { ssr: false }
+);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1007,7 +1016,26 @@ function AlertsTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function PlanningPage() {
+const VALID_TABS = new Set(["forecast", "mrp", "abc", "alerts", "ecommerce", "scorecard"]);
+
+function PlanningContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") || "forecast";
+  const initialTab = VALID_TABS.has(tabParam) ? tabParam : "forecast";
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
+
+  useEffect(() => {
+    if (VALID_TABS.has(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (val: string) => {
+    setActiveTab(val);
+    router.replace(`/planning?tab=${val}`, { scroll: false });
+  };
+
   return (
     <div className="flex flex-col gap-4 p-4 md:p-6">
       <div>
@@ -1017,8 +1045,8 @@ export default function PlanningPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="forecast">
-        <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full max-w-3xl">
           <TabsTrigger value="forecast" className="flex items-center gap-1 text-xs">
             <IconTrendingUp size={14} />
             Dự Báo
@@ -1039,6 +1067,10 @@ export default function PlanningPage() {
             <IconBrandShopee size={14} />
             Kênh TMĐT
           </TabsTrigger>
+          <TabsTrigger value="scorecard" className="flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
+            <IconCircleCheck size={14} />
+            NCC & ATP
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="forecast" className="mt-4">
@@ -1056,7 +1088,18 @@ export default function PlanningPage() {
         <TabsContent value="ecommerce" className="mt-4">
           <EcommercePlanningTab />
         </TabsContent>
+        <TabsContent value="scorecard" className="mt-4">
+          <SupplierAndAtpTab />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function PlanningPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Đang tải Demand Planning...</div>}>
+      <PlanningContent />
+    </Suspense>
   );
 }

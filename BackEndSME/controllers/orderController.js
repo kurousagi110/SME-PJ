@@ -11,9 +11,15 @@ import ApiError from "../utils/ApiError.js";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "../models/soQuyDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
-import VanChuyenDAO from "../models/vanChuyenDAO.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
+import { isAdminUser } from "../middleware/auth.js";
+import { withCache, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
+import {
+  buildCoOccurrenceMap,
+  recommendCrossSellProducts,
+  evaluateCartMarginGuard,
+} from "../utils/salesRecommendationEngine.js";
 
 export class OrderController {
   /* ─── CREATE POS ORDER (Bán lẻ tại quầy) ─── */
@@ -122,6 +128,32 @@ export class OrderController {
   static create = asyncHandler(async (req, res) => {
     const body = { ...(req.body || {}) };
     const nguoi_lap_id = req.user?._id || req.user?.id || null;
+
+    // Kiểm tra Hạn mức tín dụng nếu là Đơn bán hàng
+    if (body.loai_don === "sale") {
+      const partnerName = body.khach_hang_ten || body.customer_name;
+      const partnerId = body.doi_tac_id || body.partner_id;
+      const db = getDB();
+      const partner = await db.collection("doi_tac").findOne({
+        $or: [
+          ...(partnerId && ObjectId.isValid(partnerId) ? [{ _id: new ObjectId(partnerId) }] : []),
+          ...(partnerName ? [{ ten: partnerName }] : []),
+        ],
+      });
+
+      if (partner && Number(partner.han_muc_cong_no) > 0) {
+        const estTotal = Number(body.tong_tien || body.amount || 0);
+        const check = await DoiTacDAO.checkCreditLimit(partner._id, estTotal);
+        if (!check.allowed && !body.allow_over_credit && !isAdminUser(req.user)) {
+          throw ApiError.badRequest(
+            `Khách hàng "${partner.ten}" đã vượt hạn mức công nợ (${Number(check.exceededAmount).toLocaleString("vi-VN")} đ). Cần Giám đốc phê duyệt để tiếp tục tạo đơn.`,
+            "CREDIT_LIMIT_EXCEEDED",
+            check
+          );
+        }
+      }
+    }
+
     const data = await DonHangService.create(body, nguoi_lap_id);
 
     const loai = body.loai_don || "don_hang";
@@ -140,6 +172,42 @@ export class OrderController {
 
     return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
   });
+
+  /* ─── VALIDATE COUPON / VOUCHER ─── */
+  static validateCoupon = asyncHandler(async (req, res) => {
+    const { code = "", orderAmount = 0 } = req.body || {};
+    const cleanCode = String(code).trim().toUpperCase();
+    const amount = Number(orderAmount || 0);
+
+    let discount = 0;
+    let message = "";
+
+    if (cleanCode === "SME5") {
+      discount = Math.round(amount * 0.05);
+      message = "Áp dụng giảm 5% giá trị đơn hàng";
+    } else if (cleanCode === "SME10") {
+      if (amount < 10000000) {
+        throw ApiError.badRequest("Mã SME10 chỉ áp dụng cho đơn hàng từ 10.000.000 đ");
+      }
+      discount = Math.round(amount * 0.10);
+      message = "Áp dụng giảm 10% giá trị đơn hàng (Ưu đãi B2B)";
+    } else if (cleanCode === "VIP50K") {
+      discount = Math.min(amount, 50000);
+      message = "Áp dụng voucher giảm ngay 50.000 đ";
+    } else if (cleanCode === "FREESHIP") {
+      discount = 30000;
+      message = "Hỗ trợ phí vận chuyển 30.000 đ";
+    } else {
+      throw ApiError.badRequest("Mã ưu đãi không hợp lệ hoặc đã hết hạn", "INVALID_COUPON");
+    }
+
+    return sendSuccess(res, {
+      code: cleanCode,
+      discountAmount: discount,
+      message,
+    }, "Áp dụng mã ưu đãi thành công");
+  });
+
 
   /* ─── GET BY ID ─── */
   static getById = asyncHandler(async (req, res) => {
@@ -557,7 +625,79 @@ export class OrderController {
       status: "SUCCESS",
     });
 
-    return sendSuccess(res, invoice, "Phát hành hóa đơn điện tử thành công");
+    return sendSuccess(
+      res,
+      invoice,
+      invoice.isMock
+        ? "Đã tạo bản nháp hóa đơn điện tử mô phỏng (chưa kết nối CQT)"
+        : "Phát hành hóa đơn điện tử thành công"
+    );
+  });
+
+  /* ─── SMART CART INSIGHTS (Cross-sell Recommendations + Margin Guard) ─── */
+  static getSmartCartInsights = asyncHandler(async (req, res) => {
+    const { items = [], discountAmount = 0, minMarginPct = 10, limit = 4 } = req.body || {};
+    const db = getDB();
+
+    // Cache ma trận mua kèm & danh mục sản phẩm 15 phút để POS phản hồi tức thì
+    const { coOccurrenceMap, products } = await withCache(
+      `${REPORT_CACHE_PREFIXES.RECOMMENDATIONS}co_occurrence_catalog`,
+      async () => {
+        const [recentSales, allProducts] = await Promise.all([
+          db
+            .collection("don_hang")
+            .find({
+              loai_don: "sale",
+              trang_thai: { $nin: ["cancelled", "deleted"] },
+            })
+            .sort({ created_at: -1 })
+            .limit(500)
+            .project({ san_pham: 1, trang_thai: 1 })
+            .toArray(),
+          db
+            .collection("san_pham")
+            .find({ trang_thai: { $nin: ["deleted", "ngung_kinh_doanh"] } })
+            .project({ _id: 1, ma_sp: 1, ten_sp: 1, don_gia: 1, gia_von: 1, so_luong: 1, trang_thai: 1 })
+            .toArray(),
+        ]);
+
+        return {
+          coOccurrenceMap: buildCoOccurrenceMap(recentSales),
+          products: allProducts,
+        };
+      },
+      900
+    );
+
+    const productCostById = new Map(products.map((p) => [String(p._id), Number(p.gia_von || 0)]));
+    const enrichedItems = (Array.isArray(items) ? items : []).map((it) => {
+      const spId = String(it?.san_pham_id || it?.id || "");
+      const giaVon = Number(it?.gia_von || 0) || productCostById.get(spId) || 0;
+      return { ...it, gia_von: giaVon };
+    });
+
+    const cartProductIds = enrichedItems
+      .map((it) => String(it?.san_pham_id || it?.id || it?.ma_sp || "").trim())
+      .filter(Boolean);
+
+    const recommendations = recommendCrossSellProducts({
+      cartProductIds,
+      coOccurrenceMap,
+      products,
+      limit: Math.min(8, Math.max(1, Number(limit) || 4)),
+    });
+
+    const marginGuard = evaluateCartMarginGuard({
+      items: enrichedItems,
+      discountAmount: Number(discountAmount || 0),
+      minMarginPct: Number(minMarginPct || 10),
+    });
+
+    return sendSuccess(
+      res,
+      { recommendations, marginGuard },
+      "Phân tích giỏ hàng thông minh thành công"
+    );
   });
 }
 

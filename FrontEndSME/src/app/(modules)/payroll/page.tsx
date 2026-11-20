@@ -57,7 +57,15 @@ type PayrollItem = {
   so_ngay_di_tre: number;
   he_so_luong: number;
   luong_co_ban: number;
+  luong_theo_cong?: number;
   don_gia_gio_override: number | null;
+  doanh_so_ban_hang?: number;
+  hoa_hong_kd?: number;
+  san_luong_sx?: number;
+  thuong_nang_suat_sx?: number;
+  khau_tru_di_tre?: number;
+  thuong_khac?: number;
+  phat_khac?: number;
   thuong: number;
   phat: number;
   ghi_chu?: string;
@@ -190,14 +198,26 @@ export default function PayrollPage() {
   const toVND = (n: number) =>
     (Number.isFinite(n) ? n : 0).toLocaleString("vi-VN") + " đ";
 
+  const escapeHtml = (val: unknown) =>
+    String(val ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
   // Print individual payslip (A5)
   const printPayslip = (item: PayrollItem) => {
+    const safeName = escapeHtml(item.ho_ten || "Chưa cập nhật");
+    const safeMaNv = escapeHtml(item.ma_nv);
+    const safePhongBan = escapeHtml(item.phong_ban || "-");
+    const safeChucVu = escapeHtml(item.chuc_vu || "-");
     const printHtml = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Phiếu lương - ${item.ho_ten || item.ma_nv}</title>
+        <title>Phiếu lương - ${escapeHtml(item.ho_ten || item.ma_nv)}</title>
         <style>
           body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 25px; color: #333; font-size: 13px; line-height: 1.5; }
           .header { border-bottom: 2px solid #2563eb; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; }
@@ -228,10 +248,10 @@ export default function PayrollPage() {
 
         <div class="info-box">
           <div class="info-grid">
-            <div><strong>Họ và tên:</strong> ${item.ho_ten || "Chưa cập nhật"}</div>
-            <div><strong>Mã nhân viên:</strong> ${item.ma_nv}</div>
-            <div><strong>Phòng ban:</strong> ${item.phong_ban || "-"}</div>
-            <div><strong>Chức vụ:</strong> ${item.chuc_vu || "-"}</div>
+            <div><strong>Họ và tên:</strong> ${safeName}</div>
+            <div><strong>Mã nhân viên:</strong> ${safeMaNv}</div>
+            <div><strong>Phòng ban:</strong> ${safePhongBan}</div>
+            <div><strong>Chức vụ:</strong> ${safeChucVu}</div>
           </div>
         </div>
 
@@ -256,18 +276,36 @@ export default function PayrollPage() {
             </tr>
             <tr>
               <td>Lương cơ bản theo hệ số</td>
-              <td>Hệ số: ${item.he_so_luong}</td>
-              <td style="text-align: right;">${toVND(item.luong_co_ban)}</td>
+              <td>Hệ số: ${item.he_so_luong} (Theo công: ${toVND(item.luong_theo_cong ?? item.luong_co_ban)})</td>
+              <td style="text-align: right;">${toVND(item.luong_theo_cong ?? item.luong_co_ban)}</td>
             </tr>
+            ${(item.hoa_hong_kd || 0) > 0 ? `
             <tr>
-              <td>Tiền thưởng / Phụ cấp</td>
-              <td>Thưởng hiệu quả</td>
-              <td style="text-align: right; color: #16a34a;">+ ${toVND(item.thuong)}</td>
+              <td>Hoa hồng Kinh doanh (2%)</td>
+              <td>Doanh số thuần: ${toVND(item.doanh_so_ban_hang || 0)}</td>
+              <td style="text-align: right; color: #16a34a;">+ ${toVND(item.hoa_hong_kd || 0)}</td>
+            </tr>` : ""}
+            ${(item.thuong_nang_suat_sx || 0) > 0 ? `
+            <tr>
+              <td>Thưởng năng suất / Lương khoán SX</td>
+              <td>Sản lượng đạt chuẩn: ${item.san_luong_sx || 0} SP</td>
+              <td style="text-align: right; color: #16a34a;">+ ${toVND(item.thuong_nang_suat_sx || 0)}</td>
+            </tr>` : ""}
+            <tr>
+              <td>Tiền thưởng khác / Phụ cấp</td>
+              <td>Thưởng bổ sung</td>
+              <td style="text-align: right; color: #16a34a;">+ ${toVND(item.thuong_khac ?? item.thuong)}</td>
             </tr>
+            ${(item.khau_tru_di_tre || 0) > 0 ? `
             <tr>
-              <td>Khấu trừ / Phạt</td>
-              <td>Vi phạm / Đi trễ</td>
-              <td style="text-align: right; color: #dc2626;">- ${toVND(item.phat)}</td>
+              <td>Khấu trừ đi trễ tự động</td>
+              <td>${item.so_ngay_di_tre} buổi x 50.000 đ</td>
+              <td style="text-align: right; color: #dc2626;">- ${toVND(item.khau_tru_di_tre || 0)}</td>
+            </tr>` : ""}
+            <tr>
+              <td>Khấu trừ / Phạt khác</td>
+              <td>Phạt bổ sung</td>
+              <td style="text-align: right; color: #dc2626;">- ${toVND(item.phat_khac ?? 0)}</td>
             </tr>
             <tr class="net-salary">
               <td colspan="2"><strong>THỰC LĨNH (NET SALARY)</strong></td>
@@ -576,8 +614,9 @@ export default function PayrollPage() {
                   <TableHead className="text-right">Đi trễ</TableHead>
                   <TableHead className="text-right">Hệ số</TableHead>
                   <TableHead className="text-right">Lương cơ bản</TableHead>
-                  <TableHead className="text-right">Thưởng</TableHead>
-                  <TableHead className="text-right">Phạt</TableHead>
+                  <TableHead className="text-right">KPI (Doanh số / SL)</TableHead>
+                  <TableHead className="text-right">Thưởng + KPI</TableHead>
+                  <TableHead className="text-right">Phạt + Đi trễ</TableHead>
                   <TableHead className="text-right font-bold text-primary">Thực nhận</TableHead>
                   <TableHead className="text-center w-[120px]">Thao tác</TableHead>
                 </TableRow>
@@ -586,7 +625,7 @@ export default function PayrollPage() {
                 {payrollResult.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={13}
+                      colSpan={14}
                       className="text-center py-8 text-muted-foreground"
                     >
                       {calculateMutation.isPending
@@ -624,11 +663,37 @@ export default function PayrollPage() {
                       <TableCell className="text-right text-muted-foreground">
                         {toVND(item.luong_co_ban)}
                       </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {(item.doanh_so_ban_hang || 0) > 0 && (
+                          <div className="text-blue-600 font-medium">
+                            DS: {toVND(item.doanh_so_ban_hang || 0)}
+                          </div>
+                        )}
+                        {(item.san_luong_sx || 0) > 0 && (
+                          <div className="text-indigo-600 font-medium">
+                            SL: {item.san_luong_sx} SP
+                          </div>
+                        )}
+                        {!(item.doanh_so_ban_hang || 0) && !(item.san_luong_sx || 0) && (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right text-emerald-600 font-medium">
                         {item.thuong > 0 ? `+${toVND(item.thuong)}` : "-"}
+                        {((item.hoa_hong_kd || 0) > 0 || (item.thuong_nang_suat_sx || 0) > 0) && (
+                          <div className="text-[10px] text-muted-foreground font-normal">
+                            {(item.hoa_hong_kd || 0) > 0 ? `HH: ${toVND(item.hoa_hong_kd || 0)}` : ""}
+                            {(item.thuong_nang_suat_sx || 0) > 0 ? ` SX: ${toVND(item.thuong_nang_suat_sx || 0)}` : ""}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-red-500 font-medium">
                         {item.phat > 0 ? `-${toVND(item.phat)}` : "-"}
+                        {(item.khau_tru_di_tre || 0) > 0 && (
+                          <div className="text-[10px] text-muted-foreground font-normal">
+                            Trễ: -{toVND(item.khau_tru_di_tre || 0)}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-bold text-primary text-base">
                         {toVND(item.luong_thuc_nhan)}

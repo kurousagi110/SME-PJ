@@ -1,8 +1,14 @@
 /**
  * Electronic Invoice (e-Invoice) Service
- * Chuẩn hóa phát hành và ký số hóa đơn điện tử theo Nghị định 123 / Thông tư 78
- * Tương thích kết nối nhà cung cấp VNPT, Viettel, MISA meInvoice
+ * Chuẩn hóa khung phát hành hóa đơn điện tử theo Nghị định 123 / Thông tư 78.
+ *
+ * Bảo vệ tính trung thực:
+ * - EINVOICE_MODE=mock (mặc định): Trả về bản xem trước mô phỏng rõ ràng (`isMock: true`, `cqtCode: null`),
+ *   KHÔNG tự sinh số hóa đơn hay mã CQT giả mạo.
+ * - EINVOICE_MODE=live: Chặn phát hành nếu chưa tích hợp API nhà cung cấp thật (MISA / VNPT / Viettel).
  */
+
+import ApiError from "../utils/ApiError.js";
 
 export class EInvoiceService {
   /**
@@ -17,29 +23,37 @@ export class EInvoiceService {
     items = [],
     subtotal = 0,
     discount = 0,
-    taxRate = 8, // 8% hoặc 10% theo quy định
+    taxRate = 8,
     taxAmount = 0,
     total = 0,
     paymentMethod = "TM/CK",
   }) {
-    const year = new Date().getFullYear();
-    const invoiceSeries = `1C${String(year).slice(-2)}TMM`; // Ký hiệu 1C26TMM
-    const invoiceNumber = String(Math.floor(100000 + Math.random() * 900000));
-    const invoiceLookupCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const mode = String(process.env.EINVOICE_MODE || "mock").trim().toLowerCase();
 
-    // Mã CQT (Cơ quan thuế cấp mã)
-    const cqtCode = `00${String(year).slice(-2)}${Math.random().toString(16).substring(2, 12).toUpperCase()}`;
+    if (mode === "live") {
+      throw ApiError.badRequest(
+        "Chưa cấu hình kết nối nhà cung cấp hóa đơn điện tử thật (MISA / VNPT / Viettel). Không thể phát hành hóa đơn trong chế độ EINVOICE_MODE=live."
+      );
+    }
+
+    const year = new Date().getFullYear();
+    const invoiceSeries = `1C${String(year).slice(-2)}TMM`;
 
     return {
       success: true,
-      provider: "MISA_MEINVOICE_CONNECTED",
-      invoiceNumber: `${invoiceSeries}-${invoiceNumber}`,
+      isMock: true,
+      mode: "mock",
+      provider: "MOCK_SANDBOX",
+      orderCode: orderCode || "",
+      invoiceNumber: null,
       invoiceSeries,
-      invoiceLookupCode,
-      cqtCode,
+      invoiceLookupCode: null,
+      cqtCode: null,
       issueDate: new Date(),
-      status: "ISSUED_AND_SIGNED", // Đã ký điện tử
-      signedBy: "CONG TY TNHH SME ERP (MST: 0108999999)",
+      status: "MOCK_PREVIEW",
+      warning:
+        "Chế độ mô phỏng nội bộ (EINVOICE_MODE=mock). Chứng từ này không có giá trị pháp lý và chưa gửi lên Cơ quan thuế.",
+      items,
       buyer: {
         name: buyerName,
         taxCode: buyerTaxCode,
@@ -54,8 +68,8 @@ export class EInvoiceService {
         total,
         paymentMethod,
       },
-      viewUrl: `https://tracuu.meinvoice.vn/lookup?code=${invoiceLookupCode}`,
-      pdfDownloadUrl: `https://tracuu.meinvoice.vn/download?code=${invoiceLookupCode}&format=pdf`,
+      viewUrl: null,
+      pdfDownloadUrl: null,
     };
   }
 }

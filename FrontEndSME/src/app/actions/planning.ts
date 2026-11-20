@@ -159,3 +159,65 @@ export async function taoDonMuaTuMRPAction(payload: {
     return { success: false, error: e?.response?.data?.message || e?.message || "Lỗi tạo đơn mua từ MRP" };
   }
 }
+
+export type AtpCheckResult = {
+  canFulfillImmediately: boolean;
+  needsMaterialPurchase: boolean;
+  estimatedDays: number;
+  estimatedDeliveryDate: string;
+  activeProductionQueue: number;
+  items: Array<{
+    san_pham_id: string;
+    ten_sp: string;
+    yeu_cau: number;
+    ton_kho: number;
+    can_san_xuat: number;
+    trang_thai: "du_ton_kho" | "can_san_xuat" | "cho_nhap_nvl_va_sx";
+    so_ngay_du_kien: number;
+    nvl_thieu: Array<{
+      nguyen_lieu_id: string;
+      ten_nl: string;
+      can: number;
+      ton_kho: number;
+      thieu: number;
+    }>;
+  }>;
+};
+
+export type SupplierScorecardItem = {
+  _id: string;
+  ma_doi_tac: string | null;
+  ten_doi_tac: string;
+  so_dien_thoai: string | null;
+  totalOrders: number;
+  completedOrders: number;
+  totalSpend: number;
+  completionRate: number;
+  onTimeRate: number;
+  score: number;
+  grade: "S" | "A" | "B" | "C";
+};
+
+export async function checkAtpAction(
+  items: Array<{ san_pham_id: string; ten_sp?: string; so_luong: number }>
+): Promise<{ success: boolean; data?: AtpCheckResult; error?: string }> {
+  try {
+    const res: any = await http.post("/planning/atp-check", { items });
+    return { success: true, data: res?.data };
+  } catch (e: any) {
+    return { success: false, error: e?.message || "Lỗi kiểm tra lịch giao ATP" };
+  }
+}
+
+export async function fetchSupplierScorecardsAction(): Promise<{
+  success: boolean;
+  items: SupplierScorecardItem[];
+  error?: string;
+}> {
+  try {
+    const res: any = await http.get("/planning/supplier-scorecard");
+    return { success: true, items: res?.data ?? [] };
+  } catch (e: any) {
+    return { success: false, items: [], error: e?.message || "Lỗi tải bảng chấm điểm NCC" };
+  }
+}

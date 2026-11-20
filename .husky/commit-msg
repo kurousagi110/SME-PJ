@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# Enforce Conventional Commits format per AGENTS.md
+commit_msg_file="$1"
+first_line=$(head -n 1 "$commit_msg_file")
+
+# Allow standard merge commits
+if echo "$first_line" | grep -qE "^Merge (branch|remote-tracking branch|pull request) "; then
+  exit 0
+fi
+
+# Allow rebase / cherry-pick temp messages
+if echo "$first_line" | grep -qE "^(fixup|squash)! "; then
+  exit 0
+fi
+
+# Regex for Conventional Commits: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+pattern="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_./-]+\))?!?: .+$"
+
+if ! echo "$first_line" | grep -qE "$pattern"; then
+  echo "❌ [Husky Error] Commit message không tuân thủ chuẩn Conventional Commits theo quy định tại AGENTS.md!"
+  echo "--------------------------------------------------------------------------------------------------"
+  echo "❌ Message bạn vừa nhập: \"$first_line\""
+  echo "✅ Định dạng hợp lệ: <loại>(<phạm vi tùy chọn>): <mô tả ngắn>"
+  echo "   Các loại hợp lệ:"
+  echo "   - feat:      Tính năng mới (VD: feat: thêm quản lý hợp đồng B2B)"
+  echo "   - fix:       Sửa lỗi (VD: fix(auth): sửa lỗi hết hạn token)"
+  echo "   - docs:      Tài liệu (VD: docs: cập nhật README)"
+  echo "   - refactor:  Tái cấu trúc mã nguồn (VD: refactor: tối ưu hóa truy vấn thẻ kho)"
+  echo "   - test:      Viết hoặc sửa test (VD: test: thêm unit test chiết khấu đơn hàng)"
+  echo "   - chore:     Bảo trì, cấu hình phụ trợ (VD: chore: cập nhật dependencies)"
+  echo "   - ci:        Tích hợp liên tục (VD: ci: cấu hình github workflow)"
+  echo "--------------------------------------------------------------------------------------------------"
+  exit 1
+fi

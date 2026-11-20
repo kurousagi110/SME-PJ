@@ -7,8 +7,9 @@ const router = express.Router();
 
 router.use(verifyToken);
 
-router.get("/tong-quan", DoiTacController.getTongQuan);
-router.get("/",          DoiTacController.list);
+router.get("/tong-quan",        DoiTacController.getTongQuan);
+router.get("/intelligence/rfm", DoiTacController.getRfmIntelligence);
+router.get("/",                 DoiTacController.list);
 router.get("/:id",       DoiTacController.getById);
 
 router.post("/", requireBody("ten"), DoiTacController.create);

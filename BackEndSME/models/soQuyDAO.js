@@ -1,6 +1,8 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import PeriodClosingDAO from "./periodClosingDAO.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { invalidateReportCaches, REPORT_CACHE_PREFIXES } from "../utils/cache.js";
 
 export const LOAI_PHIEU = {
   THU: "thu",
@@ -104,6 +106,11 @@ export default class SoQuyDAO {
       };
 
       const result = await soQuyCol.insertOne(doc);
+      invalidateReportCaches([
+        REPORT_CACHE_PREFIXES.DASHBOARD,
+        REPORT_CACHE_PREFIXES.FINANCIAL,
+        REPORT_CACHE_PREFIXES.AI,
+      ]);
       return { ok: true, insertedId: result.insertedId, doc };
     } catch (e) {
       logger.error("SoQuyDAO.taoPhieu error", { error: e.message });
@@ -138,7 +145,7 @@ export default class SoQuyDAO {
       }
 
       if (search && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
+        const regex = new RegExp(escapeSafeRegexPattern(search), "i");
         filter.$or = [
           { ma_phieu: regex },
           { ma_chung_tu: regex },
@@ -371,6 +378,13 @@ export default class SoQuyDAO {
         },
       });
 
+      if (res.modifiedCount > 0) {
+        invalidateReportCaches([
+          REPORT_CACHE_PREFIXES.DASHBOARD,
+          REPORT_CACHE_PREFIXES.FINANCIAL,
+          REPORT_CACHE_PREFIXES.AI,
+        ]);
+      }
       return { ok: true, modifiedCount: res.modifiedCount };
     } catch (e) {
       logger.error("SoQuyDAO.huyPhieu error", { error: e.message });

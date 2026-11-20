@@ -23,7 +23,15 @@ import {
   IconBrandShopee,
   IconPlus,
   IconTruck,
-  IconSparkles,
+  IconFileText,
+  IconFileCheck,
+  IconFileInvoice,
+  IconArrowBackUp,
+  IconScan,
+  IconReportAnalytics,
+  IconRobot,
+  IconLoader2,
+  IconSearch,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -34,14 +42,28 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+import { omniSearchAction, type OmniSearchItem } from "@/app/actions/search";
 
 interface CommandPaletteProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
+const CATEGORY_BADGE_STYLE: Record<OmniSearchItem["category"], string> = {
+  order: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  product: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  material: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  partner: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
+  contract: "bg-teal-500/10 text-teal-600 border-teal-500/20",
+  batch: "bg-purple-500/10 text-purple-600 border-purple-500/20",
+};
+
 export function CommandPalette({ open: controlledOpen, onOpenChange: setControlledOpen }: CommandPaletteProps = {}) {
   const [internalOpen, setInternalOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [liveResults, setLiveResults] = React.useState<OmniSearchItem[]>([]);
+  const [searching, setSearching] = React.useState(false);
   const router = useRouter();
 
   const isControlled = controlledOpen !== undefined;
@@ -53,6 +75,10 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
         setControlledOpen(nextValue);
       } else {
         setInternalOpen(nextValue);
+      }
+      if (!nextValue) {
+        setSearchQuery("");
+        setLiveResults([]);
       }
     },
     [open, setControlledOpen]
@@ -79,6 +105,31 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
     return () => document.removeEventListener("keydown", down);
   }, [setOpen]);
 
+  // Debounced Omni-Search across DB entities
+  React.useEffect(() => {
+    const q = searchQuery.trim();
+    if (!open || q.length < 2) {
+      setLiveResults([]);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const res = await omniSearchAction(q);
+      if (!cancelled) {
+        setLiveResults(res.data);
+        setSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, open]);
+
   const runCommand = React.useCallback((command: () => unknown) => {
     setOpen(false);
     command();
@@ -86,9 +137,60 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Tìm nhanh tính năng, đơn hàng, kho, nhân sự... (Ctrl + K)" />
+      <CommandInput
+        value={searchQuery}
+        onValueChange={setSearchQuery}
+        placeholder="Tìm nhanh tính năng, mã đơn DH-, sản phẩm, khách hàng, SĐT... (Ctrl + K)"
+      />
       <CommandList>
-        <CommandEmpty>Không tìm thấy kết quả phù hợp.</CommandEmpty>
+        <CommandEmpty>
+          {searching ? (
+            <span className="inline-flex items-center gap-2 text-muted-foreground">
+              <IconLoader2 className="h-4 w-4 animate-spin" /> Đang tìm kiếm dữ liệu...
+            </span>
+          ) : (
+            "Không tìm thấy kết quả phù hợp."
+          )}
+        </CommandEmpty>
+
+        {/* 0. LIVE OMNI-SEARCH RESULTS */}
+        {(searching || liveResults.length > 0) && (
+          <>
+            <CommandGroup
+              heading={
+                searching
+                  ? "🔍 Đang tìm kiếm trong cơ sở dữ liệu..."
+                  : `🔍 Kết quả dữ liệu (${liveResults.length})`
+              }
+            >
+              {liveResults.map((item) => (
+                <CommandItem
+                  key={`${item.category}-${item.id}`}
+                  value={`${item.title} ${item.code} ${item.subtitle} ${searchQuery}`}
+                  onSelect={() => runCommand(() => router.push(item.route))}
+                  className="cursor-pointer flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <IconSearch className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-medium truncate">{item.title}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {item.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] shrink-0 ${CATEGORY_BADGE_STYLE[item.category]}`}
+                  >
+                    {item.categoryLabel}
+                  </Badge>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
 
         {/* 1. THAO TÁC NHANH */}
         <CommandGroup heading="⚡ Thao tác nhanh">
@@ -100,6 +202,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Mở quầy thu ngân POS bán hàng</span>
           </CommandItem>
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/approvals"))}
+            className="cursor-pointer"
+          >
+            <IconFileCheck className="mr-2 h-4 w-4 text-indigo-600" />
+            <span>Trung tâm Trình ký & Phê duyệt (Approval Hub)</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/sales"))}
             className="cursor-pointer"
           >
@@ -107,7 +216,14 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Tạo đơn bán hàng mới</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/planning"))}
+            onSelect={() => runCommand(() => router.push("/quotations"))}
+            className="cursor-pointer"
+          >
+            <IconFileInvoice className="mr-2 h-4 w-4 text-blue-600" />
+            <span>Lập Báo giá B2B (Quote-to-Order)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/planning?tab=ecommerce"))}
             className="cursor-pointer"
           >
             <IconBrandShopee className="mr-2 h-4 w-4 text-orange-600" />
@@ -135,7 +251,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Ghi nhận chấm công hôm nay</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/dieu-chinh-kho"))}
+            onSelect={() => runCommand(() => router.push("/stock-adjustments"))}
             className="cursor-pointer"
           >
             <IconAdjustments className="mr-2 h-4 w-4 text-amber-600" />
@@ -155,7 +271,14 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Bảng điều khiển Thống kê & So sánh YoY</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/planning"))}
+            onSelect={() => runCommand(() => router.push("/approvals"))}
+            className="cursor-pointer"
+          >
+            <IconFileCheck className="mr-2 h-4 w-4 text-indigo-600" />
+            <span>Hộp thư Trình ký & Duyệt việc</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/planning?tab=forecast"))}
             className="cursor-pointer"
           >
             <IconTrendingUp className="mr-2 h-4 w-4 text-indigo-600" />
@@ -175,11 +298,32 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Quầy Bán Hàng Thu Ngân (POS)</span>
           </CommandItem>
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/quotations"))}
+            className="cursor-pointer"
+          >
+            <IconFileInvoice className="mr-2 h-4 w-4 text-blue-600" />
+            <span>Báo Giá B2B</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/sales"))}
             className="cursor-pointer"
           >
             <IconListDetails className="mr-2 h-4 w-4" />
             <span>Quản lý Đơn Bán Hàng & In Hóa Đơn</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/contracts"))}
+            className="cursor-pointer"
+          >
+            <IconFileText className="mr-2 h-4 w-4 text-teal-600" />
+            <span>Quản lý Hợp Đồng B2B & Bảo Hành Sản Phẩm</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/returns"))}
+            className="cursor-pointer"
+          >
+            <IconArrowBackUp className="mr-2 h-4 w-4 text-rose-600" />
+            <span>Đổi & Trả Hàng (RMA / QC)</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/shipping"))}
@@ -227,7 +371,7 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             className="cursor-pointer"
           >
             <IconPackage className="mr-2 h-4 w-4 text-purple-600" />
-            <span>Lệnh sản xuất thành phẩm</span>
+            <span>Lệnh sản xuất thành phẩm & Kanban Xưởng</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/material/catalog"))}
@@ -244,11 +388,25 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Đơn nhập mua nguyên vật liệu</span>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => router.push("/dieu-chinh-kho"))}
+            onSelect={() => runCommand(() => router.push("/stock-adjustments"))}
             className="cursor-pointer"
           >
             <IconAdjustments className="mr-2 h-4 w-4 text-amber-600" />
             <span>Kiểm kê & Điều chỉnh kho</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/traceability"))}
+            className="cursor-pointer"
+          >
+            <IconScan className="mr-2 h-4 w-4 text-purple-600" />
+            <span>Truy Xuất Lô Hàng (FEFO)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/stock-ledger"))}
+            className="cursor-pointer"
+          >
+            <IconReportAnalytics className="mr-2 h-4 w-4 text-teal-600" />
+            <span>Thẻ Kho & Báo cáo Xuất - Nhập - Tồn</span>
           </CommandItem>
         </CommandGroup>
 
@@ -317,6 +475,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
           >
             <IconClipboardList className="mr-2 h-4 w-4 text-rose-600" />
             <span>Nhật Ký Hệ Thống (Audit Log)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/automation"))}
+            className="cursor-pointer"
+          >
+            <IconRobot className="mr-2 h-4 w-4 text-indigo-600" />
+            <span>Tự Động Hóa Đa Kênh & Bot (Telegram / Zalo)</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

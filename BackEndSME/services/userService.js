@@ -3,6 +3,12 @@
 import UsersDAO from "../models/usersDAO.js";
 import ApiError from "../utils/ApiError.js";
 import { escapeRegex } from "../utils/escapeRegex.js";
+import {
+  ROLE_DEFINITIONS,
+  PERMISSION_LIST,
+  inferRoleCode,
+  isAdminUserRecord,
+} from "../utils/permissions.js";
 
 /**
  * UserService – business logic for user management and authentication.
@@ -34,12 +40,91 @@ export default class UserService {
     return { insertedId: result.insertedId };
   }
 
+  static async createByAdmin({
+    ho_ten,
+    ngay_sinh,
+    tai_khoan,
+    password,
+    chuc_vu = null,
+    phong_ban = null,
+    role = "user",
+    quyen_han = [],
+  }) {
+    if (!ho_ten || !tai_khoan || !password) {
+      throw ApiError.badRequest("Thiếu ho_ten / tai_khoan / password", "VALIDATION_ERROR");
+    }
+    if (typeof password !== "string" || password.length < 6 || password.length > 128) {
+      throw ApiError.badRequest("Mật khẩu phải từ 6–128 ký tự", "WEAK_PASSWORD");
+    }
+
+    const effectiveRole =
+      role && role !== "user"
+        ? role
+        : chuc_vu?.role_code || "user";
+
+    const result = await UsersDAO.registerUser(
+      ho_ten,
+      ngay_sinh,
+      tai_khoan,
+      password,
+      chuc_vu,
+      phong_ban,
+      effectiveRole,
+      quyen_han
+    );
+    if (result?.error) {
+      const msg = result.error.message || "Tạo nhân viên thất bại";
+      const code = msg.includes("đã tồn tại") ? "USERNAME_TAKEN" : "REGISTER_FAILED";
+      throw ApiError.conflict(msg, code);
+    }
+    return { insertedId: result.insertedId };
+  }
+
+  static getRoleMetadata() {
+    return {
+      roles: Object.values(ROLE_DEFINITIONS),
+      permissions: PERMISSION_LIST,
+    };
+  }
+
   static async login({ tai_khoan, password }) {
     if (!tai_khoan || !password) {
       throw ApiError.badRequest("Thiếu tai_khoan / password", "VALIDATION_ERROR");
     }
     const result = await UsersDAO.loginUser(tai_khoan, password);
     if (result?.error) throw ApiError.unauthorized(result.error.message || "Đăng nhập thất bại", "LOGIN_FAILED");
+    return result;
+  }
+
+  static async verifyTwoFactorLogin({ tempToken, code }) {
+    if (!tempToken || !code) {
+      throw ApiError.badRequest("Thiếu tempToken hoặc mã OTP", "VALIDATION_ERROR");
+    }
+    const result = await UsersDAO.verifyTwoFactorLogin(tempToken, code);
+    if (result?.error) throw ApiError.unauthorized(result.error.message || "Xác thực 2FA thất bại", "INVALID_2FA");
+    return result;
+  }
+
+  static async setupTwoFactor(userId) {
+    if (!userId) throw ApiError.badRequest("Thiếu userId", "VALIDATION_ERROR");
+    const result = await UsersDAO.setupTwoFactor(userId);
+    this._daoError(result, "Không thể khởi tạo 2FA", "TWO_FA_SETUP_FAILED");
+    return result;
+  }
+
+  static async enableTwoFactor(userId, { code }) {
+    if (!userId || !code) throw ApiError.badRequest("Thiếu mã OTP xác nhận", "VALIDATION_ERROR");
+    const result = await UsersDAO.enableTwoFactor(userId, code);
+    this._daoError(result, "Kích hoạt 2FA thất bại", "TWO_FA_ENABLE_FAILED");
+    return result;
+  }
+
+  static async disableTwoFactor(userId, { password, code }) {
+    if (!userId || !password || !code) {
+      throw ApiError.badRequest("Vui lòng nhập đầy đủ mật khẩu và mã OTP", "VALIDATION_ERROR");
+    }
+    const result = await UsersDAO.disableTwoFactor(userId, password, code);
+    this._daoError(result, "Tắt 2FA thất bại", "TWO_FA_DISABLE_FAILED");
     return result;
   }
 
@@ -106,9 +191,16 @@ export default class UserService {
   }
 
   /* ─── CHỨC VỤ ─── */
-  static async setChucVu(id, { ten = "", mo_ta = "", heSoluong = null }) {
-    const result = await UsersDAO.setChucVu(id, { ten, mo_ta, heSoluong });
+  static async setChucVu(id, { ten = "", mo_ta = "", heSoluong = null, role_code = undefined, quyen_han = undefined }) {
+    const result = await UsersDAO.setChucVu(id, { ten, mo_ta, heSoluong, role_code, quyen_han });
     this._daoError(result, "Thiết lập chức vụ thất bại", "SET_CHUCVU_FAILED");
+    return { ok: true };
+  }
+
+  /* ─── ROLE & QUYỀN HẠN ─── */
+  static async setUserRole(id, { role = "user", quyen_han } = {}) {
+    const result = await UsersDAO.setUserRole(id, { role, quyen_han });
+    this._daoError(result, "Cập nhật phân quyền thất bại", "SET_ROLE_FAILED");
     return { ok: true };
   }
 
@@ -166,9 +258,12 @@ export default class UserService {
   static async getDanhSachNhanVien({ currentUser, q = "", phong_ban_query = "" }) {
     if (!currentUser) throw ApiError.unauthorized("Bạn chưa đăng nhập", "UNAUTHORIZED");
 
+    const roleCode = inferRoleCode(currentUser);
+    const titleLower = (currentUser?.chuc_vu?.ten || "").toLowerCase();
     const isManager =
-      currentUser?.phong_ban?.ten === "Phòng giám đốc" ||
-      currentUser?.chuc_vu?.ten === "Trưởng phòng";
+      isAdminUserRecord(currentUser) ||
+      ["hr_manager", "hr_staff", "chief_accountant", "sales_manager", "warehouse_manager", "production_manager"].includes(roleCode) ||
+      titleLower.includes("trưởng phòng");
 
     const filter = {};
 

@@ -47,6 +47,7 @@ import {
 } from "@/hooks/use-order-sale";
 
 import { useMyProfile } from "@/hooks/use-account";
+import { canApproveSalesOrders } from "@/lib/permissions";
 import { DocumentLifecycleStepper } from "@/components/document-lifecycle-stepper";
 import { DocumentCommentThread } from "@/components/document-comment-thread";
 import { chuyenDonSangSanXuatAction } from "@/app/actions/handover";
@@ -111,20 +112,9 @@ function StatusBadge({ s }: { s: ApiTrangThai }) {
 export default function OrdersManagement() {
   const { data: profile } = useMyProfile();
 
-  const deptName = (profile?.phong_ban?.ten || "").trim();
-  const roleName = (profile?.chuc_vu?.ten || "").trim().toLowerCase();
-
-  const isDirectorDept = deptName === "Phòng giám đốc";
-  const isAccountingDept = deptName === "Phòng Kế Toán";
-  const isHRDept = deptName === "Phòng Nhân Sự";
-
-  const isManager = roleName.includes("trưởng phòng");
-
   const canOperateSalesOrders = React.useMemo(() => {
-    if (isDirectorDept) return true;
-    if ((isAccountingDept || isHRDept) && isManager) return true;
-    return false;
-  }, [isDirectorDept, isAccountingDept, isHRDept, isManager]);
+    return canApproveSalesOrders(profile);
+  }, [profile]);
 
   const guardOperate = () => {
     if (!canOperateSalesOrders) return false;

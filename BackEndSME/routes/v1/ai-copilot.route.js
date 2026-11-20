@@ -9,6 +9,7 @@ router.use(verifyToken);
 
 router.get("/suggestions", AiCopilotController.getSuggestions);
 router.post("/query", requireBody("query"), AiCopilotController.query);
+router.post("/ocr-invoice", AiCopilotController.ocrInvoice);
 
 router.get("/config", verifyAdmin, AiCopilotController.getConfig);
 router.post("/config", verifyAdmin, AiCopilotController.saveConfig);

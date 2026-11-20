@@ -11,6 +11,12 @@
 import { ObjectId } from "mongodb";
 import { STATUS, ORDER_TYPE } from "./donHangConstants.js";
 import logger from "../utils/logger.js";
+import {
+  computeDemandForecast,
+  computeMaterialLeadTimeMap,
+  computeAtpEstimate,
+  computeSupplierScorecard,
+} from "../utils/planningEngine.js";
 
 // ── Module-level collection handles ──────────────────────────────────────────
 
@@ -18,6 +24,7 @@ let don_hang_col = null;
 let san_pham_col = null;
 let nguyen_lieu_col = null;
 let bom_col = null;
+let doi_tac_col = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,6 +70,7 @@ export class PlanningDAO {
       san_pham_col = db.collection("san_pham");
       nguyen_lieu_col = db.collection("nguyen_lieu");
       bom_col = db.collection("bom_san_pham");
+      doi_tac_col = db.collection("doi_tac");
     } catch (e) {
       logger.error("PlanningDAO injectDB error", { error: e.message });
     }
@@ -145,36 +153,10 @@ export class PlanningDAO {
   }
 
   /**
-   * Tính Moving Average forecast cho một sản phẩm.
-   * MA-3 với linear trend.
+   * Tính dự báo nhu cầu v2 cho một sản phẩm (Weighted MA + Outlier Capping + Confidence Band).
    */
   static _calcForecast(monthly_qty) {
-    const n = monthly_qty.length;
-    if (n < 3) {
-      const avg = monthly_qty.reduce((s, v) => s + v, 0) / (n || 1);
-      return { t1: avg, t2: avg, t3: avg, avg_monthly: avg };
-    }
-
-    // 3 tháng gần nhất
-    const last3 = monthly_qty.slice(-3);
-    const ma3 = last3.reduce((s, v) => s + v, 0) / 3;
-
-    // Trend = slope từ tháng -3 → -1 (chia 2 bước)
-    const trend = (last3[2] - last3[0]) / 2;
-
-    const t1 = clamp0(ma3 + trend);
-    const t2 = clamp0(ma3 + 2 * trend);
-    const t3 = clamp0(ma3 + 3 * trend);
-
-    const avg_monthly =
-      monthly_qty.reduce((s, v) => s + v, 0) / monthly_qty.length;
-
-    return {
-      t1: Math.round(t1),
-      t2: Math.round(t2),
-      t3: Math.round(t3),
-      avg_monthly: Math.round(avg_monthly * 10) / 10,
-    };
+    return computeDemandForecast(monthly_qty);
   }
 
   /**
@@ -223,6 +205,10 @@ export class PlanningDAO {
         forecast_t1: fc.t1,
         forecast_t2: fc.t2,
         forecast_t3: fc.t3,
+        forecast_min: fc.forecast_min,
+        forecast_max: fc.forecast_max,
+        volatility: fc.volatility,
+        seasonality_index: fc.seasonality_index,
         trang_thai_kho, // "thieu_hut" | "can_nhap" | "du" | "du_thua"
         monthly_qty: entry.monthly_qty,
         periods: periods.map((p) => `${p.year}-${String(p.month).padStart(2, "0")}`),
@@ -675,5 +661,65 @@ export class PlanningDAO {
       so_mat_hang: orderLines.length,
       doc: poDoc,
     };
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * 5. ATP (Available-to-Promise) — Ước tính lịch giao hàng dự kiến
+   * ════════════════════════════════════════════════════════════════════════*/
+  static async checkATP(items = []) {
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new Error("Danh sách sản phẩm kiểm tra ATP không được rỗng");
+    }
+
+    const [products, boms, materials, activeProductionCount, completedPOs] = await Promise.all([
+      san_pham_col.find({ trang_thai: { $ne: "deleted" } }).toArray(),
+      bom_col ? bom_col.find({}).toArray() : [],
+      nguyen_lieu_col.find({ trang_thai: { $ne: "deleted" } }).toArray(),
+      don_hang_col
+        ? don_hang_col.countDocuments({
+            loai_don: { $in: ["prod_receipt", "production_receipt"] },
+            trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
+          })
+        : 0,
+      don_hang_col
+        ? don_hang_col
+            .find({ loai_don: ORDER_TYPE.PURCHASE_RECEIPT, trang_thai: STATUS.COMPLETED })
+            .sort({ updated_at: -1 })
+            .limit(200)
+            .project({ trang_thai: 1, ngay_dat: 1, created_at: 1, updated_at: 1, san_pham: 1 })
+            .toArray()
+        : [],
+    ]);
+
+    const productMap = new Map(products.map((p) => [String(p._id), p]));
+    const bomMap = new Map(boms.map((b) => [String(b.san_pham_id), b]));
+    const materialMap = new Map(materials.map((m) => [String(m._id), m]));
+    const materialLeadTimeMap = computeMaterialLeadTimeMap(completedPOs, 5);
+
+    return computeAtpEstimate({
+      items,
+      productMap,
+      bomMap,
+      materialMap,
+      materialLeadTimeMap,
+      activeProductionCount,
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+   * 6. SUPPLIER SCORECARD — Chấm điểm & Đề xuất Nhà cung cấp
+   * ════════════════════════════════════════════════════════════════════════*/
+  static async getSupplierScorecards() {
+    if (!doi_tac_col || !don_hang_col) return [];
+    const [suppliers, purchaseOrders] = await Promise.all([
+      doi_tac_col
+        .find({ loai_doi_tac: "nha_cung_cap", trang_thai: { $ne: "deleted" } })
+        .toArray(),
+      don_hang_col
+        .find({ loai_don: ORDER_TYPE.PURCHASE_RECEIPT, trang_thai: { $ne: "deleted" } })
+        .project({ doi_tac_id: 1, nha_cung_cap_id: 1, nha_cung_cap_ten: 1, doi_tac: 1, nha_cung_cap: 1, trang_thai: 1, tong_tien: 1, ngay_giao_du_kien: 1, updated_at: 1 })
+        .toArray(),
+    ]);
+    return computeSupplierScorecard(suppliers, purchaseOrders);
   }
 }

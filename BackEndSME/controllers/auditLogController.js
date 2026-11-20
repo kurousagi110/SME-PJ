@@ -1,5 +1,6 @@
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, buildPagination } from "../utils/response.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
 
 let col = null;
 
@@ -19,12 +20,25 @@ export default class AuditLogController {
    * Access: verifyAdmin only
    */
   static list = asyncHandler(async (req, res) => {
-    const { action, module, tai_khoan, page = 1, limit = 20 } = req.query;
+    const { action, module, tai_khoan, severity, q, page = 1, limit = 20 } = req.query;
 
     const filter = {};
     if (action)     filter.action             = action;
     if (module)     filter.module             = module;
     if (tai_khoan)  filter["user.tai_khoan"] = tai_khoan;
+    if (severity)   filter.severity           = severity;
+    if (q && String(q).trim()) {
+      const safeQ = escapeSafeRegexPattern(q);
+      const regex = { $regex: safeQ, $options: "i" };
+      filter.$or = [
+        { description: regex },
+        { module: regex },
+        { action: regex },
+        { target_id: regex },
+        { "user.ho_ten": regex },
+        { "user.tai_khoan": regex },
+      ];
+    }
 
     const pageNum  = Math.max(1, Number(page)  || 1);
     const limitNum = Math.max(1, Math.min(Number(limit) || 20, 100));

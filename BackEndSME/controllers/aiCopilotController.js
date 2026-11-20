@@ -6,12 +6,12 @@ import AiConfigDAO from "../models/aiConfigDAO.js";
 
 export default class AiCopilotController {
   static query = asyncHandler(async (req, res) => {
-    const { query } = req.body;
+    const { query, history = [] } = req.body || {};
     if (!query || typeof query !== "string" || !query.trim()) {
       throw ApiError.badRequest("Vui lòng nhập nội dung câu hỏi cho AI Copilot");
     }
 
-    const result = await AiCopilotDAO.processQuery(query, req.user);
+    const result = await AiCopilotDAO.processQuery(query, req.user, history);
     return sendSuccess(res, result, "Phân tích câu hỏi thành công");
   });
 
@@ -36,6 +36,15 @@ export default class AiCopilotController {
     const { provider, api_key, model } = req.body;
     const result = await AiConfigDAO.testConnection({ provider, api_key, model });
     return sendSuccess(res, result, result.message);
+  });
+
+  static ocrInvoice = asyncHandler(async (req, res) => {
+    const { text, imageBase64 } = req.body || {};
+    if (!text && !imageBase64) {
+      throw ApiError.badRequest("Vui lòng cung cấp nội dung text hoặc ảnh hóa đơn (imageBase64)");
+    }
+    const data = await AiCopilotDAO.parseInvoiceOCR({ text, imageBase64 });
+    return sendSuccess(res, data, "Bóc tách hóa đơn thành công");
   });
 }
 

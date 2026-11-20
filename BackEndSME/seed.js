@@ -26,6 +26,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
+import { ROLE_DEFINITIONS } from "./utils/permissions.js";
 
 dotenv.config();
 
@@ -67,6 +68,7 @@ function genPhieuCode(prefix = "PT", year = 2026, month = 3, day = 15) {
 function buildPhongBanDocs() {
   const active = "active";
   const t = now();
+  const permsOf = (code) => [...(ROLE_DEFINITIONS[code]?.permissions || [])];
 
   return [
     {
@@ -75,7 +77,9 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Giám đốc", mo_ta: "Người đứng đầu doanh nghiệp", he_so_luong: 5.0, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Tổng giám đốc", mo_ta: "Lãnh đạo cao nhất doanh nghiệp", he_so_luong: 6.0, role_code: "admin", quyen_han: permsOf("admin"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Giám đốc", mo_ta: "Người đứng đầu doanh nghiệp", he_so_luong: 5.0, role_code: "admin", quyen_han: permsOf("admin"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Thư ký", mo_ta: "Thư ký Ban Giám đốc", he_so_luong: 2.2, role_code: "user", quyen_han: ["hr.view", "sales.view"], trang_thai: active, createAt: t, updateAt: t },
       ],
     },
     {
@@ -84,8 +88,8 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Trưởng phòng kinh doanh", mo_ta: "Quản lý phòng kinh doanh", he_so_luong: 3.0, trang_thai: active, createAt: t, updateAt: t },
-        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kinh doanh",    mo_ta: "Xử lý đơn hàng, tư vấn bán hàng", he_so_luong: 2.0, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Trưởng phòng kinh doanh", mo_ta: "Quản lý phòng kinh doanh", he_so_luong: 3.0, role_code: "sales_manager", quyen_han: permsOf("sales_manager"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kinh doanh",    mo_ta: "Xử lý đơn hàng, tư vấn bán hàng", he_so_luong: 2.0, role_code: "sales_staff", quyen_han: permsOf("sales_staff"), trang_thai: active, createAt: t, updateAt: t },
       ],
     },
     {
@@ -94,8 +98,8 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Kế toán trưởng",   mo_ta: "Phụ trách tổng hợp kế toán", he_so_luong: 3.0, trang_thai: active, createAt: t, updateAt: t },
-        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kế toán", mo_ta: "Xử lý chứng từ, báo cáo",   he_so_luong: 2.0, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Kế toán trưởng",   mo_ta: "Phụ trách tổng hợp kế toán", he_so_luong: 3.0, role_code: "chief_accountant", quyen_han: permsOf("chief_accountant"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kế toán", mo_ta: "Xử lý chứng từ, báo cáo",   he_so_luong: 2.0, role_code: "accountant", quyen_han: permsOf("accountant"), trang_thai: active, createAt: t, updateAt: t },
       ],
     },
     {
@@ -104,8 +108,8 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Trưởng phòng nhân sự", mo_ta: "Quản lý phòng nhân sự", he_so_luong: 3.0, trang_thai: active, createAt: t, updateAt: t },
-        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên nhân sự",    mo_ta: "Quản lý hồ sơ, chấm công", he_so_luong: 2.0, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Trưởng phòng nhân sự", mo_ta: "Quản lý phòng nhân sự", he_so_luong: 3.0, role_code: "hr_manager", quyen_han: permsOf("hr_manager"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên nhân sự",    mo_ta: "Quản lý hồ sơ, chấm công", he_so_luong: 2.0, role_code: "hr_staff", quyen_han: permsOf("hr_staff"), trang_thai: active, createAt: t, updateAt: t },
       ],
     },
     {
@@ -114,8 +118,8 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Thủ kho",       mo_ta: "Phụ trách quản lý kho tổng", he_so_luong: 2.5, trang_thai: active, createAt: t, updateAt: t },
-        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kho", mo_ta: "Xuất nhập kho hàng ngày",    he_so_luong: 1.5, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Thủ kho",       mo_ta: "Phụ trách quản lý kho tổng", he_so_luong: 2.5, role_code: "warehouse_manager", quyen_han: permsOf("warehouse_manager"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Nhân viên kho", mo_ta: "Xuất nhập kho hàng ngày",    he_so_luong: 1.5, role_code: "warehouse_staff", quyen_han: permsOf("warehouse_staff"), trang_thai: active, createAt: t, updateAt: t },
       ],
     },
     {
@@ -124,8 +128,8 @@ function buildPhongBanDocs() {
       trang_thai: active,
       createAt: t, updateAt: t,
       chuc_vu: [
-        { _id: new ObjectId(), ten_chuc_vu: "Trưởng xưởng",       mo_ta: "Quản lý xưởng sản xuất",      he_so_luong: 3.0, trang_thai: active, createAt: t, updateAt: t },
-        { _id: new ObjectId(), ten_chuc_vu: "Công nhân sản xuất",  mo_ta: "Trực tiếp sản xuất sản phẩm", he_so_luong: 1.5, trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Trưởng xưởng",       mo_ta: "Quản lý xưởng sản xuất",      he_so_luong: 3.0, role_code: "production_manager", quyen_han: permsOf("production_manager"), trang_thai: active, createAt: t, updateAt: t },
+        { _id: new ObjectId(), ten_chuc_vu: "Công nhân sản xuất",  mo_ta: "Trực tiếp sản xuất sản phẩm", he_so_luong: 1.5, role_code: "production_staff", quyen_han: permsOf("production_staff"), trang_thai: active, createAt: t, updateAt: t },
       ],
     },
   ];
@@ -136,6 +140,7 @@ function buildPhongBanDocs() {
 ───────────────────────────────────────────── */
 function buildUserDocs(hashedPw) {
   const t = now();
+  const permsOf = (code) => [...(ROLE_DEFINITIONS[code]?.permissions || [])];
   return [
     /* 1 — Giám đốc / Admin */
     {
@@ -144,10 +149,11 @@ function buildUserDocs(hashedPw) {
       tai_khoan: "admin",
       mat_khau: hashedPw,
       role: "admin",
+      quyen_han: permsOf("admin"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng giám đốc",  mo_ta: "Ban lãnh đạo, toàn quyền quản lý hệ thống" },
-      chuc_vu:   { ten: "Giám đốc",        mo_ta: "Người đứng đầu doanh nghiệp", heSoluong: 5.0 },
+      chuc_vu:   { ten: "Giám đốc",        mo_ta: "Người đứng đầu doanh nghiệp", heSoluong: 5.0, role_code: "admin", quyen_han: permsOf("admin") },
       createAt: t, updateAt: t,
     },
     /* 2 — Trưởng phòng kinh doanh */
@@ -156,11 +162,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1985-07-22"),
       tai_khoan: "truongkd",
       mat_khau: hashedPw,
-      role: "user",
+      role: "sales_manager",
+      quyen_han: permsOf("sales_manager"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kinh doanh",         mo_ta: "Quản lý bán hàng, chăm sóc khách hàng" },
-      chuc_vu:   { ten: "Trưởng phòng kinh doanh",  mo_ta: "Quản lý phòng kinh doanh", heSoluong: 3.0 },
+      chuc_vu:   { ten: "Trưởng phòng kinh doanh",  mo_ta: "Quản lý phòng kinh doanh", heSoluong: 3.0, role_code: "sales_manager", quyen_han: permsOf("sales_manager") },
       createAt: t, updateAt: t,
     },
     /* 3 — Nhân viên kinh doanh */
@@ -169,11 +176,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1995-11-08"),
       tai_khoan: "sale",
       mat_khau: hashedPw,
-      role: "user",
+      role: "sales_staff",
+      quyen_han: permsOf("sales_staff"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kinh doanh",      mo_ta: "Quản lý bán hàng, chăm sóc khách hàng" },
-      chuc_vu:   { ten: "Nhân viên kinh doanh",  mo_ta: "Xử lý đơn hàng, tư vấn bán hàng", heSoluong: 2.0 },
+      chuc_vu:   { ten: "Nhân viên kinh doanh",  mo_ta: "Xử lý đơn hàng, tư vấn bán hàng", heSoluong: 2.0, role_code: "sales_staff", quyen_han: permsOf("sales_staff") },
       createAt: t, updateAt: t,
     },
     /* 4 — Kế toán trưởng */
@@ -182,11 +190,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1978-04-12"),
       tai_khoan: "ketoantr",
       mat_khau: hashedPw,
-      role: "user",
+      role: "chief_accountant",
+      quyen_han: permsOf("chief_accountant"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kế toán",   mo_ta: "Quản lý tài chính, kế toán doanh nghiệp" },
-      chuc_vu:   { ten: "Kế toán trưởng",  mo_ta: "Phụ trách tổng hợp kế toán", heSoluong: 3.0 },
+      chuc_vu:   { ten: "Kế toán trưởng",  mo_ta: "Phụ trách tổng hợp kế toán", heSoluong: 3.0, role_code: "chief_accountant", quyen_han: permsOf("chief_accountant") },
       createAt: t, updateAt: t,
     },
     /* 5 — Nhân viên kế toán */
@@ -195,11 +204,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1992-01-15"),
       tai_khoan: "ketoan",
       mat_khau: hashedPw,
-      role: "user",
+      role: "accountant",
+      quyen_han: permsOf("accountant"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kế toán",      mo_ta: "Quản lý tài chính, kế toán doanh nghiệp" },
-      chuc_vu:   { ten: "Nhân viên kế toán",  mo_ta: "Xử lý chứng từ, báo cáo", heSoluong: 2.0 },
+      chuc_vu:   { ten: "Nhân viên kế toán",  mo_ta: "Xử lý chứng từ, báo cáo", heSoluong: 2.0, role_code: "accountant", quyen_han: permsOf("accountant") },
       createAt: t, updateAt: t,
     },
     /* 6 — Trưởng phòng nhân sự */
@@ -208,11 +218,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1983-09-30"),
       tai_khoan: "nhansutr",
       mat_khau: hashedPw,
-      role: "user",
+      role: "hr_manager",
+      quyen_han: permsOf("hr_manager"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng nhân sự",         mo_ta: "Tuyển dụng, quản lý nhân viên và tiền lương" },
-      chuc_vu:   { ten: "Trưởng phòng nhân sự",  mo_ta: "Quản lý phòng nhân sự", heSoluong: 3.0 },
+      chuc_vu:   { ten: "Trưởng phòng nhân sự",  mo_ta: "Quản lý phòng nhân sự", heSoluong: 3.0, role_code: "hr_manager", quyen_han: permsOf("hr_manager") },
       createAt: t, updateAt: t,
     },
     /* 7 — Nhân viên nhân sự */
@@ -221,11 +232,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1996-06-18"),
       tai_khoan: "nhansu",
       mat_khau: hashedPw,
-      role: "user",
+      role: "hr_staff",
+      quyen_han: permsOf("hr_staff"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng nhân sự",      mo_ta: "Tuyển dụng, quản lý nhân viên và tiền lương" },
-      chuc_vu:   { ten: "Nhân viên nhân sự",  mo_ta: "Quản lý hồ sơ, chấm công", heSoluong: 2.0 },
+      chuc_vu:   { ten: "Nhân viên nhân sự",  mo_ta: "Quản lý hồ sơ, chấm công", heSoluong: 2.0, role_code: "hr_staff", quyen_han: permsOf("hr_staff") },
       createAt: t, updateAt: t,
     },
     /* 8 — Thủ kho */
@@ -234,11 +246,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1988-12-05"),
       tai_khoan: "thukho",
       mat_khau: hashedPw,
-      role: "user",
+      role: "warehouse_manager",
+      quyen_han: permsOf("warehouse_manager"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kho",  mo_ta: "Quản lý xuất nhập kho, tồn kho nguyên vật liệu" },
-      chuc_vu:   { ten: "Thủ kho",   mo_ta: "Phụ trách quản lý kho tổng", heSoluong: 2.5 },
+      chuc_vu:   { ten: "Thủ kho",   mo_ta: "Phụ trách quản lý kho tổng", heSoluong: 2.5, role_code: "warehouse_manager", quyen_han: permsOf("warehouse_manager") },
       createAt: t, updateAt: t,
     },
     /* 9 — Nhân viên kho */
@@ -247,11 +260,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1998-05-25"),
       tai_khoan: "nhanvienkho",
       mat_khau: hashedPw,
-      role: "user",
+      role: "warehouse_staff",
+      quyen_han: permsOf("warehouse_staff"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng kho",      mo_ta: "Quản lý xuất nhập kho, tồn kho nguyên vật liệu" },
-      chuc_vu:   { ten: "Nhân viên kho",  mo_ta: "Xuất nhập kho hàng ngày", heSoluong: 1.5 },
+      chuc_vu:   { ten: "Nhân viên kho",  mo_ta: "Xuất nhập kho hàng ngày", heSoluong: 1.5, role_code: "warehouse_staff", quyen_han: permsOf("warehouse_staff") },
       createAt: t, updateAt: t,
     },
     /* 10 — Trưởng xưởng */
@@ -260,11 +274,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("1980-08-12"),
       tai_khoan: "truongxuong",
       mat_khau: hashedPw,
-      role: "user",
+      role: "production_manager",
+      quyen_han: permsOf("production_manager"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng sản xuất",  mo_ta: "Quản lý dây chuyền sản xuất, chế biến sản phẩm" },
-      chuc_vu:   { ten: "Trưởng xưởng",   mo_ta: "Quản lý xưởng sản xuất", heSoluong: 3.0 },
+      chuc_vu:   { ten: "Trưởng xưởng",   mo_ta: "Quản lý xưởng sản xuất", heSoluong: 3.0, role_code: "production_manager", quyen_han: permsOf("production_manager") },
       createAt: t, updateAt: t,
     },
     /* 11 — Công nhân sản xuất */
@@ -273,11 +288,12 @@ function buildUserDocs(hashedPw) {
       ngay_sinh: new Date("2000-01-20"),
       tai_khoan: "sanxuat",
       mat_khau: hashedPw,
-      role: "user",
+      role: "production_staff",
+      quyen_han: permsOf("production_staff"),
       trang_thai: 1,
       tokens: [],
       phong_ban: { ten: "Phòng sản xuất",      mo_ta: "Quản lý dây chuyền sản xuất, chế biến sản phẩm" },
-      chuc_vu:   { ten: "Công nhân sản xuất",  mo_ta: "Trực tiếp sản xuất sản phẩm", heSoluong: 1.5 },
+      chuc_vu:   { ten: "Công nhân sản xuất",  mo_ta: "Trực tiếp sản xuất sản phẩm", heSoluong: 1.5, role_code: "production_staff", quyen_han: permsOf("production_staff") },
       createAt: t, updateAt: t,
     },
   ];

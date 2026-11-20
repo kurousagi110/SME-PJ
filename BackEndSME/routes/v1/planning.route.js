@@ -35,4 +35,10 @@ router.post("/ecommerce/compare", verifyToken, PlanningController.compareEcommer
 // GET /api/v1/planning/ecommerce/matrix
 router.get("/ecommerce/matrix", verifyToken, PlanningController.getEcommerceMatrix);
 
+// POST /api/v1/planning/atp-check — Ước tính lịch giao dự kiến (Available-to-Promise)
+router.post("/atp-check", verifyToken, PlanningController.checkATP);
+
+// GET /api/v1/planning/supplier-scorecard — Bảng xếp hạng & chấm điểm Nhà cung cấp
+router.get("/supplier-scorecard", verifyToken, PlanningController.getSupplierScorecards);
+
 export default router;

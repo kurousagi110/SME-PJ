@@ -10,6 +10,7 @@ import logger from "../utils/logger.js";
 import { state } from "./donHangState.js";
 import { STATUS, ORDER_TYPE, toObjectId } from "./donHangConstants.js";
 import { getAllowedTransitions, ensureOrderType } from "./donHangHelpers.js";
+import { invalidateReportCaches } from "../utils/cache.js";
 import { applyInventoryOnCompleted, revertInventoryOnCancelled } from "./donHangInventory.js";
 
 /* ══════════════ Status transition + inventory ══════════════ */
@@ -108,6 +109,7 @@ export async function capNhatTrangThaiVaTonKho(id, trang_thai_moi, { session, ng
     }
   }
 
+  invalidateReportCaches();
   return { modifiedCount: res.modifiedCount };
 }
 
@@ -136,6 +138,7 @@ export async function softDeleteDonHang(id, { session } = {}) {
     { $set: { trang_thai: STATUS.DELETED, updated_at: new Date() } },
     { session }
   );
+  invalidateReportCaches();
   return { modifiedCount: res.modifiedCount };
 }
 
@@ -145,6 +148,7 @@ export async function restoreDonHang(id, { session } = {}) {
     { $set: { trang_thai: STATUS.DRAFT, updated_at: new Date() } },
     { session }
   );
+  invalidateReportCaches();
   return { modifiedCount: res.modifiedCount };
 }
 

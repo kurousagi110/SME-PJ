@@ -1,6 +1,6 @@
 import express from "express";
 import QuotationController from "../../controllers/quotationController.js";
-import { verifyToken, verifyAdmin } from "../../middleware/auth.js";
+import { verifyToken, verifyAdmin, verifySalesManager } from "../../middleware/auth.js";
 import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
@@ -21,11 +21,13 @@ router.post(
 /* ─── 3. Cập nhật trạng thái ─── */
 router.put(
   "/:ma_bao_gia/status",
+  verifySalesManager,
   requireBody("trang_thai"),
   QuotationController.updateStatus
 );
 router.patch(
   "/:ma_bao_gia/status",
+  verifySalesManager,
   requireBody("trang_thai"),
   QuotationController.updateStatus
 );
@@ -33,6 +35,7 @@ router.patch(
 /* ─── 4. Chuyển đổi thành Đơn Hàng 1-click ─── */
 router.post(
   "/:ma_bao_gia/convert-to-order",
+  verifySalesManager,
   QuotationController.convertToOrder
 );
 

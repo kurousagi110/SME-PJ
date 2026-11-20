@@ -15,6 +15,12 @@ import {
   IconCoin,
   IconBuildingStore,
   IconPackage,
+  IconWallet,
+  IconArrowUpRight,
+  IconArrowDownRight,
+  IconBuildingBank,
+  IconAdjustmentsHorizontal,
+  IconFileZip,
 } from "@tabler/icons-react";
 import {
   Card,
@@ -26,6 +32,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -60,9 +74,12 @@ import {
   getProductProfitabilityAction,
   getAgingDebtAction,
   recalculateCOGSAction,
+  fetchCashFlowForecastAction,
+  reconcileBankAction,
   type PnLReportResponse,
   type ProductProfitabilityItem,
   type AgingDebtResponse,
+  type CashFlowForecastResponse,
 } from "@/app/actions/financial";
 
 export default function FinancialReportsPage() {
@@ -75,15 +92,27 @@ export default function FinancialReportsPage() {
   const [pnlData, setPnlData] = React.useState<PnLReportResponse | null>(null);
   const [productsData, setProductsData] = React.useState<ProductProfitabilityItem[]>([]);
   const [debtData, setDebtData] = React.useState<AgingDebtResponse | null>(null);
+  const [cashflowData, setCashflowData] = React.useState<CashFlowForecastResponse | null>(null);
+
+  // Bank reconciliation dialog state
+  const [openReconcileModal, setOpenReconcileModal] = React.useState<boolean>(false);
+  const [reconcileResult, setReconcileResult] = React.useState<any>(null);
+  const [isReconciling, setIsReconciling] = React.useState<boolean>(false);
+
+  // What-If Simulator states
+  const [simRevenuePct, setSimRevenuePct] = React.useState<number>(0);
+  const [simCogsPct, setSimCogsPct] = React.useState<number>(0);
+  const [simOpexPct, setSimOpexPct] = React.useState<number>(0);
 
   // Fetch all data
   const fetchData = React.useCallback(async (year: string) => {
     setLoading(true);
     try {
-      const [pnlRes, prodRes, debtRes] = await Promise.all([
+      const [pnlRes, prodRes, debtRes, cashflowRes] = await Promise.all([
         getProfitAndLossAction({ year }),
         getProductProfitabilityAction({ limit: 50 }),
         getAgingDebtAction({ type: "customer" }),
+        fetchCashFlowForecastAction({ days: 90 }),
       ]);
 
       if (pnlRes.success && pnlRes.data) {
@@ -94,6 +123,9 @@ export default function FinancialReportsPage() {
       }
       if (debtRes.success && debtRes.data) {
         setDebtData(debtRes.data);
+      }
+      if (cashflowRes.success && cashflowRes.data) {
+        setCashflowData(cashflowRes.data);
       }
     } catch {
       toast.error("Không thể tải số liệu báo cáo tài chính");
@@ -177,6 +209,63 @@ export default function FinancialReportsPage() {
     toast.success("Đã xuất báo cáo Tuổi Nợ thành công!");
   };
 
+  // One-Click Audit Pack Export (Combined Multi-Section UTF-8 BOM CSV)
+  const handleExportAuditPack = () => {
+    const lines: string[] = [];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const row = (cols: unknown[]) => lines.push(cols.map(esc).join(","));
+
+    row([`HỒ SƠ KIỂM TOÁN TÀI CHÍNH TỔNG HỢP - NĂM ${selectedYear}`, `Ngày xuất: ${new Date().toLocaleString("vi-VN")}`]);
+    lines.push("");
+
+    // Section 1: P&L
+    row(["PHẦN 1: BÁO CÁO KẾT QUẢ KINH DOANH (P&L)"]);
+    row(["Khoản mục", "Số tiền (VND)", "Ghi chú"]);
+    if (pnlData?.summary) {
+      const s = pnlData.summary;
+      row(["Doanh thu thuần", s.netRevenue, ""]);
+      row(["Giá vốn hàng bán (COGS)", s.totalCogs, "Bình quân gia quyền"]);
+      row(["Lợi nhuận gộp", s.grossProfit, `Biên gộp: ${s.grossMarginPct}%`]);
+      row(["Tổng chi phí vận hành (OPEX)", s.opex.total, `Lương: ${s.opex.payroll}, Ship: ${s.opex.shipping}`]);
+      row(["Lợi nhuận ròng", s.netOperatingProfit, `Biên ròng: ${s.netMarginPct}%`]);
+    }
+    lines.push("");
+
+    // Section 2: Product Profitability
+    row(["PHẦN 2: HIỆU QUẢ SINH LỜI SẢN PHẨM"]);
+    row(["Mã SP", "Tên Sản Phẩm", "SL Bán", "Doanh Thu", "Giá Vốn", "Lợi Nhuận Gộp", "Biên LN (%)", "Phân loại"]);
+    for (const p of productsData) {
+      row([p.code, p.name, p.qty, p.revenue, p.totalCost, p.grossProfit, p.marginPct, p.classification]);
+    }
+    lines.push("");
+
+    // Section 3: Aging Debt
+    row(["PHẦN 3: PHÂN TÍCH TUỔI NỢ KHÁCH HÀNG"]);
+    row(["Khách hàng", "SĐT", "Tổng Nợ", "0-30 ngày", "31-60 ngày", "61-90 ngày", ">90 ngày"]);
+    for (const d of debtData?.items || []) {
+      row([d.name, d.phone, d.totalDebt, d.current, d.days_31_60, d.days_61_90, d.days_over_90]);
+    }
+    lines.push("");
+
+    // Section 4: Cashflow Summary
+    row(["PHẦN 4: DỰ PHÓNG DÒNG TIỀN 12 TUẦN"]);
+    row(["Số dư tiền mặt hiện tại", cashflowData?.currentCashBalance ?? 0]);
+    row(["Monthly Burn Rate", cashflowData?.monthlyBurnRate ?? 0]);
+    row(["Runway (Tháng)", cashflowData?.runwayMonths ?? "Ổn định"]);
+
+    const csvContent = "\uFEFF" + lines.join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Ho_So_Kiem_Toan_SME_${selectedYear}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("Đã xuất trọn bộ Hồ sơ Kiểm toán 1-Click!");
+  };
+
   const summary = pnlData?.summary;
   const isProfitable = (summary?.netOperatingProfit ?? 0) >= 0;
 
@@ -223,6 +312,17 @@ export default function FinancialReportsPage() {
             Đồng bộ Giá Vốn
           </Button>
 
+          {/* Bank Reconcile button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setOpenReconcileModal(true)}
+            className="text-blue-700 border-blue-200 bg-blue-50/50 hover:bg-blue-100/50"
+          >
+            <IconBuildingBank className="h-4 w-4 mr-1.5" />
+            Đối Soát Ngân Hàng
+          </Button>
+
           {/* Export button */}
           <Button
             variant="outline"
@@ -231,6 +331,18 @@ export default function FinancialReportsPage() {
           >
             <IconDownload className="h-4 w-4 mr-1.5 text-emerald-600" />
             Xuất Excel
+          </Button>
+
+          {/* One-Click Audit Pack */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAuditPack}
+            className="text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 dark:text-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/40"
+            title="Xuất trọn bộ P&L, Hiệu quả SP, Tuổi nợ và Dòng tiền trong 1 file"
+          >
+            <IconFileZip className="h-4 w-4 mr-1.5" />
+            Audit Pack 1-Click
           </Button>
 
           {/* Print button */}
@@ -243,10 +355,14 @@ export default function FinancialReportsPage() {
 
       {/* ─── Tabs Navigation ─── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 max-w-2xl">
           <TabsTrigger value="pnl" className="flex items-center gap-1.5">
             <IconReportMoney className="h-4 w-4" />
             Lãi - Lỗ (P&L)
+          </TabsTrigger>
+          <TabsTrigger value="cashflow" className="flex items-center gap-1.5">
+            <IconWallet className="h-4 w-4" />
+            Dòng Tiền
           </TabsTrigger>
           <TabsTrigger value="products" className="flex items-center gap-1.5">
             <IconPackage className="h-4 w-4" />
@@ -256,7 +372,12 @@ export default function FinancialReportsPage() {
             <IconClockHour4 className="h-4 w-4" />
             Tuổi Nợ
           </TabsTrigger>
+          <TabsTrigger value="simulator" className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+            <IconAdjustmentsHorizontal className="h-4 w-4" />
+            What-If
+          </TabsTrigger>
         </TabsList>
+
 
         {/* ══════════════ TAB 1: BÁO CÁO LÃI - LỖ (P&L) ══════════════ */}
         <TabsContent value="pnl" className="space-y-6">
@@ -807,7 +928,463 @@ export default function FinancialReportsPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* ══════════════ TAB 4: DỰ BÁO DÒNG TIỀN & NGÂN QUỸ (CASH FLOW) ══════════════ */}
+        <TabsContent value="cashflow" className="space-y-6">
+          {/* Executive Cashflow KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Số Dư Quỹ Tiền Mặt Thực Tế</CardTitle>
+                <IconWallet className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-700">
+                  {formatVND(cashflowData?.currentCashBalance ?? 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Khả dụng trong Sổ Quỹ (Tiền mặt + Ngân hàng)
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Tốc Độ Tiêu Hao / Tháng (Burn Rate)</CardTitle>
+                <IconArrowDownRight className="h-4 w-4 text-amber-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-700">
+                  {formatVND(cashflowData?.monthlyBurnRate ?? 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Trung bình chi phí vận hành & lương 90 ngày qua
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Chỉ Số Runway Hoạt Động</CardTitle>
+                <IconTrendingUp className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-700">
+                  {cashflowData?.runwayMonths ?? 0} tháng
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Duy trì vận hành an toàn với số dư hiện tại
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Đánh Giá Sức Khỏe Ngân Quỹ</CardTitle>
+                <IconCheck className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={cashflowData?.healthStatus === "HEALTHY" ? "outline" : "destructive"}
+                    className={
+                      cashflowData?.healthStatus === "HEALTHY"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-300 text-sm py-0.5"
+                        : "text-sm py-0.5"
+                    }
+                  >
+                    {cashflowData?.healthStatus === "HEALTHY" ? "ỔN ĐỊNH & AN TOÀN" : "CẢNH BÁO THÂM HỤT"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                  {cashflowData?.healthAdvice || "Dòng tiền hoạt động ổn định."}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Biểu đồ dự phóng 12 tuần tới */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base font-semibold">Dự Phóng Dòng Tiền Thu - Chi 12 Tuần Tới (90 Ngày)</CardTitle>
+              <CardDescription>
+                So sánh Dự thu từ đơn bán hàng (Xanh lá), Dự chi NCC & Lương (Đỏ cam), và Đường số dư tiền mặt cuối kỳ (Xanh dương)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={cashflowData?.weeklyBuckets || []}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                    <XAxis dataKey="week" tickLine={false} axisLine={false} />
+                    <YAxis
+                      tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      formatter={(val: any) => formatVND(Number(val))}
+                      labelFormatter={(label) => `Thời gian: ${label}`}
+                    />
+                    <Legend />
+                    <Bar dataKey="inflows" name="Dự thu (Tiền vào)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="outflows" name="Dự chi (Tiền ra)" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    <Line
+                      type="monotone"
+                      dataKey="closingCash"
+                      name="Số dư tiền mặt cuối kỳ"
+                      stroke="#2563eb"
+                      strokeWidth={3}
+                      dot={{ r: 4 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Dự Thu & Dự Chi */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-emerald-800 flex items-center gap-2">
+                      <IconArrowUpRight className="h-5 w-5 text-emerald-600" />
+                      Khoản Dự Thu Sắp Tới (Receivables)
+                    </CardTitle>
+                    <CardDescription>Các đơn hàng bán chuẩn bị đến hạn thu tiền</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Mã Đơn</TableHead>
+                      <TableHead>Khách Hàng</TableHead>
+                      <TableHead className="text-right">Số Tiền</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(cashflowData?.topReceivables || []).slice(0, 5).map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium text-xs">{r.referenceCode}</TableCell>
+                        <TableCell className="text-xs truncate max-w-[140px]">{r.partnerName}</TableCell>
+                        <TableCell className="text-right text-xs font-semibold text-emerald-700">
+                          {formatVND(r.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-amber-800 flex items-center gap-2">
+                      <IconArrowDownRight className="h-5 w-5 text-amber-600" />
+                      Khoản Dự Chi Sắp Tới (Payables & Opex)
+                    </CardTitle>
+                    <CardDescription>Công nợ nhà cung cấp, quỹ lương & vận hành định kỳ</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Khoản Chi</TableHead>
+                      <TableHead>Đối Tượng</TableHead>
+                      <TableHead className="text-right">Số Tiền</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(cashflowData?.topPayables || []).slice(0, 5).map((p, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium text-xs">{p.purpose}</TableCell>
+                        <TableCell className="text-xs truncate max-w-[140px]">{p.partnerName}</TableCell>
+                        <TableCell className="text-right text-xs font-semibold text-amber-700">
+                          {formatVND(p.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* ══════════════ TAB 5: WHAT-IF SIMULATOR ══════════════ */}
+        <TabsContent value="simulator" className="space-y-6">
+          {(() => {
+            const baseRev = summary?.netRevenue || 0;
+            const baseCogs = summary?.totalCogs || 0;
+            const baseOpex = summary?.opex?.total || 0;
+
+            const projRev = Math.round(baseRev * (1 + simRevenuePct / 100));
+            const projCogs = Math.round(baseCogs * (1 + simRevenuePct / 100) * (1 + simCogsPct / 100));
+            const projGross = projRev - projCogs;
+            const projOpex = Math.round(baseOpex * (1 + simOpexPct / 100));
+            const projNet = projGross - projOpex;
+            const projMarginPct = projRev > 0 ? Number(((projNet / projRev) * 100).toFixed(1)) : 0;
+            const grossMarginRatio = projRev > 0 ? projGross / projRev : 0;
+            const breakEvenRev = grossMarginRatio > 0 ? Math.round(projOpex / grossMarginRatio) : 0;
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <Card className="lg:col-span-5 shadow-sm">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <IconAdjustmentsHorizontal className="h-5 w-5 text-indigo-600" />
+                        Thông số Giả lập Kịch bản
+                      </CardTitle>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSimRevenuePct(0);
+                          setSimCogsPct(0);
+                          setSimOpexPct(0);
+                        }}
+                      >
+                        Đặt lại 0%
+                      </Button>
+                    </div>
+                    <CardDescription className="text-xs">
+                      Kéo thanh trượt để mô phỏng tác động của giá nguyên vật liệu, doanh số và chi phí vận hành tới lợi nhuận ròng.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Doanh số bán hàng</span>
+                        <span className={simRevenuePct >= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simRevenuePct > 0 ? `+${simRevenuePct}%` : `${simRevenuePct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-30}
+                        max={50}
+                        step={1}
+                        value={simRevenuePct}
+                        onChange={(e) => setSimRevenuePct(Number(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Giá vốn / Nguyên vật liệu (COGS)</span>
+                        <span className={simCogsPct <= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simCogsPct > 0 ? `+${simCogsPct}%` : `${simCogsPct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-20}
+                        max={40}
+                        step={1}
+                        value={simCogsPct}
+                        onChange={(e) => setSimCogsPct(Number(e.target.value))}
+                        className="w-full accent-amber-600 cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>Biến động Chi phí vận hành (OPEX)</span>
+                        <span className={simOpexPct <= 0 ? "text-emerald-600 font-bold" : "text-rose-600 font-bold"}>
+                          {simOpexPct > 0 ? `+${simOpexPct}%` : `${simOpexPct}%`}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={-20}
+                        max={40}
+                        step={1}
+                        value={simOpexPct}
+                        onChange={(e) => setSimOpexPct(Number(e.target.value))}
+                        className="w-full accent-rose-600 cursor-pointer"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-7 shadow-sm">
+                  <CardHeader>
+                    <CardTitle className="text-base">Kết quả Dự phóng Tài chính (What-If)</CardTitle>
+                    <CardDescription className="text-xs">
+                      So sánh trực tiếp giữa số liệu thực tế năm {selectedYear} và kịch bản giả lập
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Doanh thu dự kiến</div>
+                        <div className="text-sm font-bold text-blue-600 mt-0.5">{formatVND(projRev)}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Giá vốn dự kiến</div>
+                        <div className="text-sm font-bold text-amber-600 mt-0.5">{formatVND(projCogs)}</div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Lợi nhuận ròng</div>
+                        <div className={`text-sm font-bold mt-0.5 ${projNet >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          {formatVND(projNet)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg border bg-muted/20">
+                        <div className="text-[11px] text-muted-foreground">Biên ròng / Hòa vốn</div>
+                        <div className="text-sm font-bold text-indigo-600 mt-0.5">{projMarginPct}%</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Hòa vốn: {formatVND(breakEvenRev)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-[220px] w-full pt-2">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                          data={[
+                            { name: "Thực tế", revenue: baseRev, cogs: baseCogs, netProfit: summary?.netOperatingProfit || 0 },
+                            { name: "Kịch bản giả lập", revenue: projRev, cogs: projCogs, netProfit: projNet },
+                          ]}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1e6)}M`} />
+                          <Tooltip formatter={(v: any) => formatVND(Number(v || 0))} />
+                          <Legend />
+                          <Bar dataKey="revenue" name="Doanh thu thuần" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="cogs" name="Giá vốn (COGS)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="netProfit" name="Lợi nhuận ròng" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })()}
+        </TabsContent>
       </Tabs>
+
+      {/* ─── MODAL ĐỐI SOÁT SAO KÊ NGÂN HÀNG ─── */}
+      <Dialog open={openReconcileModal} onOpenChange={setOpenReconcileModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IconBuildingBank className="h-5 w-5 text-blue-600" />
+              Đối Soát Sao Kê Ngân Hàng Tự Động
+            </DialogTitle>
+            <DialogDescription>
+              So khớp nhanh các giao dịch ngân hàng thực tế với Sổ Quỹ SME để phát hiện khoản chưa vào sổ hoặc sai lệch số tiền.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {!reconcileResult ? (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Hệ thống hỗ trợ nạp sao kê mô phỏng hoặc danh sách giao dịch từ Vietcombank, MB, Techcombank:
+                </p>
+                <div className="p-3 bg-slate-50 rounded border text-xs font-mono space-y-1">
+                  <div>[1] 2026-10-12: +26.125.000 đ (KH chuyen khoan DH-20261008-IHTG7J)</div>
+                  <div>[2] 2026-10-12: -15.000.000 đ (Chi mua go tu NCC An Cuong)</div>
+                  <div>[3] 2026-10-13: +1.000.000 đ (Khach chuyen khoan DH-20261008-S1C9SQ)</div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded">
+                    <div className="text-xs text-blue-600 font-medium">Tỷ lệ khớp lệnh</div>
+                    <div className="text-2xl font-bold text-blue-800">{reconcileResult.matchedRate}%</div>
+                  </div>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded">
+                    <div className="text-xs text-emerald-600 font-medium">Đã khớp Sổ Quỹ</div>
+                    <div className="text-2xl font-bold text-emerald-800">{reconcileResult.matchedCount} GD</div>
+                  </div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded">
+                    <div className="text-xs text-amber-600 font-medium">Chưa có trong Sổ</div>
+                    <div className="text-2xl font-bold text-amber-800">{reconcileResult.unmatchedCount} GD</div>
+                  </div>
+                </div>
+
+                <div className="max-h-[220px] overflow-auto border rounded">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nội Dung GD</TableHead>
+                        <TableHead>Số Tiền</TableHead>
+                        <TableHead>Trạng Thái</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(reconcileResult.matched || []).map((m: any, idx: number) => (
+                        <TableRow key={`m-${idx}`}>
+                          <TableCell className="text-xs">{m.bankTx?.content || "Giao dịch khớp"}</TableCell>
+                          <TableCell className="text-xs font-semibold">{formatVND(m.ledgerEntry?.so_tien || 0)}</TableCell>
+                          <TableCell><Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">Đã Khớp ({m.ledgerEntry?.ma_phieu})</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                      {(reconcileResult.unmatchedBank || []).map((u: any, idx: number) => (
+                        <TableRow key={`u-${idx}`}>
+                          <TableCell className="text-xs">{u.bankTx?.content}</TableCell>
+                          <TableCell className="text-xs font-semibold text-amber-600">{formatVND(u.bankTx?.amount || 0)}</TableCell>
+                          <TableCell><Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">Chưa Lập Phiếu</Badge></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setOpenReconcileModal(false); setReconcileResult(null); }}>
+              Đóng
+            </Button>
+            {!reconcileResult && (
+              <Button
+                disabled={isReconciling}
+                onClick={async () => {
+                  setIsReconciling(true);
+                  try {
+                    const sampleTx = [
+                      { content: "DH-20261008-IHTG7J", amount: 26125000, type: "IN" },
+                      { content: "Chi mua go tu NCC An Cuong", amount: 15000000, type: "OUT" },
+                      { content: "DH-20261008-S1C9SQ", amount: 1000000, type: "IN" },
+                    ];
+                    const res = await reconcileBankAction(sampleTx);
+                    if (res.success && res.data) {
+                      setReconcileResult(res.data);
+                      toast.success("Đối soát sao kê ngân hàng hoàn tất!");
+                    } else {
+                      toast.error(res.error || "Không thể đối soát sao kê");
+                    }
+                  } catch {
+                    toast.error("Lỗi mạng khi đối soát");
+                  } finally {
+                    setIsReconciling(false);
+                  }
+                }}
+              >
+                {isReconciling ? "Đang đối soát..." : "Chạy Đối Soát Sao Kê Mẫu"}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

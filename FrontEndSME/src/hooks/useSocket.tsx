@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMyProfile } from "@/hooks/use-account";
 import {
   fetchNotificationsAction,
+  markNotificationReadAction,
   markAllNotificationsReadAction,
 } from "@/app/actions/notification";
 
@@ -28,6 +29,7 @@ export interface Notification {
 interface SocketContextValue {
   notifications: Notification[];
   unreadCount: number;
+  markRead: (id: string) => void;
   markAllRead: () => void;
   refreshNotifications: () => void;
 }
@@ -35,6 +37,7 @@ interface SocketContextValue {
 const SocketContext = createContext<SocketContextValue>({
   notifications: [],
   unreadCount: 0,
+  markRead: () => {},
   markAllRead: () => {},
   refreshNotifications: () => {},
 });
@@ -182,6 +185,13 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
   }, [isLoggedIn]);
 
+  const markRead = (id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+    );
+    markNotificationReadAction(id).catch(() => {});
+  };
+
   const markAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     markAllNotificationsReadAction().catch(() => {});
@@ -194,6 +204,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       value={{
         notifications,
         unreadCount,
+        markRead,
         markAllRead,
         refreshNotifications: loadNotifications,
       }}

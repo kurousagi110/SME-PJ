@@ -7,6 +7,7 @@ import LuongDAO from "../models/luongDAO.js";
 import { notifyDepartment, notifyUser } from "../utils/socketManager.js";
 import ApiError from "../utils/ApiError.js";
 import { isAdminUser } from "../middleware/auth.js";
+import { inferRoleCode, hasPermission } from "../utils/permissions.js";
 
 export default class ApprovalController {
   /* GET /api/v1/approvals/pending — Tổng hợp tất cả chứng từ đang chờ phê duyệt */
@@ -98,23 +99,42 @@ export default class ApprovalController {
 
     const isApprove = hanh_dong === "approve";
     const isDirectorOrAdmin = isAdminUser(user);
+
+    const assertNotSelfApproval = (doc, label) => {
+      if (!isApprove || isDirectorOrAdmin || !doc) return;
+      const creatorId = doc.nguoi_lap_id || doc.created_by?.user_id || doc.created_by?._id;
+      const creatorUsername = doc.nguoi_lap_tai_khoan || doc.created_by?.tai_khoan;
+      const sameId = creatorId && String(creatorId) === String(user._id);
+      const sameUser = creatorUsername && user?.tai_khoan && creatorUsername === user.tai_khoan;
+      if (sameId || sameUser) {
+        throw ApiError.forbidden(`Không thể tự duyệt ${label} của chính mình (trừ quản trị viên)`, "SELF_APPROVE_FORBIDDEN");
+      }
+    };
+    const roleCode = inferRoleCode(user);
     const isChiefAccountant =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Kế toán trưởng" ||
-      user?.chuc_vu?.ten === "Kế toán" ||
-      user?.phong_ban?.ten === "Phòng kế toán";
+      roleCode === "chief_accountant" ||
+      hasPermission(user, ["payroll.manage", "finance.manage"]) ||
+      user?.chuc_vu?.ten === "Kế toán trưởng";
     const isSalesManager =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Trưởng phòng" ||
-      user?.phong_ban?.ten === "Phòng kinh doanh";
+      roleCode === "sales_manager" ||
+      hasPermission(user, "sales.approve") ||
+      (user?.phong_ban?.ten === "Phòng kinh doanh" &&
+        (user?.chuc_vu?.ten || "").toLowerCase().includes("trưởng"));
     const isWarehouseApprover =
       isDirectorOrAdmin ||
-      user?.chuc_vu?.ten === "Thủ kho" ||
-      user?.phong_ban?.ten === "Phòng kho";
+      roleCode === "warehouse_manager" ||
+      hasPermission(user, ["warehouse.approve", "purchase.manage"]) ||
+      user?.chuc_vu?.ten === "Thủ kho";
 
     if (loai === "purchase") {
       if (!isWarehouseApprover) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn mua hàng");
+      }
+      if (ObjectId.isValid(id)) {
+        const po = await db.collection("don_hang").findOne({ _id: new ObjectId(id) });
+        assertNotSelfApproval(po, "đơn mua hàng");
       }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {
@@ -139,6 +159,8 @@ export default class ApprovalController {
       if (!isWarehouseApprover) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu điều chỉnh kho");
       }
+      const phieu = await DieuChinhKhoDAO.getById(id);
+      assertNotSelfApproval(phieu, "phiếu điều chỉnh kho");
       if (isApprove) {
         await DieuChinhKhoDAO.duyetPhieu(id, user);
       } else {
@@ -161,6 +183,10 @@ export default class ApprovalController {
     if (loai === "sale") {
       if (!isSalesManager) {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn bán hàng");
+      }
+      if (ObjectId.isValid(id)) {
+        const saleOrder = await db.collection("don_hang").findOne({ _id: new ObjectId(id) });
+        assertNotSelfApproval(saleOrder, "đơn bán hàng");
       }
       const nextStatus = isApprove ? "confirmed" : "cancelled";
       await DonHangService.updateStatus(id, nextStatus, {
@@ -224,8 +250,13 @@ export default class ApprovalController {
         throw ApiError.forbidden("Bạn không có quyền phê duyệt phiếu đổi trả hàng");
       }
 
+      const db = getDB();
+      if (isApprove) {
+        const rmaDoc = await db.collection("doi_tra_hang").findOne({ ma_rma: String(id) });
+        assertNotSelfApproval(rmaDoc, "phiếu đổi trả hàng");
+      }
+
       if (!isApprove) {
-        const db = getDB();
         await db.collection("doi_tra_hang").updateOne(
           { ma_rma: String(id) },
           {
@@ -241,7 +272,6 @@ export default class ApprovalController {
       }
 
       // Khi approve → chuyển sang bước kiểm định kho (kiem_tra_qc)
-      const db = getDB();
       await db.collection("doi_tra_hang").updateOne(
         { ma_rma: String(id) },
         {

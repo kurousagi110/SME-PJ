@@ -7,19 +7,79 @@ import UserService from "../services/userService.js";
 export default class UsersController {
   /* ─── AUTH ─── */
   static register = asyncHandler(async (req, res) => {
-    // SECURITY: register is public. Chỉ nhận các field an toàn.
-    // KHÔNG nhận chuc_vu / phong_ban — tránh privilege escalation
-    // (attacker tạo user tự xưng "Giám đốc/Phòng giám đốc" → admin).
-    // Phân quyền phải do admin set qua /users/:id/set-chuc-vu, set-phong-ban.
+    // SECURITY: Trong môi trường production ERP nội bộ, tắt tự đăng ký công khai
+    // trừ khi bật rõ ràng ALLOW_PUBLIC_REGISTER=true.
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_PUBLIC_REGISTER !== "true") {
+      return res.status(403).json({
+        success: false,
+        message: "Chức năng tự đăng ký đã bị khóa. Vui lòng liên hệ Quản trị viên hoặc Nhân sự để được cấp tài khoản.",
+      });
+    }
     const { ho_ten, ngay_sinh, tai_khoan, password } = req.body || {};
     const data = await UserService.register({ ho_ten, ngay_sinh, tai_khoan, password });
     return sendSuccess(res, data, "Đăng ký thành công", 201);
   });
 
+  /* Admin tạo nhân viên mới kèm phòng ban, chức vụ & phân quyền */
+  static createByAdmin = asyncHandler(async (req, res) => {
+    const {
+      ho_ten,
+      ngay_sinh,
+      tai_khoan,
+      password,
+      chuc_vu = null,
+      phong_ban = null,
+      role = "user",
+      quyen_han = [],
+    } = req.body || {};
+    const data = await UserService.createByAdmin({
+      ho_ten,
+      ngay_sinh,
+      tai_khoan,
+      password,
+      chuc_vu,
+      phong_ban,
+      role,
+      quyen_han,
+    });
+    return sendSuccess(res, data, "Tạo nhân viên thành công", 201);
+  });
+
+  static getRoleMetadata = asyncHandler(async (_req, res) => {
+    const data = UserService.getRoleMetadata();
+    return sendSuccess(res, data, "Lấy danh mục vai trò và quyền hạn thành công");
+  });
+
   static login = asyncHandler(async (req, res) => {
     const { tai_khoan, password } = req.body || {};
     const data = await UserService.login({ tai_khoan, password });
-    return sendSuccess(res, data, "Đăng nhập thành công");
+    return sendSuccess(res, data, data?.requires2fa ? "Vui lòng nhập mã xác thực 2FA" : "Đăng nhập thành công");
+  });
+
+  static verifyTwoFactorLogin = asyncHandler(async (req, res) => {
+    const { tempToken, code } = req.body || {};
+    const data = await UserService.verifyTwoFactorLogin({ tempToken, code });
+    return sendSuccess(res, data, "Xác thực 2FA và đăng nhập thành công");
+  });
+
+  static setupTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const data = await UserService.setupTwoFactor(userId);
+    return sendSuccess(res, data, "Đã tạo khóa thiết lập 2FA");
+  });
+
+  static enableTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const { code } = req.body || {};
+    const data = await UserService.enableTwoFactor(userId, { code });
+    return sendSuccess(res, data, "Đã kích hoạt bảo mật 2 lớp (2FA)");
+  });
+
+  static disableTwoFactor = asyncHandler(async (req, res) => {
+    const userId = req.user._id.toString();
+    const { password, code } = req.body || {};
+    const data = await UserService.disableTwoFactor(userId, { password, code });
+    return sendSuccess(res, data, "Đã tắt bảo mật 2 lớp (2FA)");
   });
 
   // SECURITY: userId luôn lấy từ req.user._id (JWT) — KHÔNG tin body.userId.
@@ -83,9 +143,22 @@ export default class UsersController {
 
   /* ─── CHỨC VỤ ─── */
   static setChucVu = asyncHandler(async (req, res) => {
-    const { ten = "", mo_ta = "", heSoluong = null } = req.body || {};
-    const data = await UserService.setChucVu(req.params.id, { ten, mo_ta, heSoluong });
+    const { ten = "", mo_ta = "", heSoluong = null, role_code, quyen_han } = req.body || {};
+    const data = await UserService.setChucVu(req.params.id, {
+      ten,
+      mo_ta,
+      heSoluong,
+      role_code,
+      quyen_han,
+    });
     return sendSuccess(res, data, "Thiết lập chức vụ thành công");
+  });
+
+  /* ─── ROLE & QUYỀN HẠN ─── */
+  static setUserRole = asyncHandler(async (req, res) => {
+    const { role = "user", quyen_han } = req.body || {};
+    const data = await UserService.setUserRole(req.params.id, { role, quyen_han });
+    return sendSuccess(res, data, "Cập nhật phân quyền thành công");
   });
 
   static updateChucVu = asyncHandler(async (req, res) => {

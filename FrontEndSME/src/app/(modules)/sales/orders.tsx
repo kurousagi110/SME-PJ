@@ -8,8 +8,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { toast } from "sonner";
 import { Check, ChevronsUpDown } from "lucide-react";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash, IconTicket, IconTag, IconAlertTriangle } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { validateCouponAction } from "@/app/actions/order-sale";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,6 +140,10 @@ export default function Orders() {
   const createMutation = useCreateOrderSale();
 
   const [customers, setCustomers] = React.useState<DoiTacItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = React.useState<DoiTacItem | null>(null);
+  const [couponCode, setCouponCode] = React.useState<string>("");
+  const [applyingCoupon, setApplyingCoupon] = React.useState<boolean>(false);
+
   React.useEffect(() => {
     fetchDoiTacAction({ loai_doi_tac: "khach_hang", limit: 100 })
       .then((res) => {
@@ -145,6 +151,7 @@ export default function Orders() {
       })
       .catch(() => {});
   }, []);
+
 
   /* ===== Form ===== */
   const form = useForm<FormValues>({
@@ -326,6 +333,7 @@ export default function Orders() {
                       onValueChange={(val) => {
                         const c = customers.find((x) => x._id === val || x.ten === val);
                         if (c) {
+                          setSelectedCustomer(c);
                           setValue("khach_hang_ten", c.ten, { shouldValidate: true });
                           if (c.dia_chi && !getValues("ghi_chu")) {
                             setValue("ghi_chu", `Địa chỉ: ${c.dia_chi}${c.so_dien_thoai ? ` - SĐT: ${c.so_dien_thoai}` : ""}`);
@@ -346,6 +354,38 @@ export default function Orders() {
                     </Select>
                   )}
                 </div>
+                {selectedCustomer && (
+                  <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 border rounded text-xs mt-1">
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Nhóm giá:</span>
+                      <Badge variant="outline" className="font-semibold text-primary">
+                        {(selectedCustomer.nhom as string) === "vip"
+                          ? "Khách VIP (-10%)"
+                          : (selectedCustomer.nhom as string) === "dai_ly_c1" || (selectedCustomer.nhom as string) === "khach_buon"
+                          ? "Đại lý / Bán buôn (-25%)"
+                          : (selectedCustomer.nhom as string) === "dai_ly_c2"
+                          ? "Đại lý C2 (-15%)"
+                          : "Khách lẻ niêm yết"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-muted-foreground">Nợ hiện tại:</span>
+                      <b className="text-slate-800">{Number(selectedCustomer.cong_no || 0).toLocaleString("vi-VN")} đ</b>
+                    </div>
+                    {Number(selectedCustomer.han_muc_cong_no || 0) > 0 && (
+                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground">Hạn mức tín dụng:</span>
+                        <b className="text-blue-700">{Number(selectedCustomer.han_muc_cong_no).toLocaleString("vi-VN")} đ</b>
+                      </div>
+                    )}
+                    {Number(selectedCustomer.han_muc_cong_no || 0) > 0 &&
+                      (Number(selectedCustomer.cong_no || 0) + tongThanhToan > Number(selectedCustomer.han_muc_cong_no)) && (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        <IconAlertTriangle className="h-3 w-3" /> Cảnh báo: Vượt hạn mức tín dụng!
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 {errors.khach_hang_ten ? (
                   <p className="text-xs text-red-500">
                     {errors.khach_hang_ten.message}
@@ -362,7 +402,7 @@ export default function Orders() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
               <div className="flex flex-col gap-1.5">
                 <Label>Thuế rate</Label>
                 <Input
@@ -388,9 +428,49 @@ export default function Orders() {
                 />
                 {giamGiaVuot ? (
                   <p className="text-xs text-red-500">
-                    Giảm giá vượt quá tổng (tạm tính + thuế + phí VC). Vui lòng giảm.
+                    Giảm giá vượt quá tổng. Vui lòng giảm.
                   </p>
                 ) : null}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1">
+                  <IconTicket className="h-3.5 w-3.5 text-primary" />
+                  Mã Ưu Đãi / Voucher B2B
+                </Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    placeholder="VD: SME5, SME10..."
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    className="font-mono text-xs uppercase"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={applyingCoupon || !couponCode}
+                    onClick={async () => {
+                      if (!couponCode.trim()) return;
+                      setApplyingCoupon(true);
+                      try {
+                        const res = await validateCouponAction({ code: couponCode, orderAmount: tamTinh });
+                        if (res.success && res.data) {
+                          setValue("giam_gia", res.data.discountAmount, { shouldValidate: true });
+                          toast.success(res.data.message || `Đã giảm ${res.data.discountAmount.toLocaleString("vi-VN")} đ`);
+                        } else {
+                          toast.error(res.error || "Mã ưu đãi không hợp lệ");
+                        }
+                      } catch {
+                        toast.error("Lỗi khi kiểm tra mã ưu đãi");
+                      } finally {
+                        setApplyingCoupon(false);
+                      }
+                    }}
+                  >
+                    {applyingCoupon ? "..." : "Dùng"}
+                  </Button>
+                </div>
               </div>
             </div>
 

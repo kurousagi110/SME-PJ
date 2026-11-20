@@ -43,7 +43,7 @@ export default function QueryProvider({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <GlobalLoadingBar />
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {process.env.NODE_ENV === "development" ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
   );
 }

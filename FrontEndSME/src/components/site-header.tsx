@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/NotificationBell";
 import { StockAlertBadge } from "@/components/stock-alert-badge";
 import { CommandPalette } from "@/components/command-palette";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { usePathname } from "next/navigation";
 
 export function SiteHeader() {
@@ -16,8 +17,12 @@ export function SiteHeader() {
 
   const getBreadcrumbTitle = (path: string) => {
     if (path.startsWith("/dashboard")) return "Bảng Điều Khiển";
+    if (path.startsWith("/approvals")) return "Trình Ký & Phê Duyệt";
     if (path.startsWith("/pos")) return "Quầy Thu Ngân POS";
+    if (path.startsWith("/quotations")) return "Báo Giá B2B";
     if (path.startsWith("/sales")) return "Đơn Bán Hàng";
+    if (path.startsWith("/contracts")) return "Hợp Đồng & Bảo Hành";
+    if (path.startsWith("/returns")) return "Đổi & Trả Hàng (RMA)";
     if (path.startsWith("/shipping")) return "Vận Chuyển & Giao Hàng";
     if (path.startsWith("/partners")) return "Khách Hàng & Nhà Cung Cấp";
     if (path.startsWith("/barcode")) return "In Mã Vạch Tem";
@@ -26,7 +31,10 @@ export function SiteHeader() {
     if (path.startsWith("/material/catalog")) return "Danh Mục Vật Tư";
     if (path.startsWith("/material/orders")) return "Đơn Nhập Mua Hàng";
     if (path.startsWith("/warehouse")) return "Tồn Kho Tổng Hợp";
-    if (path.startsWith("/dieu-chinh-kho")) return "Kiểm Kê Điều Chỉnh";
+    if (path.startsWith("/stock-adjustments") || path.startsWith("/dieu-chinh-kho")) return "Kiểm Kê Điều Chỉnh";
+    if (path.startsWith("/traceability")) return "Truy Xuất Lô Hàng (FEFO)";
+    if (path.startsWith("/stock-ledger")) return "Thẻ Kho & Xuất Nhập Tồn";
+    if (path.startsWith("/financial-reports")) return "Báo Cáo Tài Chính (P&L)";
     if (path.startsWith("/cashbook")) return "Sổ Quỹ & Công Nợ";
     if (path.startsWith("/payroll")) return "Bảng Lương";
     if (path.startsWith("/check-in")) return "Chấm Công";
@@ -35,6 +43,7 @@ export function SiteHeader() {
     if (path.startsWith("/planning")) return "Demand Planning";
     if (path.startsWith("/import")) return "Nhập Dữ Liệu Excel";
     if (path.startsWith("/audit-log")) return "Nhật Ký Hệ Thống";
+    if (path.startsWith("/automation")) return "Tự Động Hóa & Bot";
     if (path.startsWith("/account")) return "Tài Khoản";
     return "Hệ Thống";
   };
@@ -98,6 +107,9 @@ export function SiteHeader() {
 
           {/* Chuông thông báo Socket.io */}
           <NotificationBell />
+
+          {/* Nút chuyển đổi giao diện Sáng / Tối */}
+          <ThemeToggle />
         </div>
       </div>
 

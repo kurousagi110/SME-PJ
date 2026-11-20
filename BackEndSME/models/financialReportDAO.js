@@ -6,6 +6,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import COGSService from "../services/cogsService.js";
+import { reconcileBankTransactions } from "../utils/bankReconcileEngine.js";
 
 let donHangCol = null;
 let soQuyCol = null;
@@ -15,6 +16,7 @@ let returnCol = null;
 let doiTacCol = null;
 let luongCol = null;
 let bangLuongChotCol = null;
+let hopDongCol = null;
 
 export default class FinancialReportDAO {
   static async injectDB(conn) {
@@ -26,10 +28,11 @@ export default class FinancialReportDAO {
     soQuyCol = db.collection("so_quy");
     sanPhamCol = db.collection("san_pham");
     nguyenLieuCol = db.collection("nguyen_lieu");
-    returnCol = db.collection("doi_tra");
+    returnCol = db.collection("doi_tra_hang");
     doiTacCol = db.collection("doi_tac");
     luongCol = db.collection("luong");
     bangLuongChotCol = db.collection("bang_luong_chot");
+    hopDongCol = db.collection("hop_dong");
 
     COGSService.injectDB(db);
     logger.info("FinancialReportDAO initialized");
@@ -555,4 +558,356 @@ export default class FinancialReportDAO {
       return { error: err.message };
     }
   }
+
+  /**
+   * Dự Báo Dòng Tiền & Cảnh Báo Ngân Quỹ (Cash Flow Forecasting & Runway)
+   * Dự phóng dòng tiền vào / ra 30 - 60 - 90 ngày tới
+   */
+  static async getCashFlowForecast({ days = 90 } = {}) {
+    try {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      // 1. Số dư quỹ tiền mặt hiện tại
+      const cashbookAgg = await soQuyCol
+        .aggregate([
+          { $match: { trang_thai: "active" } },
+          {
+            $group: {
+              _id: "$loai_phieu",
+              total: { $sum: { $toDouble: { $ifNull: ["$so_tien", 0] } } },
+            },
+          },
+        ])
+        .toArray();
+
+      let currentIn = 0;
+      let currentOut = 0;
+      for (const item of cashbookAgg) {
+        if (item._id === "thu") currentIn = item.total;
+        else if (item._id === "chi") currentOut = item.total;
+      }
+      const currentCashBalance = Math.max(0, currentIn - currentOut);
+
+      // 2. Tính mức chi tiêu vận hành trung bình hàng tháng (Monthly Burn Rate) từ 90 ngày qua
+      const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
+      const pastExpenses = await soQuyCol
+        .aggregate([
+          {
+            $match: {
+              loai_phieu: "chi",
+              trang_thai: "active",
+              $or: [
+                { ngay_ghi_nhan: { $gte: ninetyDaysAgo } },
+                { created_at: { $gte: ninetyDaysAgo } },
+              ],
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalOpex: { $sum: { $toDouble: { $ifNull: ["$so_tien", 0] } } },
+            },
+          },
+        ])
+        .toArray();
+
+      const totalPastOpex = pastExpenses[0]?.totalOpex || 0;
+      const monthlyBurnRate = Math.round(totalPastOpex > 0 ? totalPastOpex / 3 : 45000000);
+      const runwayMonths = monthlyBurnRate > 0 ? Math.round((currentCashBalance / monthlyBurnRate) * 10) / 10 : 99;
+
+      // 3. Nạp đồng thời công nợ khách hàng, công nợ NCC, đối tác (kỳ hạn thực tế), Hợp đồng B2B & Bảng lương chốt gần nhất
+      const [unpaidSales, unpaidPurchases, partners, activeContracts, latestPayrolls] = await Promise.all([
+        donHangCol
+          .find({
+            loai_don: "sale",
+            trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+            "thanh_toan.status": { $ne: "paid" },
+          })
+          .toArray(),
+        donHangCol
+          .find({
+            loai_don: "purchase_receipt",
+            trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+            "thanh_toan.status": { $ne: "paid" },
+          })
+          .toArray(),
+        doiTacCol
+          ? doiTacCol
+              .find({ trang_thai: { $ne: "deleted" } })
+              .project({ _id: 1, ten: 1, han_thanh_toan_ngay: 1 })
+              .toArray()
+          : [],
+        hopDongCol
+          ? hopDongCol
+              .find({
+                trang_thai: { $nin: ["completed", "cancelled", "deleted"] },
+                "dot_thanh_toan.trang_thai": "pending",
+              })
+              .project({ ma_hop_dong: 1, partner_name: 1, ngay_ky: 1, ngay_het_han: 1, dot_thanh_toan: 1 })
+              .toArray()
+          : [],
+        bangLuongChotCol
+          ? bangLuongChotCol
+              .find({})
+              .sort({ nam: -1, thang: -1, created_at: -1 })
+              .limit(1)
+              .toArray()
+          : [],
+      ]);
+
+      // Map kỳ hạn thanh toán thực tế theo đối tác (mặc định 30 ngày)
+      const termById = new Map();
+      const termByName = new Map();
+      for (const p of partners) {
+        const term = Math.max(1, Number(p.han_thanh_toan_ngay || 30));
+        if (p._id) termById.set(String(p._id), term);
+        if (p.ten) termByName.set(String(p.ten).trim().toLowerCase(), term);
+      }
+
+      const resolvePaymentTerm = (partnerId, partnerName) =>
+        termById.get(String(partnerId || "")) ||
+        termByName.get(String(partnerName || "").trim().toLowerCase()) ||
+        30;
+
+      const projectedInflows = [];
+      for (const order of unpaidSales) {
+        const orderDate = new Date(order.ngay_dat || order.created_at || now);
+        const total = Number(order.tong_tien || 0);
+        const paid = Number(order.thanh_toan?.da_thanh_toan || 0);
+        const remaining = Math.max(0, total - paid);
+        if (remaining <= 0) continue;
+
+        const termDays = resolvePaymentTerm(order.doi_tac_id, order.khach_hang_ten);
+        let expectedDate = new Date(orderDate.getTime() + termDays * 86400000);
+        if (expectedDate < now) {
+          expectedDate = new Date(now.getTime() + 7 * 86400000); // Đốc thúc thu trong tuần tới
+        }
+
+        projectedInflows.push({
+          source: "Khách hàng nợ tiền hàng",
+          referenceCode: order.ma_dh,
+          partnerName: order.khach_hang_ten || "Khách mua hàng",
+          amount: remaining,
+          paymentTermDays: termDays,
+          dueDate: expectedDate,
+        });
+      }
+
+      // 3b. Dự thu từ các đợt thanh toán Hợp đồng B2B (Milestone Billing)
+      const horizonEnd = new Date(now.getTime() + days * 86400000);
+      for (const contract of activeContracts) {
+        const milestones = Array.isArray(contract.dot_thanh_toan) ? contract.dot_thanh_toan : [];
+        milestones.forEach((m, idx) => {
+          if (m.trang_thai !== "pending") return;
+          const amount = Number(m.so_tien || 0);
+          if (amount <= 0) return;
+
+          // Ưu tiên ngày hạn đợt thanh toán thực tế; nếu chưa có thì phân bổ theo hợp đồng
+          let dueDate = m.han_thanh_toan
+            ? new Date(m.han_thanh_toan)
+            : new Date(
+                new Date(contract.ngay_ky || now).getTime() + (idx + 1) * 30 * 86400000
+              );
+          if (Number.isNaN(dueDate.getTime()) || dueDate < now) {
+            dueDate = new Date(now.getTime() + 10 * 86400000);
+          }
+          if (dueDate <= horizonEnd) {
+            projectedInflows.push({
+              source: `Hợp đồng B2B (${m.ten_dot || `Đợt ${idx + 1}`})`,
+              referenceCode: contract.ma_hop_dong,
+              partnerName: contract.partner_name || "Đối tác B2B",
+              amount,
+              dueDate,
+            });
+          }
+        });
+      }
+
+      // 4. Dự chi công nợ nhà cung cấp (Payables) theo kỳ hạn thực tế NCC
+      const projectedOutflows = [];
+      for (const po of unpaidPurchases) {
+        const poDate = new Date(po.ngay_dat || po.created_at || now);
+        const total = Number(po.tong_tien || 0);
+        const paid = Number(po.thanh_toan?.da_thanh_toan || 0);
+        const remaining = Math.max(0, total - paid);
+        if (remaining <= 0) continue;
+
+        const termDays = resolvePaymentTerm(po.doi_tac_id || po.nha_cung_cap_id, po.nha_cung_cap_ten);
+        let expectedDate = new Date(poDate.getTime() + termDays * 86400000);
+        if (expectedDate < now) {
+          expectedDate = new Date(now.getTime() + 5 * 86400000);
+        }
+
+        projectedOutflows.push({
+          purpose: "Thanh toán NCC vật tư",
+          referenceCode: po.ma_dh,
+          partnerName: po.nha_cung_cap_ten || "Nhà cung cấp",
+          amount: remaining,
+          paymentTermDays: termDays,
+          dueDate: expectedDate,
+        });
+      }
+
+      // Dự chi quỹ lương nhân sự định kỳ (ngày 05 hàng tháng) — ưu tiên số liệu bảng lương chốt gần nhất
+      const latestPayrollDoc = latestPayrolls[0];
+      const latestPayrollTotal = Number(
+        latestPayrollDoc?.tong_thuc_nhan ||
+          latestPayrollDoc?.tong_luong ||
+          (Array.isArray(latestPayrollDoc?.chi_tiet)
+            ? latestPayrollDoc.chi_tiet.reduce((s, r) => s + Number(r.luong_thuc_nhan || 0), 0)
+            : 0)
+      );
+      const estimatedMonthlyPayroll =
+        latestPayrollTotal > 0 ? Math.round(latestPayrollTotal) : Math.round(monthlyBurnRate * 0.55);
+      for (let m = 1; m <= 3; m++) {
+        const payDate = new Date(now.getFullYear(), now.getMonth() + m, 5);
+        if (payDate > now && payDate <= horizonEnd) {
+          projectedOutflows.push({
+            purpose:
+              latestPayrollTotal > 0
+                ? "Dự chi quỹ lương nhân viên (theo kỳ lương chốt gần nhất)"
+                : "Dự chi quỹ lương nhân viên định kỳ",
+            referenceCode: `PAYROLL-M${payDate.getMonth() + 1}`,
+            partnerName: "Toàn bộ nhân sự",
+            amount: estimatedMonthlyPayroll,
+            dueDate: payDate,
+          });
+        }
+      }
+
+      // Dự chi chi phí vận hành cố định (mặt bằng, điện nước, vận chuyển)
+      const estimatedOpFixed = Math.max(
+        0,
+        latestPayrollTotal > 0
+          ? Math.round(Math.max(monthlyBurnRate - latestPayrollTotal, monthlyBurnRate * 0.25))
+          : Math.round(monthlyBurnRate * 0.45)
+      );
+      for (let m = 1; m <= 3; m++) {
+        const opDate = new Date(now.getFullYear(), now.getMonth() + m, 15);
+        if (opDate > now && opDate <= horizonEnd) {
+          projectedOutflows.push({
+            purpose: "Dự chi tiền thuê mặt bằng, điện nước & logistics",
+            referenceCode: `OPEX-M${opDate.getMonth() + 1}`,
+            partnerName: "Ban quản lý & Nhà mạng",
+            amount: estimatedOpFixed,
+            dueDate: opDate,
+          });
+        }
+      }
+
+      // 5. Phân bổ theo 12 tuần (Timeline 90 ngày)
+      const weeklyBuckets = [];
+      let runningCash = currentCashBalance;
+      const numWeeks = Math.ceil(days / 7);
+
+      for (let w = 0; w < numWeeks; w++) {
+        const weekStart = new Date(now.getTime() + w * 7 * 86400000);
+        const weekEnd = new Date(weekStart.getTime() + 7 * 86400000 - 1);
+
+        const wInflows = projectedInflows
+          .filter((item) => item.dueDate >= weekStart && item.dueDate <= weekEnd)
+          .reduce((sum, item) => sum + item.amount, 0);
+
+        const wOutflows = projectedOutflows
+          .filter((item) => item.dueDate >= weekStart && item.dueDate <= weekEnd)
+          .reduce((sum, item) => sum + item.amount, 0);
+
+        const openingCash = runningCash;
+        const netCashflow = wInflows - wOutflows;
+        runningCash = openingCash + netCashflow;
+
+        weeklyBuckets.push({
+          week: `Tuần ${w + 1}`,
+          startDate: weekStart.toISOString().slice(0, 10),
+          endDate: weekEnd.toISOString().slice(0, 10),
+          openingCash,
+          inflows: wInflows,
+          outflows: wOutflows,
+          netCashflow,
+          closingCash: runningCash,
+          isDeficit: runningCash < 0,
+        });
+      }
+
+      // Đánh giá mức độ an toàn ngân quỹ
+      let healthStatus = "HEALTHY";
+      let healthAdvice = "Dòng tiền ổn định, ngân quỹ duy trì trên mức an toàn.";
+      if (weeklyBuckets.some((wb) => wb.isDeficit)) {
+        healthStatus = "DANGER";
+        healthAdvice = "CẢNH BÁO: Dự phóng thâm hụt tiền mặt trong kỳ. Cần đôn đốc thu hồi nợ xấu hoặc giãn nợ NCC!";
+      } else if (runwayMonths < 2) {
+        healthStatus = "WARNING";
+        healthAdvice = "Ngân quỹ dự trữ mỏng (< 2 tháng hoạt động). Khuyến nghị siết chặt chi phí cố định.";
+      }
+
+      return {
+        ok: true,
+        currentCashBalance,
+        monthlyBurnRate,
+        runwayMonths,
+        healthStatus,
+        healthAdvice,
+        totalProjectedInflow: projectedInflows.reduce((s, i) => s + i.amount, 0),
+        totalProjectedOutflow: projectedOutflows.reduce((s, i) => s + i.amount, 0),
+        weeklyBuckets,
+        topReceivables: projectedInflows.sort((a, b) => b.amount - a.amount).slice(0, 10),
+        topPayables: projectedOutflows.sort((a, b) => b.amount - a.amount).slice(0, 10),
+      };
+    } catch (err) {
+      logger.error("[FinancialReportDAO.getCashFlowForecast] Error", { error: err.message });
+      return { error: err.message };
+    }
+  }
+
+  /**
+   * Đối Soát Sao Kê Ngân Hàng Tự Động (Bank Reconciliation)
+   * Khử N+1 query: batch-fetch 1 lần các phiếu Sổ Quỹ ứng viên rồi đối soát đa tiêu chí
+   * (mã chứng từ + số tiền + độ gần ngày + chống khớp trùng).
+   */
+  static async reconcileBankStatement({ transactions = [] } = {}) {
+    try {
+      if (!Array.isArray(transactions) || transactions.length === 0) {
+        return { ok: false, message: "Danh sách giao dịch sao kê trống" };
+      }
+
+      const uniqueAmounts = [
+        ...new Set(
+          transactions
+            .map((tx) => Math.round(Math.abs(Number(tx?.amount ?? tx?.so_tien ?? 0))))
+            .filter((amt) => Number.isFinite(amt) && amt > 0)
+        ),
+      ];
+
+      // 1 query duy nhất lấy toàn bộ ứng viên phiếu sổ quỹ cùng danh sách số tiền
+      const candidateEntries =
+        uniqueAmounts.length > 0
+          ? await soQuyCol
+              .find({
+                trang_thai: "active",
+                so_tien: { $in: uniqueAmounts },
+              })
+              .project({
+                _id: 1,
+                ma_phieu: 1,
+                ma_chung_tu: 1,
+                loai_phieu: 1,
+                so_tien: 1,
+                ngay_ghi_nhan: 1,
+                created_at: 1,
+                ghi_chu: 1,
+                ly_do: 1,
+                doi_tuong: 1,
+                trang_thai: 1,
+              })
+              .toArray()
+          : [];
+
+      return reconcileBankTransactions(transactions, candidateEntries);
+    } catch (err) {
+      logger.error("[FinancialReportDAO.reconcileBankStatement] Error", { error: err.message });
+      return { error: err.message };
+    }
+  }
 }
+

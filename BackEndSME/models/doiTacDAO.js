@@ -1,5 +1,7 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
+import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import { computeCrmRfmAndChurn } from "../utils/crmIntelligence.js";
 
 export const LOAI_DOI_TAC = {
   KHACH_HANG: "khach_hang",
@@ -116,7 +118,7 @@ export default class DoiTacDAO {
       }
 
       if (search && search.trim()) {
-        const regex = new RegExp(search.trim(), "i");
+        const regex = new RegExp(escapeSafeRegexPattern(search), "i");
         conditions.push({
           $or: [
             { ma_doi_tac: regex },
@@ -429,11 +431,14 @@ export default class DoiTacDAO {
           $or: [{ loai_doi_tac: LOAI_DOI_TAC.NHA_CUNG_CAP }, { loai_doi_tac: LOAI_DOI_TAC.CA_HAI }],
         }),
         donHangCol
-          .find({ loai_don: "sale", trang_thai: { $nin: ["draft", "cancelled", "deleted"] } })
+          .aggregate([
+            { $match: { loai_don: "sale", trang_thai: { $nin: ["draft", "cancelled", "deleted"] } } },
+            { $group: { _id: null, tong_ltv: { $sum: { $ifNull: ["$tong_tien", 0] } } } },
+          ])
           .toArray(),
       ]);
 
-      const tong_ltv = allSalesOrders.reduce((sum, o) => sum + (Number(o.tong_tien) || 0), 0);
+      const tong_ltv = Number(allSalesOrders[0]?.tong_ltv || 0);
 
       return {
         ok: true,
@@ -444,6 +449,38 @@ export default class DoiTacDAO {
       };
     } catch (e) {
       logger.error("DoiTacDAO.layTongQuanCRM error", { error: e.message });
+      return { error: e };
+    }
+  }
+
+  /**
+   * Phân tích CRM thông minh: Phân hạng RFM & Dự báo khách hàng có nguy cơ rời bỏ (Churn Risk).
+   */
+  static async layPhanTichRfmVaChurn() {
+    try {
+      const [partners, salesOrders] = await Promise.all([
+        doiTacCol
+          .find({
+            trang_thai: { $ne: "deleted" },
+            loai_doi_tac: { $in: [LOAI_DOI_TAC.KHACH_HANG, LOAI_DOI_TAC.CA_HAI] },
+          })
+          .project({ _id: 1, ma_doi_tac: 1, ten: 1, so_dien_thoai: 1, nhom: 1, loai_doi_tac: 1, trang_thai: 1 })
+          .toArray(),
+        donHangCol
+          .find({
+            loai_don: "sale",
+            trang_thai: { $nin: ["draft", "cancelled", "deleted"] },
+          })
+          .project({ doi_tac_id: 1, khach_hang_ten: 1, tong_tien: 1, ngay_dat: 1, created_at: 1, trang_thai: 1 })
+          .toArray(),
+      ]);
+
+      return {
+        ok: true,
+        ...computeCrmRfmAndChurn(partners, salesOrders),
+      };
+    } catch (e) {
+      logger.error("DoiTacDAO.layPhanTichRfmVaChurn error", { error: e.message });
       return { error: e };
     }
   }

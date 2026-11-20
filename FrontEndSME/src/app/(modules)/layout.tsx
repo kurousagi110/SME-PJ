@@ -2,7 +2,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { SocketProvider } from "@/hooks/useSocket";
-import { AiCopilotWidget } from "@/components/ai-copilot-widget";
+import { AiCopilotLauncher } from "@/components/ai-copilot-launcher";
 
 export default function ModuleLayout({
   children,
@@ -29,7 +29,7 @@ export default function ModuleLayout({
               </div>
             </div>
           </div>
-          <AiCopilotWidget />
+          <AiCopilotLauncher />
         </SidebarInset>
       </SidebarProvider>
     </SocketProvider>

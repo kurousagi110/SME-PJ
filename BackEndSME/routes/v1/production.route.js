@@ -25,4 +25,9 @@ router.get("/logs", verifyToken, SanXuatController.getLogs);
 router.get("/lots", verifyToken, SanXuatController.getLogs);
 router.get("/lots/:ma_lo", verifyToken, SanXuatController.getByMaLo);
 
+/* ─── KANBAN TIẾN ĐỘ & HAO HỤT XƯỞNG ─── */
+router.get("/kanban",               verifyToken, SanXuatController.getKanbanBoard);
+router.patch("/:orderId/stage",     verifyToken, SanXuatController.updateOrderStage);
+router.get("/scrap-report",         verifyToken, SanXuatController.getScrapReport);
+
 export default router;
