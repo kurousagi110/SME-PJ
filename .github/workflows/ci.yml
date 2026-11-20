@@ -94,6 +94,11 @@ jobs:
         run: |
           docker compose config --quiet
           echo "docker-compose.yml syntax is valid."
+        env:
+          MONGO_ROOT_USERNAME: ci-validation
+          MONGO_ROOT_PASSWORD: ci-validation
+          JWT_SECRET: ci-validation
+          JWT_REFRESH_SECRET: ci-validation
 
       - name: Validate Nginx configuration
         run: |
