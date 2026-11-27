@@ -266,6 +266,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 badge: "Mới",
               }
             : null,
+          canSeeFinancialMenu
+            ? {
+                title: "Thuế VAT · TSCĐ · Ngân Sách",
+                url: "/fixed-assets",
+                icon: IconReportAnalytics,
+                badge: "Mới",
+              }
+            : null,
           {
             title: "Sổ Quỹ & Công Nợ",
             url: "/cashbook",
