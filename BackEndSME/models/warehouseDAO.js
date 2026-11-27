@@ -6,7 +6,6 @@
 import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
-import StockLedgerDAO from "./stockLedgerDAO.js";
 import {
   DEFAULT_WAREHOUSES,
   TRANSFER_STATUS,
@@ -389,27 +388,6 @@ export default class WarehouseDAO {
       if (!updated) {
         await rollbackDeducted();
         return { error: new Error("Phiếu chuyển kho đã thay đổi trạng thái bởi phiên khác, đã hoàn tồn kho nguồn") };
-      }
-
-      // Ghi nhận Thẻ Kho (Stock Ledger) không làm lỗi giao dịch nếu ledger chưa sẵn sàng
-      for (const it of transfer.items) {
-        try {
-          if (StockLedgerDAO?.recordMovement) {
-            await StockLedgerDAO.recordMovement({
-              item_type: it.item_type,
-              item_id: it.item_id,
-              ma_hang: it.item_code,
-              ten_hang: it.item_name,
-              loai_giao_dich: "xuat_chuyen_kho",
-              so_luong_thay_doi: -it.quantity,
-              ma_chung_tu: transfer.ma_phieu,
-              ghi_chu: `Xuất chuyển kho ${transfer.from_warehouse} → ${transfer.to_warehouse}`,
-              user,
-            });
-          }
-        } catch {
-          // non-fatal ledger log
-        }
       }
 
       return { ok: true, doc: updated };

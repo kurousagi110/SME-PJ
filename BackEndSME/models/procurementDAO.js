@@ -257,15 +257,31 @@ export default class ProcurementDAO {
       const totalQty = Math.max(1, rfq.items.reduce((s, it) => s + Number(it.quantity || 1), 0));
       const avgUnitPrice = Math.round(winningQuote.total_price / totalQty);
 
-      const poItems = rfq.items.map((it) => ({
-        loai_hang: it.item_type === "san_pham" ? "san_pham" : "nguyen_lieu",
-        ...(it.item_id ? { nguyen_lieu_id: it.item_id, san_pham_id: it.item_id } : {}),
-        ten_sp: it.item_name,
-        ma_sp: it.item_code || "",
-        so_luong: Number(it.quantity || 1),
-        don_gia: it.estimated_price > 0 ? it.estimated_price : avgUnitPrice,
-        don_vi: it.unit || "cái",
-      }));
+      const poItems = rfq.items.map((it, idx) => {
+        const isProduct = it.item_type === "san_pham";
+        const fallbackCode = it.item_code || `${isProduct ? "SP" : "NL"}-${rfq.ma_rfq}-${idx + 1}`;
+        const unitPrice = it.estimated_price > 0 ? it.estimated_price : avgUnitPrice;
+        if (isProduct) {
+          return {
+            loai_hang: "san_pham",
+            ...(it.item_id ? { san_pham_id: it.item_id } : {}),
+            ma_sp: fallbackCode,
+            ten_sp: it.item_name || fallbackCode,
+            so_luong: Number(it.quantity || 1),
+            don_gia: unitPrice,
+            don_vi: it.unit || "cái",
+          };
+        }
+        return {
+          loai_hang: "nguyen_lieu",
+          ...(it.item_id ? { nguyen_lieu_id: it.item_id } : {}),
+          ma_nl: fallbackCode,
+          ten_nl: it.item_name || fallbackCode,
+          so_luong: Number(it.quantity || 1),
+          don_gia: unitPrice,
+          don_vi: it.unit || "cái",
+        };
+      });
 
       let poCode = `PO-${rfq.ma_rfq}`;
       try {

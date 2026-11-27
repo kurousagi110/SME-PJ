@@ -187,7 +187,16 @@ export default function AccountingExpansionPage() {
         TongThanhToan: r.tong_thanh_toan,
       })),
     ];
-    exportToCSV(rows, `BangKe_VAT_${year}_${String(month).padStart(2, "0")}`);
+    const columns = [
+      { key: "Loai", label: "Loại hóa đơn" },
+      { key: "MaChungTu", label: "Mã chứng từ" },
+      { key: "DoiTuong", label: "Khách hàng / Nhà cung cấp" },
+      { key: "GiaTriChuaThue", label: "Giá trị chưa thuế (VNĐ)" },
+      { key: "ThueSuatPct", label: "Thuế suất (%)" },
+      { key: "TienThueVAT", label: "Tiền thuế GTGT (VNĐ)" },
+      { key: "TongThanhToan", label: "Tổng thanh toán (VNĐ)" },
+    ];
+    exportToCSV(`BangKe_VAT_${year}_${String(month).padStart(2, "0")}`, columns, rows);
     toast.success("Đã xuất bảng kê thuế GTGT chuẩn Excel (UTF-8 BOM)");
   };
 

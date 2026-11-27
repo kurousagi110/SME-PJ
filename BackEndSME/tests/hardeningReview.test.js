@@ -62,3 +62,23 @@ test("Hardening - Frontend UI links approvals PR tab, portal loyalty card, and a
     assert.ok(paletteSrc.includes(route), `CommandPalette missing shortcut for ${route}`);
   }
 });
+
+test("Hardening - exportToCSV in fixed-assets passes (filename, columns, data), middleware allows /portal for authed users, StockLedger reads stock_transfers, and RFQ PO sets ma_nl/ten_nl", () => {
+  const fixedAssetsSrc = fs.readFileSync(
+    path.join(ROOT, "FrontEndSME/src/app/(modules)/fixed-assets/page.tsx"),
+    "utf8"
+  );
+  assert.match(fixedAssetsSrc, /exportToCSV\(`BangKe_VAT_.*`,\s*columns,\s*rows\)/);
+
+  const middlewareSrc = fs.readFileSync(path.join(ROOT, "FrontEndSME/src/middleware.ts"), "utf8");
+  assert.match(middlewareSrc, /if \(isAuthed && pathname === "\/login"\)/);
+
+  const ledgerSrc = fs.readFileSync(path.join(ROOT, "BackEndSME/models/stockLedgerDAO.js"), "utf8");
+  assert.match(ledgerSrc, /stock_transfers/);
+  assert.match(ledgerSrc, /XUAT_CHUYEN_KHO/);
+  assert.match(ledgerSrc, /NHAP_CHUYEN_KHO/);
+
+  const procSrc = fs.readFileSync(path.join(ROOT, "BackEndSME/models/procurementDAO.js"), "utf8");
+  assert.match(procSrc, /ma_nl:\s*fallbackCode/);
+  assert.match(procSrc, /ten_nl:/);
+});

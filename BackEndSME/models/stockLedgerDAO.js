@@ -6,6 +6,7 @@ let donHangCol;
 let sanXuatLogsCol;
 let dieuChinhKhoCol;
 let doiTraCol;
+let stockTransfersCol;
 let sanPhamCol;
 let nguyenLieuCol;
 
@@ -18,6 +19,7 @@ export default class StockLedgerDAO {
     sanXuatLogsCol = db.collection("san_xuat_logs");
     dieuChinhKhoCol = db.collection("dieu_chinh_kho");
     doiTraCol = db.collection("doi_tra_hang");
+    stockTransfersCol = db.collection("stock_transfers");
     sanPhamCol = db.collection("san_pham");
     nguyenLieuCol = db.collection("nguyen_lieu");
 
@@ -280,6 +282,57 @@ export default class StockLedgerDAO {
               so_luong_xuat: 0,
               don_gia: Number(line.don_gia || 0),
             });
+          }
+        }
+      }
+
+      // F. Điều chuyển kho nội bộ (stock_transfers: ghi nhận xuất/nhập chuyển kho & hao hụt nếu có)
+      if (stockTransfersCol) {
+        const expectedTransferType = itemType === "material" ? "nguyen_lieu" : "san_pham";
+        const transfers = await stockTransfersCol
+          .find({
+            trang_thai: { $in: ["in_transit", "received"] },
+            "items.item_type": expectedTransferType,
+            $or: [
+              { "items.item_id": String(itemObjectId) },
+              { "items.item_code": itemCode },
+            ],
+          })
+          .toArray();
+
+        for (const tr of transfers) {
+          const line = (tr.items || []).find(
+            (l) =>
+              (l.item_id && String(l.item_id) === String(itemObjectId)) ||
+              (itemCode && l.item_code === itemCode)
+          );
+          if (!line) continue;
+
+          allMovements.push({
+            date: new Date(tr.dispatched_at || tr.created_at),
+            ma_chung_tu: tr.ma_phieu,
+            loai_giao_dich: "XUAT_CHUYEN_KHO",
+            mo_ta: `Xuất điều chuyển nội bộ: ${tr.from_warehouse} → ${tr.to_warehouse}`,
+            so_luong_nhap: 0,
+            so_luong_xuat: Number(line.dispatched_qty ?? line.quantity ?? 0),
+            don_gia: Number(item.don_gia || item.gia_nhap || 0),
+          });
+
+          if (tr.trang_thai === "received") {
+            const receivedQty = Number(line.received_qty ?? line.quantity ?? 0);
+            if (receivedQty > 0) {
+              allMovements.push({
+                date: new Date(tr.received_at || tr.updated_at || tr.created_at),
+                ma_chung_tu: tr.ma_phieu,
+                loai_giao_dich: "NHAP_CHUYEN_KHO",
+                mo_ta: `Nhập điều chuyển nội bộ tại ${tr.to_warehouse} (từ ${tr.from_warehouse})${
+                  line.loss_qty ? ` · Hao hụt ${line.loss_qty}` : ""
+                }`,
+                so_luong_nhap: receivedQty,
+                so_luong_xuat: 0,
+                don_gia: Number(item.don_gia || item.gia_nhap || 0),
+              });
+            }
           }
         }
       }
