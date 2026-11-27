@@ -1,6 +1,8 @@
 import asyncHandler from "../middleware/asyncHandler.js";
 import { sendSuccess, sendError } from "../utils/response.js";
 import { escapeSafeRegexPattern } from "../utils/securityHelpers.js";
+import SystemSettingsDAO from "../models/systemSettingsDAO.js";
+import { determineLoyaltyTier } from "../utils/promotionEngine.js";
 
 let donHangCol = null;
 let hopDongCol = null;
@@ -33,11 +35,13 @@ function verifyPhoneLast4(storedPhone, inputPhone) {
 }
 
 function buildVietQrUrl(amount, info) {
-  const bankId = process.env.VIETQR_BANK_ID || "MB";
-  const accountNo = process.env.VIETQR_ACCOUNT_NO || "0901234567";
-  const accountName = encodeURIComponent(process.env.VIETQR_ACCOUNT_NAME || "CONG TY SME ERP");
+  const cfg = SystemSettingsDAO.getCachedSync()?.vietqr || {};
+  const bankId = cfg.bank_bin || process.env.VIETQR_BANK_ID || "MB";
+  const accountNo = cfg.account_number || process.env.VIETQR_ACCOUNT_NO || "0901234567";
+  const accountName = encodeURIComponent(cfg.account_name || process.env.VIETQR_ACCOUNT_NAME || "CONG TY SME ERP");
+  const template = cfg.template || "compact2";
   const cleanInfo = encodeURIComponent(String(info || "Thanh toan").slice(0, 50));
-  return `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${Math.max(0, Math.round(Number(amount) || 0))}&addInfo=${cleanInfo}&accountName=${accountName}`;
+  return `https://img.vietqr.io/image/${bankId}-${accountNo}-${template}.png?amount=${Math.max(0, Math.round(Number(amount) || 0))}&addInfo=${cleanInfo}&accountName=${accountName}`;
 }
 
 export default class PortalController {
@@ -82,7 +86,7 @@ export default class PortalController {
         doiTacCol && order.khach_hang_ten
           ? doiTacCol.findOne(
               { ten: new RegExp(`^${escapeSafeRegexPattern(order.khach_hang_ten)}$`, "i") },
-              { projection: { so_dien_thoai: 1 } }
+              { projection: { so_dien_thoai: 1, loyalty_points: 1, lifetime_points: 1 } }
             )
           : null,
       ]);
@@ -124,6 +128,16 @@ export default class PortalController {
               }
             : null,
           shipment: shipment || null,
+          loyalty: partner
+            ? {
+                points: Number(partner.loyalty_points || 0),
+                lifetime_points: Number(partner.lifetime_points || partner.loyalty_points || 0),
+                tier: determineLoyaltyTier(
+                  Number(partner.lifetime_points || partner.loyalty_points || 0),
+                  SystemSettingsDAO.getCachedSync()?.loyalty
+                ),
+              }
+            : null,
         },
         "Tra cứu đơn hàng thành công"
       );

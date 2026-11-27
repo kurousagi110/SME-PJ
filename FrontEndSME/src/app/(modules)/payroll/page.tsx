@@ -66,6 +66,11 @@ type PayrollItem = {
   khau_tru_di_tre?: number;
   thuong_khac?: number;
   phat_khac?: number;
+  so_gio_ot?: number;
+  luong_tang_ca?: number;
+  tong_bh_nld?: number;
+  tong_bh_dn?: number;
+  thue_tncn?: number;
   thuong: number;
   phat: number;
   ghi_chu?: string;
@@ -615,8 +620,9 @@ export default function PayrollPage() {
                   <TableHead className="text-right">Hệ số</TableHead>
                   <TableHead className="text-right">Lương cơ bản</TableHead>
                   <TableHead className="text-right">KPI (Doanh số / SL)</TableHead>
-                  <TableHead className="text-right">Thưởng + KPI</TableHead>
+                  <TableHead className="text-right">Thưởng + KPI + OT</TableHead>
                   <TableHead className="text-right">Phạt + Đi trễ</TableHead>
+                  <TableHead className="text-right">BHXH & Thuế TNCN</TableHead>
                   <TableHead className="text-right font-bold text-primary">Thực nhận</TableHead>
                   <TableHead className="text-center w-[120px]">Thao tác</TableHead>
                 </TableRow>
@@ -680,10 +686,11 @@ export default function PayrollPage() {
                       </TableCell>
                       <TableCell className="text-right text-emerald-600 font-medium">
                         {item.thuong > 0 ? `+${toVND(item.thuong)}` : "-"}
-                        {((item.hoa_hong_kd || 0) > 0 || (item.thuong_nang_suat_sx || 0) > 0) && (
+                        {((item.hoa_hong_kd || 0) > 0 || (item.thuong_nang_suat_sx || 0) > 0 || (item.luong_tang_ca || 0) > 0) && (
                           <div className="text-[10px] text-muted-foreground font-normal">
                             {(item.hoa_hong_kd || 0) > 0 ? `HH: ${toVND(item.hoa_hong_kd || 0)}` : ""}
                             {(item.thuong_nang_suat_sx || 0) > 0 ? ` SX: ${toVND(item.thuong_nang_suat_sx || 0)}` : ""}
+                            {(item.luong_tang_ca || 0) > 0 ? ` OT: ${toVND(item.luong_tang_ca || 0)}` : ""}
                           </div>
                         )}
                       </TableCell>
@@ -693,6 +700,18 @@ export default function PayrollPage() {
                           <div className="text-[10px] text-muted-foreground font-normal">
                             Trễ: -{toVND(item.khau_tru_di_tre || 0)}
                           </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-amber-700 dark:text-amber-400 text-xs">
+                        {((item.tong_bh_nld || 0) + (item.thue_tncn || 0)) > 0 ? (
+                          <>
+                            <div className="font-medium">-{toVND((item.tong_bh_nld || 0) + (item.thue_tncn || 0))}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              BH: {toVND(item.tong_bh_nld || 0)} · TNCN: {toVND(item.thue_tncn || 0)}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-bold text-primary text-base">

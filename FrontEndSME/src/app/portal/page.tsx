@@ -47,6 +47,11 @@ interface PortalOrderData {
     trang_thai?: string;
     ngay_giao_du_kien?: string;
   } | null;
+  loyalty?: {
+    points: number;
+    lifetime_points: number;
+    tier: { code: string; label: string };
+  } | null;
 }
 
 interface PortalContractData {
@@ -251,6 +256,22 @@ export default function CustomerPortalPage() {
                 <span className="text-muted-foreground">Tổng giá trị đơn hàng</span>
                 <span className="text-lg font-bold text-primary">{toVND(result.total_amount)}</span>
               </div>
+
+              {result.loyalty && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/70 dark:bg-amber-950/30 p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="font-semibold text-amber-800 dark:text-amber-300">
+                    🏆 Thành viên hạng {result.loyalty.tier?.label || "Đồng"}
+                  </div>
+                  <div className="flex items-center gap-3 text-amber-900 dark:text-amber-200">
+                    <span>
+                      Điểm khả dụng: <strong>{Number(result.loyalty.points || 0).toLocaleString("vi-VN")} điểm</strong>
+                    </span>
+                    <span className="text-muted-foreground">
+                      (Tích lũy: {Number(result.loyalty.lifetime_points || 0).toLocaleString("vi-VN")})
+                    </span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

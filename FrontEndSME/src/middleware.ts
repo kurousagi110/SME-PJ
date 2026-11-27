@@ -25,9 +25,10 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  // Public paths (e.g. /login) — bounce authed users back to dashboard
+  // Public paths: chỉ /login tự điều hướng user đã đăng nhập về /dashboard;
+  // /portal luôn cho phép mở tự do kể cả khi nhân viên/Admin đang đăng nhập để kiểm tra & chia sẻ.
   if (isPublic(pathname)) {
-    if (isAuthed) {
+    if (isAuthed && pathname === "/login") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return NextResponse.next();

@@ -9,14 +9,14 @@ Giao diện người dùng hiện đại, tinh gọn và tối ưu hóa cao cho 
 | Lớp | Thư viện & Công nghệ | Mô tả & Vai trò |
 |---|---|---|
 | **Framework** | Next.js 16 (App Router) | Server-Side Rendering (SSR), Server Actions, Turbopack |
-| **Giao diện & UI** | React 19 + TypeScript | Kiểu dữ liệu chặt chẽ, hiệu năng rendering cao |
-| **Thiết kế & Styling** | Tailwind CSS v4 + Shadcn/UI | Thiết kế nhất quán, responsive và tối ưu kích thước bundle |
-| **Server State Management** | TanStack Query v5 | Quản lý cache dữ liệu, optimistic updates và auto refetch |
-| **Bảng Dữ Liệu** | TanStack Table v8 | Server-side pagination, sorting, search filter đa tiêu chí |
-| **Biểu Đồ Thống Kê** | Recharts v2 | Biểu đồ vùng, biểu đồ cột tương tác, so sánh cùng kỳ (YoY) |
-| **Biểu Tượng (Icons)** | Lucide React + Tabler Icons | Hệ thống icon phong phú, chuẩn hóa UI |
-| **Thông Báo & Realtime** | Sonner + Socket.io Client | Toast thông báo trạng thái & kênh thông báo realtime |
-| **In Ấn & Xuất Dữ Liệu** | HTML5 Print API + CSV UTF-8 BOM | In Hóa đơn A4/A5, Phiếu Thu/Chi, Phiếu Lương, Vận Đơn A6 |
+| **Giao diện & UI** | React 19 + TypeScript | Kiểu dữ liệu chặt chẽ, tối ưu lazy-loading & bundle |
+| **Thiết kế & Styling** | Tailwind CSS v4 + Shadcn/UI + `next-themes` | Giao diện Dark/Light Mode nhất quán, responsive |
+| **Server State Management** | TanStack Query v5 | Cache thông minh, optimistic updates và auto refetch |
+| **Bảng Dữ Liệu** | TanStack Table v8 | Pagination, sorting, lọc đa tiêu chí |
+| **Biểu Đồ Thống Kê** | Recharts v2 | Biểu đồ doanh thu/chi phí, dự báo dòng tiền 12 tuần, YoY |
+| **Biểu Tượng (Icons)** | Tabler Icons v3 + Lucide React | Bộ icon đồng bộ trên toàn bộ 5 khối nghiệp vụ |
+| **Thông Báo & Realtime** | Sonner + Socket.io Client | Toast trạng thái, chuông thông báo realtime & âm thanh POS |
+| **In Ấn & Xuất Dữ Liệu** | HTML5 Print API + CSV UTF-8 BOM | In Hóa đơn A4/A5/Nhiệt, Phiếu Thu/Chi, Phiếu Lương, Vận Đơn A6, Mã Vạch |
 
 ---
 
@@ -25,82 +25,63 @@ Giao diện người dùng hiện đại, tinh gọn và tối ưu hóa cao cho 
 ```
 FrontEndSME/
 ├── public/
-│   └── manifest.json           # Cấu hình PWA (Progressive Web App)
+│   └── manifest.json               # Cấu hình PWA (Progressive Web App)
 └── src/
     ├── app/
-    │   ├── (auth)/             # Màn hình đăng nhập & bảo vệ phiên làm việc
-    │   ├── portal/             # Cổng Khách Hàng Tự Phục Vụ (/portal - Mã + 4 số cuối SĐT + VietQR)
-    │   ├── (modules)/          # Các phân hệ nghiệp vụ ERP:
-    │   │   ├── automation/     # Cấu hình Cron Scheduler & Cảnh báo đa kênh (Telegram / Zalo)
-    │   │   ├── dashboard/      # Bảng điều khiển KPI & so sánh cùng kỳ YoY
-│   │   ├── contracts/          # Hợp đồng kinh tế B2B, tiến độ đợt thanh toán & bảo hành
-│   │   ├── financial-reports/  # Báo cáo P&L, Tuổi nợ, Dự báo dòng tiền 12 tuần & Đối soát sao kê
-│   │   ├── quotations/         # Báo giá B2B & Chuyển đổi Đơn hàng (Quote-to-Order)
-│   │   ├── sales/              # Đơn bán hàng, nhóm giá B2B, voucher & bàn giao 1-click
-│   │   ├── pos/                # Quầy bán lẻ thu ngân cảm ứng, in hóa đơn nhiệt
-│   │   ├── returns/            # Đổi trả hàng RMA, bảo hành & kiểm định QC
-│   │   ├── stock-ledger/       # Thẻ kho chi tiết & Báo cáo Xuất - Nhập - Tồn (XNT)
-│   │   ├── stock-adjustments/  # Phiếu kiểm kê điều chỉnh cân bằng kho (hỗ trợ quét Camera QR/Barcode)
-│   │   ├── traceability/       # Truy xuất nguồn gốc lô sản xuất (lo_san_xuat) & hạn dùng FEFO
-│   │   ├── warehouse/          # Quản lý tồn kho tổng hợp & xuất nhập kho
-│   │   ├── product/            # Danh mục sản phẩm, BOM & Lệnh SX (kèm tab Kanban tiến độ xưởng)
-│   │   ├── material/           # Danh mục vật tư, đơn mua hàng nhập kho
-│   │   ├── cashbook/           # Sổ quỹ Thu - Chi, quản lý công nợ & Chốt sổ kỳ kế toán
-│   │   ├── approvals/          # Trung tâm phê duyệt việc thống nhất (Unified Approval Hub)
-│   │   ├── partners/           # Mini CRM quản lý khách hàng & nhà cung cấp 360°
-│   │   ├── shipping/           # Vận đơn logistics, theo dõi trạng thái & COD
-│   │   ├── payroll/            # Bảng lương nhân viên & chi trả lương khép kín
-│   │   ├── check-in/           # Chấm công ca làm & theo dõi giờ làm việc
-│   │   ├── staff/              # Hồ sơ nhân sự & hợp đồng lao động
-│   │   ├── department/         # Sơ đồ cơ cấu tổ chức phòng ban & chức vụ
-│   │   ├── planning/           # Dự báo nhu cầu, MRP, ma trận ABC, máy tính TMĐT
-│   │   ├── barcode/            # Trình tạo & in mã vạch hàng hóa
-│   │   ├── import/             # Nhập dữ liệu hàng loạt từ file Excel
-│   │   └── audit-log/          # Nhật ký kiểm toán thao tác hệ thống (Admin)
-│   └── actions/                # Next.js Server Actions (Standard English Naming):
-│       ├── automation.ts       # Cấu hình Cron & gửi cảnh báo thử nghiệm Telegram/Zalo
-│       ├── bot.ts              # Thao tác cấu hình & kiểm tra Telegram bot
-│       ├── portal.ts           # Tra cứu cổng khách hàng /portal
-│       ├── contract.ts         # Nghiệp vụ hợp đồng B2B & thanh toán đợt
-│       ├── dashboard.ts        # Lấy số liệu KPI, biểu đồ & YoY compare
-│       ├── financial.ts        # P&L, aging debt, cashflow forecast & bank reconcile
-│       ├── production.ts       # Kanban xưởng, chuyển công đoạn & báo cáo hao hụt
-│       ├── quotation.ts        # Nghiệp vụ báo giá B2B & convert-to-order
-│       ├── stock-ledger.ts     # Thẻ kho chi tiết & Báo cáo tổng hợp XNT
-│       ├── stock-adjustment.ts # Phiếu kiểm kê điều chỉnh kho
-│       ├── cashbook.ts         # Sổ quỹ, công nợ & khóa sổ kỳ kế toán
-│       ├── approval.ts         # Danh sách chờ duyệt & hành động phê duyệt
-│       ├── partner.ts          # Thao tác đối tác CRM
-│       ├── product.ts          # Thao tác sản phẩm & danh mục BOM
-│       ├── material.ts         # Thao tác nguyên vật liệu & đơn mua
-│       ├── order-sale.ts       # Đơn bán hàng, voucher & chiết khấu
-│       ├── handover.ts         # Bàn giao liên ban bộ 1-click & comments
-│       ├── rma.ts              # Quản lý đổi trả hàng & nghiệm thu QC
-│       ├── shipping.ts         # Vận chuyển logistics & cập nhật trạng thái
-│       ├── warranty.ts         # Thẻ bảo hành, tra cứu & nhật ký bảo trì
-│       └── payroll.ts          # Tính lương, chi trả & trạng thái lương
-├── components/                 # Các UI Components tái sử dụng:
-│   ├── app-sidebar.tsx         # Thanh điều hướng phân tầng 5 khối nghiệp vụ
-│   ├── command-palette.tsx     # Hộp lệnh nhanh Ctrl + K
-│   ├── notifications.tsx       # Chuông thông báo realtime & badge chưa đọc
-│   ├── ai-copilot-widget.tsx   # Trợ lý Agentic AI SME Copilot (1-click Action Cards & OCR hóa đơn)
-│   ├── camera-barcode-scanner.tsx # Quét mã vạch/QR trực tiếp qua Camera thiết bị
-│   ├── supplier-atp-tab.tsx    # Tab Cam kết ngày giao ATP & Bảng điểm NCC (S/A/B/C)
-│   └── ui/                     # Bộ component Shadcn UI (Button, Dialog, Table...)
-├── hooks/                      # Custom React Hooks & TanStack Query Hooks:
-│   ├── use-product-bom.ts      # Hook lấy danh sách sản phẩm kèm cấu hình BOM
-│   ├── use-stock-adjustment.ts # Hook quản lý phiếu điều chỉnh kho
-│   ├── use-product.ts          # Hook quản lý sản phẩm & tồn kho thành phẩm
-│   ├── use-material.ts         # Hook quản lý vật tư & tồn kho NVL
-│   ├── use-order-sale.ts       # Hook quản lý đơn hàng bán
-│   ├── use-account.ts          # Hook hồ sơ người dùng & phân quyền
-│   └── useSocket.tsx           # Hook kết nối Socket.io realtime
-└── lib/                        # Thư viện tiện ích:
-    ├── http.ts                 # HTTP client cấu hình token an toàn
-    ├── permissions.ts          # Ma trận phân quyền RBAC 12 vai trò đồng bộ với Backend
-    ├── utils.ts                # Định dạng tiền tệ VNĐ, ngày tháng tiếng Việt
-    ├── export.ts               # Xuất file CSV UTF-8 BOM chuẩn Excel tiếng Việt
-    └── barcode.ts              # Tiện ích in ấn hóa đơn nhiệt, tem mã vạch & vận đơn
+    │   ├── login/                  # Đăng nhập & xác thực TOTP 2FA + Recovery Code
+    │   ├── portal/                 # Cổng Khách Hàng Tự Phục Vụ (/portal — VietQR, Bảo hành & Loyalty)
+    │   ├── (modules)/              # Các phân hệ nghiệp vụ ERP:
+    │   │   ├── account/            # Hồ sơ cá nhân & thiết lập bảo mật 2FA TOTP
+    │   │   ├── approvals/          # Trung tâm phê duyệt việc thống nhất (PO, DCK, Sale, RMA, HR ESS, Lương)
+    │   │   ├── audit-log/          # Nhật ký kiểm toán Visual Diff & xuất gói Audit Pack
+    │   │   ├── automation/         # Cấu hình Cron Scheduler & Cảnh báo đa kênh (Telegram / Zalo)
+    │   │   ├── barcode/            # Tạo & in tem nhãn mã vạch / QR
+    │   │   ├── cashbook/           # Sổ quỹ Thu - Chi, công nợ & Khóa sổ kỳ kế toán
+    │   │   ├── check-in/           # Bảng chấm công theo ngày/tháng
+    │   │   ├── contracts/          # Hợp đồng kinh tế B2B, Milestone billing & Bảo hành điện tử
+    │   │   ├── crm-pipeline/       # [Phase 4] Phễu cơ hội bán hàng Kanban, Forecast & 1-click sang Báo giá
+    │   │   ├── dashboard/          # KPI tổng quan, so sánh YoY & cảnh báo bất thường
+    │   │   ├── department/         # Cơ cấu tổ chức phòng ban & chức vụ
+    │   │   ├── ecommerce-sync/     # [Phase 6] Đồng bộ tồn kho đệm, kéo đơn & quyết toán sàn Shopee/TikTok/Lazada
+    │   │   ├── financial-reports/  # P&L, Tuổi nợ, Cashflow 12 tuần, Đối soát sao kê & What-If Simulator
+    │   │   ├── fixed-assets/       # [Phase 5] Tài sản cố định & Khấu hao, Bảng kê Thuế GTGT (VAT) & Dự toán Ngân sách
+    │   │   ├── hr-requests/        # [Phase 2] Cổng Nhân sự ESS (Nghỉ phép, OT, Đi muộn) & Chấm công QR/GPS
+    │   │   ├── import/             # Nhập dữ liệu hàng loạt từ Excel
+    │   │   ├── material/           # Danh mục vật tư & đơn mua hàng nhập kho
+    │   │   ├── partners/           # Mini CRM 360°, phân khúc RFM & dự đoán Churn
+    │   │   ├── payroll/            # Bảng lương KPI + OT + BHXH/BHYT/BHTN & Thuế TNCN 7 bậc
+    │   │   ├── planning/           # Dự báo v2, MRP, ABC, ATP, Supplier Scorecard & Máy tính TMĐT
+    │   │   ├── pos/                # Quầy POS Multi-cart, Ca Thu Ngân, Voucher động, Loyalty, Cross-sell & Margin Guard
+    │   │   ├── procurement/        # [Phase 4] Mua hàng nâng cao PR → RFQ Matrix → Vendor Scorecard & 3-Way Match
+    │   │   ├── product/            # Danh mục thành phẩm, BOM & Lệnh SX (kèm Kanban 6 công đoạn)
+    │   │   ├── promotions/         # [Phase 1] Chiến dịch Khuyến mãi động & Hạng thành viên Loyalty
+    │   │   ├── quotations/         # Báo giá B2B & chuyển đổi Quote-to-Order
+    │   │   ├── returns/            # Đổi trả hàng RMA & kiểm định QC
+    │   │   ├── sales/              # Đơn bán hàng B2B, bảng giá theo hạng & bàn giao 1-click
+    │   │   ├── settings/           # [Phase 1+6] Cấu hình doanh nghiệp, VietQR, Lương/Thuế, Loyalty, Chấm công & Cổng Tích Hợp
+    │   │   ├── shipping/           # Vận đơn logistics, theo dõi trạng thái & COD
+    │   │   ├── staff/              # Hồ sơ nhân sự
+    │   │   ├── stock-adjustments/  # Phiếu kiểm kê cân bằng kho (hỗ trợ Camera QR/Barcode)
+    │   │   ├── stock-ledger/       # Thẻ kho chi tiết & Báo cáo Xuất - Nhập - Tồn
+    │   │   ├── traceability/       # Truy xuất lô sản xuất & hạn dùng FEFO
+    │   │   ├── warehouse/          # Tồn kho tổng hợp thành phẩm & nguyên vật liệu
+    │   │   └── warehouses/         # [Phase 3] Quản lý Đa Kho, Vị trí kệ (Bin) & Điều chuyển kho nội bộ
+    │   └── actions/                # Next.js Server Actions chuẩn hóa tiếng Anh:
+    │       ├── settings.ts, promotions.ts, pos-shift.ts, hr-requests.ts, warehouses.ts,
+    │       ├── crm-pipeline.ts, procurement.ts, accounting-expansion.ts, ecommerce-sync.ts,
+    │       └── approval.ts, ai-copilot.ts, automation.ts, cashbook.ts, contract.ts,
+    │           dashboard.ts, financial.ts, order-sale.ts, partner.ts, payroll.ts,
+    │           planning.ts, portal.ts, pos.ts, production.ts, quotation.ts, rma.ts, ...
+    ├── components/                 # Các UI Components tái sử dụng:
+    │   ├── app-sidebar.tsx         # Điều hướng phân tầng 5 khối nghiệp vụ theo RBAC
+    │   ├── pos/pos-shift-bar.tsx   # [Mới] Thanh quản lý Ca Thu Ngân POS (Mở/Kết ca/Kiểm quỹ/Lịch sử)
+    │   ├── command-palette.tsx     # Omni-Search & hộp lệnh nhanh Ctrl + K
+    │   ├── notifications.tsx       # Chuông thông báo realtime Socket.io
+    │   ├── ai-copilot-widget.tsx   # Trợ lý Agentic AI Copilot v2 & OCR hóa đơn
+    │   ├── camera-barcode-scanner.tsx # Quét mã vạch/QR trực tiếp qua Camera
+    │   └── ui/                     # Bộ component Shadcn UI
+    ├── hooks/                      # Custom React Hooks & TanStack Query Hooks
+    └── lib/                        # http.ts, permissions.ts, export.ts, barcode.ts, audio-feedback.ts, utils.ts
 ```
 
 ---
@@ -110,39 +91,33 @@ FrontEndSME/
 ```
 [React Client Component]
        │
-       ▼ (gọi hook TanStack Query)
-[Custom Hook: useProduct / useStockAdjustment / useProductBOM]
-       │
-       ▼ (gọi Server Action an toàn)
+       ▼ (TanStack Query / React state)
 [Next.js Server Action: src/app/actions/*.ts]
        │
-       ▼ (HTTP Request kèm JWT Token an toàn qua Nginx)
-[Backend API: /api/v1/*]
+       ▼ (HTTP Request kèm JWT HttpOnly Cookie qua src/lib/http.ts + auto refresh dedupe)
+[Backend REST API: /api/v1/*]
 ```
 
-- **An toàn bảo mật**: JWT token được đọc và gửi an toàn từ Server Action phía server, hạn chế tối đa nguy cơ lộ token trên client.
-- **Tự động làm mới cache (Optimistic UI & Cache Invalidation)**: Sau khi thêm/sửa/xóa thành công qua mutation, TanStack Query tự động vô hiệu hóa cache tương ứng (`invalidateQueries`) để giao diện cập nhật ngay lập tức mà không cần reload trang.
+- **An toàn bảo mật**: JWT access/refresh token được xử lý ở tầng Server Action (`http.ts`) có cơ chế chống gọi trùng refresh (`refreshInFlight` dedupe), không lộ token sang client JS.
+- **Tối ưu hiệu năng**: Loại bỏ thư viện dư thừa, bật `optimizePackageImports` và lazy-load các thành phần biểu đồ/AI nặng.
 
 ---
 
 ## 🚀 Hướng Dẫn Khởi Chạy
 
-### 1. Chạy với Docker Compose (Khuyến nghị)
-Frontend được đóng gói qua Multi-stage build và tự động phục vụ qua Nginx port 80:
 ```bash
+# 1. Chạy trọn gói qua Docker Compose (Khuyến nghị)
 docker compose up -d
-```
-Truy cập: **[http://localhost](http://localhost)**
+# Truy cập: http://localhost
 
-### 2. Chạy môi trường Development trên máy host
-Yêu cầu: Node.js ≥ 20 và Backend API đang hoạt động tại cổng 5000 (hoặc qua Docker port 80).
-```bash
+# 2. Chạy Development trên máy host (Node.js >= 20)
 cd FrontEndSME
 npm install
 npm run dev
+# Truy cập: http://localhost:3000
 ```
-Truy cập: **http://localhost:3000**
-File `.env.local` mẫu:
+
+File `.env.local` mẫu khi chạy local:
 ```env
 NEXT_PUBLIC_API_URL=http://localhost/api/v1
 ```
@@ -151,5 +126,5 @@ NEXT_PUBLIC_API_URL=http://localhost/api/v1
 
 ## ⌨️ Phím Tắt & Thao Tác Nhanh
 
-- **`Ctrl + K` (hoặc `Cmd + K`)**: Mở Command Palette để tìm kiếm trang, truy cập nhanh tính năng và mở hộp thoại tạo đơn hàng / phiếu thu / phiếu chi.
-- **Huy hiệu thông báo (Realtime Badges)**: Tự động cập nhật số lượng thông báo chưa đọc và số lượng tồn kho chạm ngưỡng cảnh báo an toàn.
+- **`Ctrl + K` (hoặc `Cmd + K`)**: Mở **Omni-Search / Command Palette** tìm kiếm đơn hàng, sản phẩm, khách hàng, điều hướng trang và tạo nhanh chứng từ.
+- **Phím tắt tại Quầy POS (`/pos`)**: **`F2`** focus ô quét mã vạch, **`F8`** mở VietQR chuyển khoản, **`F9`** thanh toán nhanh.

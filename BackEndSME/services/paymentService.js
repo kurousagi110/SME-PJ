@@ -3,6 +3,8 @@
  * Chuẩn định dạng QR Napas 247 và cổng thanh toán tự động (SePAY / Casso / Ngân hàng).
  */
 
+import { getRuntimeSettings } from "../utils/runtimeSettingsStore.js";
+
 // Danh sách mã ngân hàng phổ biến (BIN code chuẩn Napas)
 export const BANK_BINS = {
   vietinbank: "970415",
@@ -29,25 +31,31 @@ export class PaymentService {
    * @param {string} [param0.template] - 'compact', 'compact2', 'qr_only', 'print'
    */
   static generateVietQR({
-    bankBin = process.env.PAYMENT_BANK_BIN || "MB",
-    accountNumber = process.env.PAYMENT_ACCOUNT_NO || "0987654321",
-    accountName = process.env.PAYMENT_ACCOUNT_NAME || "CONG TY SME ERP",
+    bankBin,
+    accountNumber,
+    accountName,
     amount = 0,
     orderCode = "",
-    template = "compact2",
+    template,
   }) {
-    const bin = BANK_BINS[bankBin.toLowerCase()] || bankBin;
+    const cfg = getRuntimeSettings()?.vietqr || {};
+    const resolvedBank = bankBin || cfg.bank_bin || process.env.PAYMENT_BANK_BIN || "MB";
+    const resolvedAccountNo = accountNumber || cfg.account_number || process.env.PAYMENT_ACCOUNT_NO || "0987654321";
+    const resolvedAccountName = accountName || cfg.account_name || process.env.PAYMENT_ACCOUNT_NAME || "CONG TY SME ERP";
+    const resolvedTemplate = template || cfg.template || "compact2";
+
+    const bin = BANK_BINS[String(resolvedBank).toLowerCase()] || resolvedBank;
     const memo = encodeURIComponent(orderCode.trim());
-    const accName = encodeURIComponent(accountName.trim());
-    const qrUrl = `https://img.vietqr.io/image/${bin}-${accountNumber}-${template}.png?amount=${Math.round(
+    const accName = encodeURIComponent(resolvedAccountName.trim());
+    const qrUrl = `https://img.vietqr.io/image/${bin}-${resolvedAccountNo}-${resolvedTemplate}.png?amount=${Math.round(
       amount
     )}&addInfo=${memo}&accountName=${accName}`;
 
     return {
       qrUrl,
       bankBin: bin,
-      accountNumber,
-      accountName,
+      accountNumber: resolvedAccountNo,
+      accountName: resolvedAccountName,
       amount: Math.round(amount),
       orderCode,
       transferContent: orderCode,

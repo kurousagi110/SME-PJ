@@ -32,6 +32,9 @@ import {
   IconRobot,
   IconLoader2,
   IconSearch,
+  IconDiscount2,
+  IconSettings,
+  IconScale,
 } from "@tabler/icons-react";
 import {
   CommandDialog,
@@ -295,7 +298,28 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             className="cursor-pointer"
           >
             <IconShoppingCart className="mr-2 h-4 w-4 text-emerald-600" />
-            <span>Quầy Bán Hàng Thu Ngân (POS)</span>
+            <span>Quầy Bán Hàng Thu Ngân (POS & Ca Thu Ngân)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/crm-pipeline"))}
+            className="cursor-pointer"
+          >
+            <IconBriefcase className="mr-2 h-4 w-4 text-indigo-600" />
+            <span>Phễu Cơ Hội Bán Hàng (CRM Sales Pipeline)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/promotions"))}
+            className="cursor-pointer"
+          >
+            <IconDiscount2 className="mr-2 h-4 w-4 text-pink-600" />
+            <span>Khuyến Mãi Động & Tích Điểm Loyalty</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/ecommerce-sync"))}
+            className="cursor-pointer"
+          >
+            <IconBrandShopee className="mr-2 h-4 w-4 text-orange-600" />
+            <span>Đồng Bộ Sàn TMĐT (Shopee / TikTok / Lazada)</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/quotations"))}
@@ -360,6 +384,20 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Kho Hàng Tổng Hợp & Cảnh Báo An Toàn</span>
           </CommandItem>
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/warehouses"))}
+            className="cursor-pointer"
+          >
+            <IconTruck className="mr-2 h-4 w-4 text-blue-600" />
+            <span>Đa Kho, Vị Trí Kệ (Bin) & Điều Chuyển Nội Bộ</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/procurement"))}
+            className="cursor-pointer"
+          >
+            <IconScale className="mr-2 h-4 w-4 text-teal-600" />
+            <span>Mua Hàng Nâng Cao (PR → RFQ → Vendor Scorecard)</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/product/catalog"))}
             className="cursor-pointer"
           >
@@ -422,6 +460,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
             <span>Báo Cáo Tài Chính & Lãi - Lỗ (P&L, COGS, Tuổi Nợ)</span>
           </CommandItem>
           <CommandItem
+            onSelect={() => runCommand(() => router.push("/fixed-assets"))}
+            className="cursor-pointer"
+          >
+            <IconReportAnalytics className="mr-2 h-4 w-4 text-blue-600" />
+            <span>Thuế GTGT (VAT) · Tài Sản Cố Định · Ngân Sách</span>
+          </CommandItem>
+          <CommandItem
             onSelect={() => runCommand(() => router.push("/cashbook"))}
             className="cursor-pointer"
           >
@@ -441,6 +486,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
           >
             <IconCalendar className="mr-2 h-4 w-4 text-blue-600" />
             <span>Bảng Chấm Công Hàng Ngày</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/hr-requests"))}
+            className="cursor-pointer"
+          >
+            <IconFileCheck className="mr-2 h-4 w-4 text-emerald-600" />
+            <span>Cổng Nhân Sự ESS (Nghỉ phép / OT / QR-GPS)</span>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => router.push("/staff"))}
@@ -482,6 +534,13 @@ export function CommandPalette({ open: controlledOpen, onOpenChange: setControll
           >
             <IconRobot className="mr-2 h-4 w-4 text-indigo-600" />
             <span>Tự Động Hóa Đa Kênh & Bot (Telegram / Zalo)</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => router.push("/settings"))}
+            className="cursor-pointer"
+          >
+            <IconSettings className="mr-2 h-4 w-4 text-slate-600" />
+            <span>Cấu Hình Doanh Nghiệp, VietQR & Cổng Tích Hợp</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

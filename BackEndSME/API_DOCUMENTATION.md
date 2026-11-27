@@ -3,7 +3,7 @@
 **Base URL:** `/api/v1`
 **Authentication:** `Authorization: Bearer {JWT_TOKEN}` (obtained from `/api/v1/users/login`)
 **Content-Type:** `application/json`
-**Generated:** 2026-04-02
+**Updated:** 2026-11-27
 
 ---
 
@@ -1767,16 +1767,18 @@ All endpoints return one of the following shapes:
 
 ---
 
-## 25. Ưu Đãi B2B & Quản Lý Hạn Mức Tín Dụng (Tiered Pricing & Coupons)
+## 25. Ưu Đãi B2B & Promotion Engine Động (Tiered Pricing & Dynamic Coupons)
 
 ### POST /api/v1/orders/validate-coupon
-**Description:** Xác thực và áp dụng mã giảm giá / voucher khuyến mãi (SME5, SME10, VIP50K, FREESHIP).  
+**Description:** Xác thực và tính mức giảm cho mã khuyến mãi đọc động từ MongoDB `promotions` (tự động seed sẵn `SME5`, `SME10`, `VIP50K`, `FREESHIP` và hỗ trợ mọi chiến dịch tạo mới từ `/promotions`).  
 **Auth required:** Yes  
 **Request Body:**
 ```json
 {
   "code": "SME10",
-  "orderAmount": 25000000
+  "orderAmount": 25000000,
+  "customerGroup": "vip",
+  "customerKey": "0901234567"
 }
 ```
 
@@ -1836,3 +1838,272 @@ All endpoints return one of the following shapes:
 **Auth required:** Yes
 
 
+
+---
+
+## 28. Cấu Hình Doanh Nghiệp & Hệ Thống Tập Trung (System Settings)
+
+### GET /api/v1/settings
+**Description:** Lấy cấu hình hệ thống hiện tại (thông tin pháp nhân, VietQR mặc định, tham số tính lương KPI/BHXH/TNCN, quy tắc tích điểm Loyalty, tọa độ GPS & chu kỳ xoay QR chấm công, cấu hình tích hợp).  
+**Auth required:** Yes
+
+### PUT /api/v1/settings
+**Description:** Cập nhật từng phân mục cấu hình hệ thống (`company`, `vietqr`, `payroll`, `loyalty`, `attendance`, `integrations`). Ghi nhận Audit Log kèm Visual Diff (`before` ↔ `after`).  
+**Auth required:** Yes (Admin / Ban Giám Đốc)
+
+---
+
+## 29. Khuyến Mãi Động & Tích Điểm Thành Viên (Promotions & Loyalty)
+
+### GET /api/v1/promotions
+**Description:** Lấy danh sách chương trình khuyến mãi/voucher (hỗ trợ tìm kiếm `?q=...&activeOnly=true`).  
+**Auth required:** Yes
+
+### POST /api/v1/promotions
+**Description:** Tạo mới chương trình khuyến mãi (`type`: `percent` | `fixed` | `freeship`, hỗ trợ `max_discount`, `min_order_amount`, `max_usage`, `per_customer_limit`, `customer_groups`, `start_date`, `end_date`).  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### PUT /api/v1/promotions/:id
+**Description:** Cập nhật thông tin hoặc bật/tắt trạng thái kích hoạt (`is_active`) mã khuyến mãi.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### DELETE /api/v1/promotions/:id
+**Description:** Xóa mềm chương trình khuyến mãi.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### POST /api/v1/promotions/validate
+**Description:** Xác thực điều kiện áp dụng và tính số tiền giảm của mã khuyến mãi.  
+**Auth required:** Yes
+
+### GET /api/v1/promotions/loyalty/members
+**Description:** Danh sách khách hàng kèm điểm khả dụng, tổng điểm tích lũy trọn đời và hạng thành viên (`bronze` / `silver` / `gold` / `platinum`).  
+**Auth required:** Yes
+
+### GET /api/v1/promotions/loyalty/lookup?phone=...&partnerId=...
+**Description:** Tra cứu điểm tích lũy, hạng thành viên và lịch sử cộng/trừ điểm của một khách hàng.  
+**Auth required:** Yes
+
+---
+
+## 30. Quản Lý Ca Thu Ngân POS (POS Shift Management)
+
+### GET /api/v1/pos-shifts/active
+**Description:** Lấy thông tin ca thu ngân đang mở của nhân viên hiện tại kèm thống kê realtime (số đơn, doanh thu tiền mặt, chuyển khoản/QR, tiền mặt lý thuyết trong két).  
+**Auth required:** Yes
+
+### POST /api/v1/pos-shifts/open
+**Description:** Mở ca thu ngân mới với tiền mặt đầu ca (`opening_cash`) và tên quầy (`register_name`).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "opening_cash": 1000000,
+  "register_name": "Quầy POS #1",
+  "notes": "Nhận bàn giao ca sáng"
+}
+```
+
+### POST /api/v1/pos-shifts/:id/close
+**Description:** Kết ca thu ngân & đối chiếu kiểm quỹ thực tế (`actual_cash`) so với két lý thuyết (`expected_cash`), tính chênh lệch thừa/thiếu (`variance`).  
+**Auth required:** Yes
+
+### GET /api/v1/pos-shifts
+**Description:** Lịch sử các ca thu ngân (Admin xem tất cả, thu ngân xem ca của mình).  
+**Auth required:** Yes
+
+---
+
+## 31. Cổng Nhân Sự Tự Phục Vụ ESS & Chấm Công Thông Minh QR/GPS
+
+### GET /api/v1/hr-requests
+**Description:** Danh sách đơn từ nhân sự (nghỉ phép, tăng ca OT, đi muộn/về sớm, công tác). Hỗ trợ lọc `?status=pending&type=overtime&mine=true`.  
+**Auth required:** Yes
+
+### GET /api/v1/hr-requests/leave-balance?year=2026
+**Description:** Lấy quỹ phép năm hiện tại của nhân viên (`total_annual`, `used_days`, `pending_days`, `remaining_days`).  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests
+**Description:** Tạo đơn từ nhân sự mới (`loai_don`: `leave` | `overtime` | `late_early` | `business_trip`). Tự động kiểm tra số ngày phép năm còn lại nếu chọn nghỉ phép năm. Đổ thẳng vào hàng đợi `/api/v1/approvals/pending`.  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests/:id/decide
+**Description:** Phê duyệt (`approve`) hoặc từ chối (`reject`) đơn từ nhân sự (có chống tự duyệt `SELF_APPROVE_FORBIDDEN`). Cũng hỗ trợ duyệt tập trung qua `POST /api/v1/approvals/action` với `loai: "hr_request"`.  
+**Auth required:** Yes (HR Manager / Admin)
+
+### GET /api/v1/hr-requests/attendance/qr-token
+**Description:** Sinh mã QR chấm công xoay vòng ký HMAC-SHA256 theo chu kỳ cấu hình (`qr_rotation_seconds`).  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests/attendance/smart-check-in
+**Description:** Chấm công vào ca (`check_in`) hoặc tan ca (`check_out`) tự phục vụ kèm xác thực mã QR động và kiểm tra bán kính GPS Geofencing (Haversine).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "mode": "check_in",
+  "qr_token": "SMEQR-14166666-A1B2C3D4E5F6",
+  "lat": 21.0286,
+  "lng": 105.8049
+}
+```
+
+---
+
+## 32. Quản Lý Đa Kho, Vị Trí Kệ (Bin) & Điều Chuyển Kho Nội Bộ
+
+### GET /api/v1/warehouses
+**Description:** Danh sách các kho (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC` và các kho chi nhánh) kèm thống kê số SKU, tổng tồn và số mặt hàng chạm ngưỡng tối thiểu.  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses
+**Description:** Tạo mới kho / chi nhánh lưu trữ.  
+**Auth required:** Yes (Approver / Admin)
+
+### PUT /api/v1/warehouses/:id
+**Description:** Cập nhật thông tin kho (tên, loại, địa chỉ, người phụ trách, trạng thái hoạt động).  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/warehouses/stocks
+**Description:** Tra cứu tồn kho phân bổ theo từng kho & vị trí kệ (`?warehouseCode=KHO-TONG&itemType=san_pham&q=...`).  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/stocks/sync-initial
+**Description:** Đồng bộ khởi tạo tồn kho từ danh mục `san_pham` (vào `KHO-TONG`) và `nguyen_lieu` (vào `KHO-XUONG`) cho các mặt hàng chưa phân bổ.  
+**Auth required:** Yes (Approver / Admin)
+
+### PUT /api/v1/warehouses/stocks/bin
+**Description:** Cập nhật mã vị trí kệ/ô (`bin_location`) và tồn kho tối thiểu (`min_stock`) tại từng kho.  
+**Auth required:** Yes
+
+### GET /api/v1/warehouses/transfers
+**Description:** Danh sách phiếu điều chuyển kho nội bộ (`?status=in_transit&warehouseCode=...`).  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/transfers
+**Description:** Tạo phiếu điều chuyển kho nháp (`draft`), tự động xác thực kho nguồn khác kho đích và đủ tồn kho nguồn.  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/transfers/:id/dispatch
+**Description:** Xuất chuyển kho (`draft` → `in_transit`): trừ tồn kho nguồn, ghi nhận Thẻ kho (`xuat_chuyen_kho`) và gửi thông báo Socket.io cho thủ kho đích.  
+**Auth required:** Yes (Approver / Admin)
+
+### POST /api/v1/warehouses/transfers/:id/receive
+**Description:** Xác nhận nhập kho đích (`in_transit` → `received`): cộng tồn kho đích theo số lượng thực nhận (`received_items`), tự động tính hao hụt vận chuyển và đồng bộ tồn kho tổng nếu phát sinh hao hụt.  
+**Auth required:** Yes (Approver / Admin)
+
+### POST /api/v1/warehouses/transfers/:id/cancel
+**Description:** Hủy phiếu điều chuyển (`draft` / `in_transit` → `cancelled`). Nếu hủy khi đang `in_transit`, tự động hoàn trả toàn bộ số lượng đã trừ về lại kho nguồn.  
+**Auth required:** Yes (Approver / Admin)
+
+---
+
+## 33. Phễu Cơ Hội Bán Hàng (CRM Sales Pipeline)
+
+### GET /api/v1/crm-pipeline
+**Description:** Lấy danh sách cơ hội bán hàng kèm bộ chỉ số phễu (`open_pipeline_value`, `weighted_forecast_value`, `win_rate_pct`, `overdue_follow_ups`). Hỗ trợ lọc `?stage=...&q=...&mine=true`.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline
+**Description:** Tạo cơ hội bán hàng mới (`title`, `customer_name`, `customer_phone`, `expected_value`, `stage`, `next_follow_up`).  
+**Auth required:** Yes
+
+### PUT /api/v1/crm-pipeline/:id/stage
+**Description:** Chuyển giai đoạn Kanban (`lead` | `qualified` | `proposal` | `negotiation` | `won` | `lost`) và cập nhật xác suất chốt.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline/:id/activities
+**Description:** Ghi nhận nhật ký chăm sóc khách hàng (`call` / `meeting` / `email` / `note`) và lịch nhắc follow-up tiếp theo.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline/:id/convert-to-quotation
+**Description:** Chuyển 1-click cơ hội CRM sang Báo giá B2B (`/api/v1/quotations`) và tự động cập nhật trạng thái cơ hội sang `proposal`.  
+**Auth required:** Yes
+
+---
+
+## 34. Mua Hàng Nâng Cao (PR → RFQ Matrix → Vendor Scorecard & 3-Way Match)
+
+### GET /api/v1/procurement/prs & POST /api/v1/procurement/prs
+**Description:** Danh sách & tạo mới Đề xuất mua hàng (Purchase Request — tự đổ vào `/api/v1/approvals/pending`).  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/prs/:id/decide
+**Description:** Duyệt hoặc từ chối Đề xuất mua hàng (có chống tự duyệt `SELF_APPROVE_FORBIDDEN`).  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/procurement/rfqs & POST /api/v1/procurement/rfqs
+**Description:** Quản lý Yêu cầu báo giá nhiều NCC (tạo trực tiếp hoặc từ `pr_id` đã duyệt), tự động trả về `ranked_quotes` đã chấm điểm tổng hợp.  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/rfqs/:id/quotes
+**Description:** Nhập báo giá cạnh tranh từ một NCC (`vendor_name`, `total_price`, `lead_time_days`, `payment_terms_days`).  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/rfqs/:id/award
+**Description:** Chọn NCC thắng thầu trong RFQ và tự động sinh Đơn Mua Hàng (PO nháp) vào `don_hang`.  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/procurement/vendor-scorecard
+**Description:** Bảng xếp hạng NCC (điểm 0–100 & hạng `A/B/C/D`) tổng hợp từ lịch sử PO thực tế.  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/three-way-match
+**Description:** Đối soát 3 chiều **PO ↔ Phiếu nhập kho (GRN) ↔ Hóa đơn NCC**, trả về trạng thái `MATCHED` | `QTY_MISMATCH` | `PRICE_MISMATCH` | `BOTH_MISMATCH`.  
+**Auth required:** Yes
+
+---
+
+## 35. Kế Toán Thuế GTGT (VAT), Tài Sản Cố Định & Dự Toán Ngân Sách
+
+### GET /api/v1/accounting/vat-report?year=2026&month=11
+**Description:** Bảng kê Thuế GTGT đầu ra / đầu vào theo Tháng, Quý (`quarter=1..4`) hoặc Năm, tính VAT phải nộp hoặc còn được khấu trừ kỳ sau.  
+**Auth required:** Yes (`finance.view`)
+
+### GET /api/v1/accounting/assets & POST /api/v1/accounting/assets
+**Description:** Quản lý danh mục Tài sản cố định / Máy móc kèm giá trị còn lại và mức khấu hao đường thẳng hàng tháng.  
+**Auth required:** Yes (`finance.view` / Finance Manager)
+
+### POST /api/v1/accounting/assets/:id/maintenance
+**Description:** Ghi nhận lịch sử & chi phí bảo trì máy móc thiết bị.  
+**Auth required:** Yes (`finance.view`)
+
+### POST /api/v1/accounting/assets/depreciate
+**Description:** Chạy trích khấu hao kỳ (`month`, `year`, tùy chọn `post_to_cashbook`), bảo vệ idempotent theo kỳ `YYYY-MM`.  
+**Auth required:** Yes (Finance Manager / Admin)
+
+### GET /api/v1/accounting/budgets & POST /api/v1/accounting/budgets
+**Description:** Thiết lập dự toán ngân sách theo phòng ban/hạng mục và báo cáo đối chiếu **Budget vs Actual** kèm cảnh báo vượt ngưỡng 80% / 100%.  
+**Auth required:** Yes (`finance.view` / Finance Manager)
+
+---
+
+## 36. Cổng Tích Hợp Thực Tế & Đồng Bộ Sàn TMĐT (Omnichannel & Webhooks)
+
+### POST /api/v1/shipping/webhook
+**Description:** Webhook công khai nhận cập nhật trạng thái vận đơn từ GHN / GHTK / Viettel Post (xác thực fail-closed bằng `SHIPPING_WEBHOOK_SECRET` + chống trùng idempotency). Tự động sinh **Phiếu Thu đối soát COD** vào Sổ Quỹ khi hãng xác nhận giao thành công / chuyển tiền COD.  
+**Auth required:** Webhook Secret Header (`x-webhook-secret` / `x-api-key`)
+
+### POST /api/v1/payments/webhook (Mở rộng Hợp đồng B2B)
+**Description:** Ngoài tự động gạch nợ đơn bán hàng (`DH-...`), nay hỗ trợ tự động gạch nợ **Đợt thanh toán Hợp đồng B2B (`HD-...`)** và bắn Socket.io realtime `payment:success`.  
+**Auth required:** Webhook Secret Header (`PAYMENT_WEBHOOK_SECRET`)
+
+### GET /api/v1/ecommerce-sync/overview
+**Description:** Tổng quan gian hàng Shopee/TikTok/Lazada, ánh xạ SKU, nhật ký đồng bộ và trạng thái Adapter HĐĐT (MISA/VNPT/Viettel) + Adapter vận chuyển (GHN/GHTK).  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels & POST /api/v1/ecommerce-sync/mappings
+**Description:** Cấu hình gian hàng TMĐT và ánh xạ SKU sàn ↔ sản phẩm SME kèm tồn kho đệm (`buffer_stock`) chống bán âm kho.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### POST /api/v1/ecommerce-sync/channels/:id/sync-inventory
+**Description:** Tính tồn kho an toàn (`max(0, physical - reserved - buffer)`) và đẩy cập nhật tồn kho cho toàn bộ SKU đã ánh xạ của gian hàng.  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels/:id/import-order
+**Description:** Tiếp nhận/kéo đơn hàng từ sàn TMĐT về hệ thống SME theo bảng ánh xạ SKU.  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels/:id/settle-payout
+**Description:** Quyết toán doanh thu sàn sau khi khấu trừ phí sàn, phí thanh toán, voucher shop & hàng hoàn, đồng thời tự động sinh **Phiếu Thu** vào Sổ Quỹ.  
+**Auth required:** Yes (Finance Manager / Admin)

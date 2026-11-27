@@ -33,6 +33,15 @@ import contractRoute          from "./contract.route.js";
 import warrantyRoute          from "./warranty.route.js";
 import portalRoute            from "./portal.route.js";
 import searchRoute            from "./search.route.js";
+import settingsRoute          from "./settings.route.js";
+import promotionRoute         from "./promotion.route.js";
+import posShiftRoute          from "./pos-shift.route.js";
+import hrRequestRoute         from "./hr-request.route.js";
+import warehouseRoute         from "./warehouse.route.js";
+import crmPipelineRoute       from "./crm-pipeline.route.js";
+import procurementRoute       from "./procurement.route.js";
+import accountingExpRoute     from "./accounting-expansion.route.js";
+import ecommerceSyncRoute     from "./ecommerce-sync.route.js";
 
 const v1Router = Router();
 
@@ -68,6 +77,15 @@ v1Router.use("/contracts",          contractRoute);
 v1Router.use("/warranty",           warrantyRoute);
 v1Router.use("/portal",             portalRoute); // Public customer self-service portal
 v1Router.use("/search",             searchRoute); // Omni-search Ctrl+K
+v1Router.use("/settings",           settingsRoute); // System & Company Settings
+v1Router.use("/promotions",         promotionRoute); // Dynamic Promotions & Loyalty Points
+v1Router.use("/pos-shifts",         posShiftRoute); // POS Cashier Shift Management
+v1Router.use("/hr-requests",        hrRequestRoute); // HR ESS Leave, OT & Smart Attendance
+v1Router.use("/warehouses",         warehouseRoute); // Multi-Warehouse, Bin & Internal Transfers
+v1Router.use("/crm-pipeline",       crmPipelineRoute); // CRM Sales Pipeline Kanban
+v1Router.use("/procurement",        procurementRoute); // PR, RFQ Matrix, Vendor Scorecard & 3-Way Match
+v1Router.use("/accounting",         accountingExpRoute); // VAT Report, Fixed Assets/Depreciation & Budgets
+v1Router.use("/ecommerce-sync",     ecommerceSyncRoute); // Omnichannel Shopee/TikTok/Lazada Sync & Settlement
 
 
 

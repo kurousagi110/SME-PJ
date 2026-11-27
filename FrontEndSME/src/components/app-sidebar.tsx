@@ -31,6 +31,8 @@ import {
   IconRobot,
   IconChartBar,
   IconFileText,
+  IconDiscount2,
+  IconSettings,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -131,6 +133,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : null,
           canSeeSalesMenu
             ? {
+                title: "Phễu Cơ Hội (CRM)",
+                url: "/crm-pipeline",
+                icon: IconBriefcase,
+                badge: "Mới",
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
                 title: "Báo Giá B2B",
                 url: "/quotations",
                 icon: IconFileInvoice,
@@ -142,6 +152,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Đơn Bán Hàng",
                 url: "/sales",
                 icon: IconListDetails,
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
+                title: "Khuyến Mãi & Loyalty",
+                url: "/promotions",
+                icon: IconDiscount2,
+                badge: "Mới",
               }
             : null,
           canSeeSalesMenu
@@ -165,6 +183,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/shipping",
             icon: IconTruck,
             badge: "Mới",
+          },
+          {
+            title: "Đồng Bộ Sàn TMĐT",
+            url: "/ecommerce-sync",
+            icon: IconBrandShopee,
+            badge: "Omni",
           },
           {
             title: "Khách Hàng & NCC",
@@ -205,6 +229,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: IconPackages,
           },
           {
+            title: "Đa Kho & Chuyển Kho",
+            url: "/warehouses",
+            icon: IconTruck,
+            badge: "Mới",
+          },
+          {
+            title: "Mua Hàng PR / RFQ",
+            url: "/procurement",
+            icon: IconScale,
+            badge: "Mới",
+          },
+          {
             title: "Kiểm Kê Điều Chỉnh",
             url: "/stock-adjustments",
             icon: IconAdjustments,
@@ -236,6 +272,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 badge: "Mới",
               }
             : null,
+          canSeeFinancialMenu
+            ? {
+                title: "Thuế VAT · TSCĐ · Ngân Sách",
+                url: "/fixed-assets",
+                icon: IconReportAnalytics,
+                badge: "Mới",
+              }
+            : null,
           {
             title: "Sổ Quỹ & Công Nợ",
             url: "/cashbook",
@@ -250,6 +294,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Chấm Công",
             url: "/check-in",
             icon: IconCalendar,
+          },
+          {
+            title: "Đơn Từ Nhân Sự (ESS)",
+            url: "/hr-requests",
+            icon: IconFileCheck,
+            badge: "Mới",
           },
           {
             title: "Hồ Sơ Nhân Sự",
@@ -287,6 +337,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Tự Động Hóa & Bot",
                 url: "/automation",
                 icon: IconRobot,
+              }
+            : null,
+          isDirectorDepartment
+            ? {
+                title: "Cấu Hình Hệ Thống",
+                url: "/settings",
+                icon: IconSettings,
+                badge: "Admin",
               }
             : null,
         ].filter(Boolean) as any[],
