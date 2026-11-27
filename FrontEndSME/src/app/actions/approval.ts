@@ -8,6 +8,7 @@ export interface PendingApprovalsData {
   stockAdjustments: any[];
   sales: any[];
   returnOrders?: any[];
+  hrRequests?: any[];
   payroll: {
     thang: number;
     nam: number;
@@ -51,7 +52,7 @@ export async function fetchPendingApprovalsAction(): Promise<{
 }
 
 export async function processApprovalAction(payload: {
-  loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "rma";
+  loai: "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "rma" | "hr_request";
   id: string;
   hanh_dong: "approve" | "reject";
   ghi_chu?: string;

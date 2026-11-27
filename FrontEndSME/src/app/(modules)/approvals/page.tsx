@@ -69,7 +69,7 @@ function fmtDate(iso?: string) {
   }
 }
 
-type ApprovalKind = "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order";
+type ApprovalKind = "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "hr_request";
 
 interface SelectedApprovalItem {
   key: string;
@@ -366,13 +366,14 @@ export default function ApprovalsPage() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-2 md:grid-cols-7 w-full">
           <TabsTrigger value="all">Tất cả ({pending.totalPending})</TabsTrigger>
-          <TabsTrigger value="purchases">Đơn Mua Vật Tư ({pending.purchases.length})</TabsTrigger>
-          <TabsTrigger value="stock">Kiểm Kê Kho ({pending.stockAdjustments.length})</TabsTrigger>
-          <TabsTrigger value="sales">Đơn Bán Hàng ({pending.sales.length})</TabsTrigger>
-          <TabsTrigger value="rma">Đổi Trả RMA ({pending.returnOrders?.length || 0})</TabsTrigger>
-          <TabsTrigger value="payroll">Lương Tháng</TabsTrigger>
+          <TabsTrigger value="purchases">Đơn Mua ({pending.purchases.length})</TabsTrigger>
+          <TabsTrigger value="stock">Kiểm Kê ({pending.stockAdjustments.length})</TabsTrigger>
+          <TabsTrigger value="sales">Đơn Bán ({pending.sales.length})</TabsTrigger>
+          <TabsTrigger value="rma">RMA ({pending.returnOrders?.length || 0})</TabsTrigger>
+          <TabsTrigger value="hr">Đơn ESS ({pending.hrRequests?.length || 0})</TabsTrigger>
+          <TabsTrigger value="payroll">Lương</TabsTrigger>
         </TabsList>
 
         {/* TAB 1: ALL */}
@@ -949,6 +950,69 @@ export default function ApprovalsPage() {
                           variant="outline"
                           className="text-red-600 h-8"
                           onClick={() => handleReject("return_order", r.ma_rma, `Phiếu đổi trả ${r.ma_rma}`)}
+                        >
+                          Từ Chối
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* TAB HR ESS REQUESTS */}
+        <TabsContent value="hr" className="mt-4">
+          <Card className="p-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã đơn</TableHead>
+                  <TableHead>Nhân viên</TableHead>
+                  <TableHead>Loại đơn</TableHead>
+                  <TableHead>Thời gian / Chi tiết</TableHead>
+                  <TableHead>Lý do</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!pending.hrRequests || pending.hrRequests.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Không có đơn từ nhân sự (nghỉ phép / OT) nào chờ duyệt
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pending.hrRequests.map((hr: any) => (
+                    <TableRow key={hr._id}>
+                      <TableCell className="font-mono text-xs font-semibold">{hr.ma_don}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{hr.ho_ten}</div>
+                        <div className="text-xs text-muted-foreground">{hr.phong_ban || "-"}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{hr.loai_don}</Badge>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {hr.loai_don === "overtime"
+                          ? `${hr.so_gio_ot} giờ OT (×${hr.he_so_ot})`
+                          : `${hr.so_ngay} ngày (${fmtDate(hr.tu_ngay)})`}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate text-xs">{hr.ly_do}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
+                          onClick={() => handleApprove("hr_request", hr._id, `Đơn nhân sự ${hr.ma_don}`)}
+                        >
+                          Duyệt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 h-8"
+                          onClick={() => handleReject("hr_request", hr._id, `Đơn nhân sự ${hr.ma_don}`)}
                         >
                           Từ Chối
                         </Button>

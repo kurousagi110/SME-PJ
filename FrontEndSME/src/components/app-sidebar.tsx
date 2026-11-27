@@ -262,6 +262,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: IconCalendar,
           },
           {
+            title: "Đơn Từ Nhân Sự (ESS)",
+            url: "/hr-requests",
+            icon: IconFileCheck,
+            badge: "Mới",
+          },
+          {
             title: "Hồ Sơ Nhân Sự",
             url: "/staff",
             icon: IconUsers,

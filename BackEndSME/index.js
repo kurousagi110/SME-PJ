@@ -45,6 +45,7 @@ import WarrantyDAO           from "./models/warrantyDAO.js";
 import SystemSettingsDAO     from "./models/systemSettingsDAO.js";
 import PromotionDAO          from "./models/promotionDAO.js";
 import PosShiftDAO           from "./models/posShiftDAO.js";
+import HrRequestDAO          from "./models/hrRequestDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -132,6 +133,7 @@ async function main() {
       SystemSettingsDAO.injectDB(client),
       PromotionDAO.injectDB(client),
       PosShiftDAO.injectDB(client),
+      HrRequestDAO.injectDB(client),
     ]);
 
 

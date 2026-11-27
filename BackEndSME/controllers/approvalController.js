@@ -4,6 +4,7 @@ import { getDB } from "../config/database.js";
 import DonHangService from "../services/donHangService.js";
 import DieuChinhKhoDAO from "../models/dieuChinhKhoDAO.js";
 import LuongDAO from "../models/luongDAO.js";
+import HrRequestDAO from "../models/hrRequestDAO.js";
 import { notifyDepartment, notifyUser } from "../utils/socketManager.js";
 import ApiError from "../utils/ApiError.js";
 import { isAdminUser } from "../middleware/auth.js";
@@ -56,7 +57,15 @@ export default class ApprovalController {
       .limit(50)
       .toArray();
 
-    // 5. Bảng lương tháng hiện tại
+    // 5. Đơn từ nhân sự ESS chờ duyệt (nghỉ phép, tăng ca OT, đi muộn/về sớm, công tác)
+    const hrRequests = await db
+      .collection("hr_requests")
+      .find({ trang_thai: "pending" })
+      .sort({ created_at: -1 })
+      .limit(50)
+      .toArray();
+
+    // 6. Bảng lương tháng hiện tại
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
@@ -67,6 +76,7 @@ export default class ApprovalController {
       stockAdjustments.length +
       sales.length +
       returnOrders.length +
+      hrRequests.length +
       (payrollStatus.da_chi ? 0 : 1);
 
     return res.status(200).json({
@@ -77,6 +87,7 @@ export default class ApprovalController {
         stockAdjustments,
         sales,
         returnOrders,
+        hrRequests,
         payroll: {
           thang: currentMonth,
           nam: currentYear,
@@ -293,6 +304,41 @@ export default class ApprovalController {
       return res.status(200).json({
         success: true,
         message: "Đã phê duyệt yêu cầu đổi trả, chuyển kho kiểm tra QC",
+      });
+    }
+
+    if (loai === "hr_request") {
+      const isHrApprover =
+        isDirectorOrAdmin ||
+        roleCode === "hr_manager" ||
+        hasPermission(user, ["hr.manage", "approvals.view"]);
+      if (!isHrApprover) {
+        throw ApiError.forbidden("Bạn không có quyền phê duyệt đơn từ nhân sự");
+      }
+      const hrDoc = await HrRequestDAO.getById(id);
+      assertNotSelfApproval(hrDoc, "đơn từ nhân sự");
+
+      const decideRes = await HrRequestDAO.decide(id, {
+        approve: isApprove,
+        note: ghi_chu,
+        approver: user,
+      });
+      if (decideRes?.error) {
+        throw ApiError.badRequest(decideRes.error.message || "Không thể xử lý đơn từ nhân sự");
+      }
+
+      if (hrDoc?.user_id) {
+        notifyUser(hrDoc.user_id, {
+          type: isApprove ? "HR_REQUEST_APPROVED" : "HR_REQUEST_REJECTED",
+          title: isApprove ? "Đơn nhân sự đã được duyệt" : "Đơn nhân sự bị từ chối",
+          message: `Đơn ${hrDoc.ma_don} đã ${isApprove ? "được duyệt" : "bị từ chối"} bởi ${user.ho_ten || user.tai_khoan}${ghi_chu ? `: "${ghi_chu}"` : ""}`,
+          created_by: user,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: isApprove ? "Đã duyệt đơn từ nhân sự" : "Đã từ chối đơn từ nhân sự",
       });
     }
 

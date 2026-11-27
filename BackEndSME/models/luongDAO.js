@@ -3,6 +3,7 @@ import logger from "../utils/logger.js";
 import { sanitizeNumber } from "../utils/number.js";
 import { computeKpiPayrollRow } from "../utils/payrollCalculator.js";
 import SystemSettingsDAO from "./systemSettingsDAO.js";
+import HrRequestDAO from "./hrRequestDAO.js";
 import SoQuyDAO from "./soQuyDAO.js";
 import PeriodClosingDAO from "./periodClosingDAO.js";
 
@@ -430,8 +431,11 @@ export default class LuongDAO {
       });
       const prodStaffCount = prodStaffRecords.length;
 
-      // Đọc tham số tính lương động từ cấu hình hệ thống (company_settings)
-      const payrollConfig = await SystemSettingsDAO.getPayrollKpiConfig();
+      // Đọc tham số tính lương động từ cấu hình hệ thống (company_settings) & đơn OT/đi muộn đã duyệt
+      const [payrollConfig, hrAdjustmentsMap] = await Promise.all([
+        SystemSettingsDAO.getPayrollKpiConfig(),
+        HrRequestDAO.getApprovedMonthlyPayrollAdjustments(thangNum, namNum),
+      ]);
 
       const items = chamCongsRaw.map((r) => {
         const nv = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
@@ -465,6 +469,15 @@ export default class LuongDAO {
           san_luong_sx = Math.round((totalCompletedProductionQty / prodStaffCount) * 100) / 100;
         }
 
+        // Lấy giờ OT và số buổi miễn phạt đi muộn từ đơn ESS đã duyệt
+        let hrAdj = null;
+        for (const k of candidateKeys) {
+          if (hrAdjustmentsMap.has(k)) {
+            hrAdj = hrAdjustmentsMap.get(k);
+            break;
+          }
+        }
+
         return computeKpiPayrollRow({
           ma_nv: r._id,
           nv,
@@ -473,6 +486,9 @@ export default class LuongDAO {
           so_ngay_cong: r.so_ngay,
           tong_gio_lam: r.tong_gio,
           so_ngay_di_tre: r.so_ngay_di_tre,
+          excused_late_days: hrAdj?.excused_late_days || 0,
+          ot_hours: hrAdj?.ot_hours || 0,
+          ot_weighted_hours: hrAdj?.ot_weighted_hours || 0,
           don_gia_gio_override: donGiaGioNum,
           thuong_khac: thuongNum,
           phat_khac: phatNum,
