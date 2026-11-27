@@ -61,11 +61,15 @@ BackEndSME/
 │   ├── warehouseController.js       # [Mới] Đa kho, vị trí kệ Bin & Điều chuyển kho nội bộ
 │   └── warrantyController.js        # Thẻ bảo hành điện tử, tra cứu SĐT & lịch sử bảo trì
 ├── models/                          # Data Access Objects (MongoDB Native Collections)
-│   ├── systemSettingsDAO.js         # [Mới] Collection `company_settings` (cache 30s)
-│   ├── promotionDAO.js              # [Mới] Collections `promotions` & `loyalty_ledger`
-│   ├── posShiftDAO.js               # [Mới] Collection `pos_shifts`
-│   ├── hrRequestDAO.js              # [Mới] Collection `hr_requests`
-│   ├── warehouseDAO.js              # [Mới] Collections `warehouses`, `warehouse_stocks`, `stock_transfers`
+│   ├── crmPipelineDAO.js            # [Phase 4] Collection `crm_opportunities`
+│   ├── procurementDAO.js            # [Phase 4] Collections `purchase_requests` & `rfqs`
+│   ├── fixedAssetDAO.js             # [Phase 5] Collections `fixed_assets`, `depreciation_logs`, `department_budgets`
+│   ├── ecommerceSyncDAO.js          # [Phase 6] Collections `ecommerce_channels`, `ecommerce_sku_mappings`, `ecommerce_sync_logs`
+│   ├── systemSettingsDAO.js         # [Phase 1] Collection `company_settings` (cache 30s)
+│   ├── promotionDAO.js              # [Phase 1] Collections `promotions` & `loyalty_ledger`
+│   ├── posShiftDAO.js               # [Phase 1] Collection `pos_shifts`
+│   ├── hrRequestDAO.js              # [Phase 2] Collection `hr_requests`
+│   ├── warehouseDAO.js              # [Phase 3] Collections `warehouses`, `warehouse_stocks`, `stock_transfers`
 │   ├── cashbookDAO.js, contractDAO.js, financialReportDAO.js, orderDAO.js, partnerDAO.js,
 │   │   payrollDAO.js, periodClosingDAO.js, productDAO.js, quotationDAO.js, returnOrderDAO.js,
 │   │   shippingDAO.js, stockAdjustmentDAO.js, stockLedgerDAO.js, warrantyDAO.js, ...
@@ -87,25 +91,20 @@ BackEndSME/
 │   ├── payrollCalculator.js         # Tính lương KPI + OT + miễn phạt đi muộn + BHXH/TNCN
 │   ├── anomalyEngine.js, bankReconcileEngine.js, crmIntelligence.js, salesRecommendationEngine.js,
 │   │   planningEngine.js, reorderEngine.js, aiAgentParser.js, totp.js, securityHelpers.js, ...
-└── tests/                           # 23 file Unit & Integration Tests (107 test cases với node:test)
+└── tests/                           # 26 file Unit & Integration Tests (117 test cases với node:test)
 ```
 
 ---
 
 ## 🔄 Các Quy Trình Nghiệp Vụ Khép Kín (Closed-Loop Workflows)
 
-1. **Cấu Hình Hệ Thống Động (`company_settings`)**:
-   - Đọc/cập nhật tập trung qua `GET/PUT /api/v1/settings`.
-   - `PaymentService` (VietQR), `PortalController` và `LuongDAO` (lương KPI, BHXH, Thuế TNCN) tự động đồng bộ theo cấu hình lưu trong DB thay vì hardcode.
-2. **POS Bán Lẻ $\to$ Promotion Động $\to$ Tích/Đổi Điểm Loyalty $\to$ Ca Thu Ngân**:
-   - Mở ca tại `POST /api/v1/pos-shifts/open` $\to$ Thanh toán POS (`POST /api/v1/orders/pos`) tự động xác thực voucher qua `PromotionDAO`, trừ/cộng điểm Loyalty vào `doi_tac` & `loyalty_ledger`, tạo Phiếu Thu trong `so_quy` và ghi nhận giao dịch vào ca đang mở $\to$ Kết ca & kiểm quỹ chênh lệch tại `POST /api/v1/pos-shifts/:id/close`.
-3. **Nhân Sự ESS $\to$ Unified Approval Hub $\to$ Bảng Lương BHXH/Thuế TNCN**:
-   - Nhân viên gửi đơn nghỉ phép / tăng ca OT / đi muộn tại `POST /api/v1/hr-requests` $\to$ Quản lý phê duyệt qua `/api/v1/approvals/action` (`loai: "hr_request"`, chống tự duyệt) $\to$ `LuongDAO.tinhLuongThang` tự động cộng tiền tăng ca OT, miễn phạt đi muộn, trích khấu trừ BHXH (8%) / BHYT (1.5%) / BHTN (1%) và Thuế TNCN lũy tiến 7 bậc.
-   - Chấm công tự phục vụ qua QR xoay vòng ký HMAC-SHA256 & GPS Geofencing (`POST /api/v1/hr-requests/attendance/smart-check-in`).
-4. **Đa Kho & Điều Chuyển Kho Nội Bộ (`warehouses`, `warehouse_stocks`, `stock_transfers`)**:
-   - Khởi tạo/đồng bộ tồn kho theo kho (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC`) & vị trí kệ `bin_location`.
-   - Vòng đời phiếu điều chuyển: `draft` $\to$ `in_transit` (`POST /dispatch`: trừ kho nguồn, ghi Thẻ kho, bắn Socket.io) $\to$ `received` (`POST /receive`: cộng kho đích, tự động xử lý hao hụt vận chuyển) hoặc `cancelled` (`POST /cancel`: hoàn tồn kho nguồn nếu đang vận chuyển).
-5. **Báo Giá B2B $\to$ Đơn Hàng**, **Hợp Đồng Milestone $\to$ Sổ Quỹ**, **RMA $\to$ QC $\to$ Phiếu Chi**, **Khóa Sổ Kỳ Kế Toán**, **Kanban Sản Xuất 6 Công Đoạn**, **Dự Báo Dòng Tiền 12 Tuần & Đối Soát Ngân Hàng**, và **Telegram/Zalo Cron Automation**.
+1. **Cấu Hình Hệ Thống Động (`company_settings`)**: `GET/PUT /api/v1/settings` đồng bộ động cho VietQR, lương KPI/BHXH/TNCN, Loyalty, chấm công QR/GPS & cổng tích hợp.
+2. **POS Bán Lẻ $\to$ Promotion Động $\to$ Tích/Đổi Điểm Loyalty $\to$ Ca Thu Ngân**: Mở ca, áp mã động, tích/đổi điểm, tự sinh Phiếu Thu & kết ca kiểm quỹ chênh lệch.
+3. **Nhân Sự ESS $\to$ Unified Approval Hub $\to$ Bảng Lương BHXH/Thuế TNCN**: Nghỉ phép/OT/đi muộn duyệt trên `/approvals` $\to$ đồng bộ trực tiếp tính lương KPI + OT + BHXH/BHYT/BHTN & Thuế TNCN 7 bậc; chấm công QR xoay vòng HMAC & GPS Geofencing.
+4. **Đa Kho & Điều Chuyển Kho Nội Bộ**: `draft` $\to$ `in_transit` $\to$ `received` / `cancelled`, ghi Thẻ kho & xử lý hao hụt thực nhận.
+5. **CRM Sales Pipeline $\to$ Báo Giá B2B & Mua Hàng PR $\to$ RFQ $\to$ PO**: Chuyển cơ hội bán hàng 1-click sang `/quotations`; duyệt PR trên `/approvals` $\to$ chấm điểm báo giá nhiều NCC trong RFQ $\to$ 1-click sinh PO + đối soát 3 chiều & Vendor Scorecard.
+6. **Thuế GTGT (VAT) · Khấu Hao TSCĐ · Dự Toán Ngân Sách**: Bảng kê VAT đầu ra/đầu vào, trích khấu hao kỳ idempotent theo `YYYY-MM`, và đối chiếu Budget vs Actual theo phòng ban.
+7. **Tích Hợp Production-Ready & Omnichannel TMĐT**: Provider Adapters cho HĐĐT (MISA/VNPT/Viettel), Adapter vận chuyển GHN/GHTK + Webhook đối soát COD (`POST /api/v1/shipping/webhook`), Webhook SePay/Casso gạch nợ cả Đơn bán (`DH-...`) & Hợp đồng B2B (`HD-...`), cùng đồng bộ tồn kho đệm & quyết toán tiền sàn Shopee/TikTok/Lazada vào Sổ Quỹ.
 
 ---
 
@@ -124,10 +123,10 @@ cd BackEndSME && npm install && npm run dev
 
 ---
 
-## 🧪 Bộ Kịch Bản Kiểm Thử (23 Suites · 107 Test Cases)
+## 🧪 Bộ Kịch Bản Kiểm Thử (26 Suites · 117 Test Cases)
 
 ```bash
-# Chạy toàn bộ 23 file Unit & Integration Test (107 test cases, chạy nhanh không cần DB ngoài)
+# Chạy toàn bộ 26 file Unit & Integration Test (117 test cases, chạy nhanh không cần DB ngoài)
 cd BackEndSME && npm test
 
 # Chạy riêng bộ test Kho, Lô FEFO & QC/RMA
@@ -137,8 +136,10 @@ npm run test:inventory-qc
 npm run test:e2e
 ```
 
-Các file kiểm thử mới được bổ sung trong `BackEndSME/tests/`:
-- `settingsPromotionPosShift.test.js`: Quy tắc mã khuyến mãi động (cap giảm tối đa, hết hạn, lượt dùng, nhóm khách), tích/đổi điểm & hạng Loyalty, đối chiếu kiểm quỹ kết ca POS.
-- `hrEssTaxAndAttendance.test.js`: Thuế TNCN 7 bậc, BHXH/BHYT/BHTN áp trần & giảm trừ gia cảnh, nghỉ phép/tăng ca OT, tính lương tổng hợp, GPS Haversine & xác thực QR động HMAC.
-- `multiWarehouseAndTransfer.test.js`: Danh mục 4 kho mặc định, state machine chuyển kho, kiểm tra tồn kho nguồn & tính hao hụt thực nhận.
-- Cùng 20 suite lõi trước đó: `anomalyCrmAndPosSmart.test.js`, `backupConfig.test.js`, `bankReconcileAndCache.test.js`, `batchFefoAndStockLedger.test.js`, `businessLogic.test.js`, `contractsAndWarranty.test.js`, `einvoiceService.test.js`, `enterpriseFeatures.test.js`, `financialAndCashflow.test.js`, `omniSearch.test.js`, `orderAndPricing.test.js`, `portalAndWebhookSecurity.test.js`, `productionAndKanban.test.js`, `qcYieldAndRmaReturn.test.js`, `rbacPermissions.test.js`, `reorderEngine.test.js`, `securityHelpers.test.js`, `smartPlanningAndAiV2.test.js`, `stockAdjustmentAndInventory.test.js`, `totp.test.js`.
+Các file kiểm thử cho 6 giai đoạn mở rộng trong `BackEndSME/tests/`:
+- `settingsPromotionPosShift.test.js` (Phase 1): Promotion rules, Loyalty earn/redeem/tiers & POS Shift reconciliation.
+- `hrEssTaxAndAttendance.test.js` (Phase 2): Thuế TNCN 7 bậc, BHXH áp trần, nghỉ phép/OT, lương tổng hợp, GPS Haversine & QR HMAC.
+- `multiWarehouseAndTransfer.test.js` (Phase 3): Đa kho mặc định, state machine chuyển kho & hao hụt thực nhận.
+- `crmPipelineAndProcurement.test.js` (Phase 4): CRM weighted forecast/win-rate, xếp hạng RFQ, 3-Way Match & Vendor Scorecard.
+- `vatFixedAssetsAndBudget.test.js` (Phase 5): Thuế GTGT payable/credit, khấu hao đường thẳng idempotent & Budget vs Actual alerts.
+- `integrationsAndOmnichannel.test.js` (Phase 6): Provider Adapters HĐĐT MISA/Viettel, Logistics GHN status/payload, chống oversell buffer stock & quyết toán tiền sàn TMĐT.

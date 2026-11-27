@@ -4,6 +4,7 @@
  */
 
 import logger from "../utils/logger.js";
+import { setRuntimeSettings } from "../utils/runtimeSettingsStore.js";
 import { DEFAULT_PAYROLL_KPI_CONFIG } from "../utils/payrollCalculator.js";
 import { DEFAULT_LOYALTY_CONFIG } from "../utils/promotionEngine.js";
 
@@ -103,6 +104,7 @@ export default class SystemSettingsDAO {
         });
       }
       cachedSettings = mergeSettings(existing || DEFAULT_SYSTEM_SETTINGS);
+      setRuntimeSettings(cachedSettings);
       cacheExpiresAt = Date.now() + CACHE_TTL_MS;
     } catch (err) {
       logger.warn("SystemSettingsDAO init warning", { error: err.message });
@@ -198,6 +200,7 @@ export default class SystemSettingsDAO {
       );
 
       cachedSettings = mergeSettings({ ...next, updated_at: now, updated_by: updatedBy });
+      setRuntimeSettings(cachedSettings);
       cacheExpiresAt = Date.now() + CACHE_TTL_MS;
       return { ok: true, data: cachedSettings };
     } catch (err) {

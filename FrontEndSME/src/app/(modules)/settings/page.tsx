@@ -120,7 +120,7 @@ export default function SystemSettingsPage() {
       </div>
 
       <Tabs defaultValue="company" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
           <TabsTrigger value="company" className="gap-1.5">
             <IconBuilding className="size-4" />
             Doanh nghiệp & VietQR
@@ -136,6 +136,10 @@ export default function SystemSettingsPage() {
           <TabsTrigger value="attendance" className="gap-1.5">
             <IconClock className="size-4" />
             Chấm công QR/GPS
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="gap-1.5">
+            <IconQrcode className="size-4" />
+            Cổng Tích Hợp
           </TabsTrigger>
         </TabsList>
 
@@ -575,6 +579,100 @@ export default function SystemSettingsPage() {
                     onChange={(e) => updateSection("attendance", "office_lng", Number(e.target.value))}
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* TAB 5: INTEGRATIONS (E-INVOICE, LOGISTICS, SEPAY) */}
+        <TabsContent value="integrations">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Cổng Tích Hợp Đối Ngoại (HĐĐT · Vận Chuyển · Thanh Toán)</CardTitle>
+              <CardDescription>
+                Cấu hình nhà cung cấp Hóa đơn điện tử (NĐ 123/TT 78), Hãng vận chuyển & Webhook gạch nợ tự động SePay/Casso.
+                Khóa bí mật API được giữ an toàn trong biến môi trường phía server.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Nhà cung cấp Hóa đơn điện tử</Label>
+                  <Select
+                    value={settings.integrations.einvoice_provider}
+                    onValueChange={(v) => updateSection("integrations", "einvoice_provider", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mock">Mô phỏng nội bộ (Mock Preview)</SelectItem>
+                      <SelectItem value="misa">MISA meInvoice</SelectItem>
+                      <SelectItem value="vnpt">VNPT Invoice</SelectItem>
+                      <SelectItem value="viettel">Viettel S-Invoice</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Chế độ HĐĐT</Label>
+                  <Select
+                    value={settings.integrations.einvoice_mode}
+                    onValueChange={(v) => updateSection("integrations", "einvoice_mode", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mock">Mock (Xem trước không gửi CQT)</SelectItem>
+                      <SelectItem value="live">Live (Yêu cầu EINVOICE_API_URL & TOKEN)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Ký hiệu mẫu hóa đơn</Label>
+                  <Input
+                    value={settings.integrations.einvoice_series}
+                    onChange={(e) => updateSection("integrations", "einvoice_series", e.target.value.toUpperCase())}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Hãng vận chuyển mặc định</Label>
+                  <Select
+                    value={settings.integrations.logistics_default_carrier}
+                    onValueChange={(v) => updateSection("integrations", "logistics_default_carrier", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GHN">Giao Hàng Nhanh (GHN)</SelectItem>
+                      <SelectItem value="GHTK">Giao Hàng Tiết Kiệm (GHTK)</SelectItem>
+                      <SelectItem value="VIETTELPOST">Viettel Post</SelectItem>
+                      <SelectItem value="JTEXPRESS">J&amp;T Express</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Chế độ vận chuyển</Label>
+                  <Select
+                    value={settings.integrations.logistics_mode}
+                    onValueChange={(v) => updateSection("integrations", "logistics_mode", v)}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (Ước tính cước & mã nội bộ)</SelectItem>
+                      <SelectItem value="live">Live API (Yêu cầu token hãng)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id="sepay_enabled"
+                  checked={settings.integrations.sepay_enabled}
+                  onCheckedChange={(v) => updateSection("integrations", "sepay_enabled", Boolean(v))}
+                />
+                <Label htmlFor="sepay_enabled">
+                  Bật tự động gạch nợ đơn hàng (DH-...) & đợt thanh toán hợp đồng B2B (HD-...) qua Webhook SePay / Casso
+                </Label>
               </div>
             </CardContent>
           </Card>

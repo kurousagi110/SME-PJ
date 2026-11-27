@@ -3,7 +3,7 @@
  * Chuẩn định dạng QR Napas 247 và cổng thanh toán tự động (SePAY / Casso / Ngân hàng).
  */
 
-import SystemSettingsDAO from "../models/systemSettingsDAO.js";
+import { getRuntimeSettings } from "../utils/runtimeSettingsStore.js";
 
 // Danh sách mã ngân hàng phổ biến (BIN code chuẩn Napas)
 export const BANK_BINS = {
@@ -38,7 +38,7 @@ export class PaymentService {
     orderCode = "",
     template,
   }) {
-    const cfg = SystemSettingsDAO.getCachedSync()?.vietqr || {};
+    const cfg = getRuntimeSettings()?.vietqr || {};
     const resolvedBank = bankBin || cfg.bank_bin || process.env.PAYMENT_BANK_BIN || "MB";
     const resolvedAccountNo = accountNumber || cfg.account_number || process.env.PAYMENT_ACCOUNT_NO || "0987654321";
     const resolvedAccountName = accountName || cfg.account_name || process.env.PAYMENT_ACCOUNT_NAME || "CONG TY SME ERP";

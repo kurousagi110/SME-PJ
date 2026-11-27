@@ -3,6 +3,7 @@ import { sendSuccess } from "../utils/response.js";
 import ApiError from "../utils/ApiError.js";
 import { PaymentService } from "../services/paymentService.js";
 import DonHangDAO from "../models/donHangDAO.js";
+import ContractDAO from "../models/contractDAO.js";
 import SoQuyDAO, { LOAI_PHIEU, PHUONG_THUC } from "../models/soQuyDAO.js";
 import { getIO } from "../utils/socketManager.js";
 import logger from "../utils/logger.js";
@@ -131,10 +132,62 @@ export default class PaymentController {
     }
 
     if (!order) {
-      logger.warn(`[Payment Webhook] Không tìm thấy đơn hàng khớp với nội dung: "${content}"`);
+      // Mở rộng Phase 6: Kiểm tra tự động gạch nợ Đợt thanh toán Hợp đồng B2B (mã HD-...)
+      const hopDongCol = db ? db.collection("hop_dong") : null;
+      if (hopDongCol && matchedOrderCode && matchedOrderCode.toUpperCase().startsWith("HD")) {
+        const safeContractCode = escapeRegex(matchedOrderCode);
+        const contract = await hopDongCol.findOne({
+          ma_hop_dong: new RegExp(`^${safeContractCode}$`, "i"),
+        });
+        if (contract && Array.isArray(contract.dot_thanh_toan)) {
+          const pendingIdx = contract.dot_thanh_toan.findIndex((m) => m.trang_thai !== "paid");
+          if (pendingIdx >= 0) {
+            const milestoneRes = await ContractDAO.createMilestoneReceipt(
+              String(contract._id),
+              pendingIdx,
+              "chuyen_khoan",
+              { _id: "system_payment", ho_ten: `Webhook ${gateway}` }
+            );
+            if (webhookCol && transId) {
+              await webhookCol.insertOne({
+                trans_id: String(transId),
+                order_code: contract.ma_hop_dong,
+                type: "contract_milestone",
+                milestone_index: pendingIdx,
+                amount,
+                processed_at: new Date(),
+              });
+            }
+            try {
+              const io = getIO();
+              if (io) {
+                io.emit("payment:success", {
+                  contractId: String(contract._id),
+                  orderCode: contract.ma_hop_dong,
+                  milestoneIndex: pendingIdx,
+                  amount,
+                  transId,
+                  timestamp: new Date(),
+                });
+              }
+            } catch {
+              // non-fatal
+            }
+            return sendSuccess(res, {
+              processed: true,
+              type: "contract_milestone",
+              contractCode: contract.ma_hop_dong,
+              milestoneIndex: pendingIdx,
+              result: milestoneRes,
+            }, `Đã tự động gạch nợ đợt ${pendingIdx + 1} hợp đồng ${contract.ma_hop_dong}`);
+          }
+        }
+      }
+
+      logger.warn(`[Payment Webhook] Không tìm thấy đơn hàng hoặc hợp đồng khớp với nội dung: "${content}"`);
       return sendSuccess(res, {
         processed: false,
-        reason: "Không tìm thấy đơn hàng tương ứng",
+        reason: "Không tìm thấy đơn hàng hoặc hợp đồng tương ứng",
       });
     }
 

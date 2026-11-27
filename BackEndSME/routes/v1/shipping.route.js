@@ -5,6 +5,9 @@ import { requireBody } from "../../middleware/validate.js";
 
 const router = express.Router();
 
+// Webhook công khai từ hãng vận chuyển (GHN / GHTK / Viettel Post) — bảo vệ fail-closed bằng SHIPPING_WEBHOOK_SECRET
+router.post("/webhook", VanChuyenController.handleCarrierWebhook);
+
 router.use(verifyToken);
 
 router.get("/tong-quan",      VanChuyenController.getTongQuan);

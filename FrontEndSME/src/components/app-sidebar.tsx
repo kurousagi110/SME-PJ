@@ -185,6 +185,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             badge: "Mới",
           },
           {
+            title: "Đồng Bộ Sàn TMĐT",
+            url: "/ecommerce-sync",
+            icon: IconBrandShopee,
+            badge: "Omni",
+          },
+          {
             title: "Khách Hàng & NCC",
             url: "/partners",
             icon: IconUsersGroup,

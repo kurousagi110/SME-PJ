@@ -39,35 +39,36 @@ FrontEndSME/
     │   │   ├── cashbook/           # Sổ quỹ Thu - Chi, công nợ & Khóa sổ kỳ kế toán
     │   │   ├── check-in/           # Bảng chấm công theo ngày/tháng
     │   │   ├── contracts/          # Hợp đồng kinh tế B2B, Milestone billing & Bảo hành điện tử
+    │   │   ├── crm-pipeline/       # [Phase 4] Phễu cơ hội bán hàng Kanban, Forecast & 1-click sang Báo giá
     │   │   ├── dashboard/          # KPI tổng quan, so sánh YoY & cảnh báo bất thường
     │   │   ├── department/         # Cơ cấu tổ chức phòng ban & chức vụ
+    │   │   ├── ecommerce-sync/     # [Phase 6] Đồng bộ tồn kho đệm, kéo đơn & quyết toán sàn Shopee/TikTok/Lazada
     │   │   ├── financial-reports/  # P&L, Tuổi nợ, Cashflow 12 tuần, Đối soát sao kê & What-If Simulator
-    │   │   ├── hr-requests/        # [Mới] Cổng Nhân sự ESS (Nghỉ phép, OT, Đi muộn) & Chấm công QR/GPS
+    │   │   ├── fixed-assets/       # [Phase 5] Tài sản cố định & Khấu hao, Bảng kê Thuế GTGT (VAT) & Dự toán Ngân sách
+    │   │   ├── hr-requests/        # [Phase 2] Cổng Nhân sự ESS (Nghỉ phép, OT, Đi muộn) & Chấm công QR/GPS
     │   │   ├── import/             # Nhập dữ liệu hàng loạt từ Excel
     │   │   ├── material/           # Danh mục vật tư & đơn mua hàng nhập kho
     │   │   ├── partners/           # Mini CRM 360°, phân khúc RFM & dự đoán Churn
     │   │   ├── payroll/            # Bảng lương KPI + OT + BHXH/BHYT/BHTN & Thuế TNCN 7 bậc
     │   │   ├── planning/           # Dự báo v2, MRP, ABC, ATP, Supplier Scorecard & Máy tính TMĐT
     │   │   ├── pos/                # Quầy POS Multi-cart, Ca Thu Ngân, Voucher động, Loyalty, Cross-sell & Margin Guard
+    │   │   ├── procurement/        # [Phase 4] Mua hàng nâng cao PR → RFQ Matrix → Vendor Scorecard & 3-Way Match
     │   │   ├── product/            # Danh mục thành phẩm, BOM & Lệnh SX (kèm Kanban 6 công đoạn)
-    │   │   ├── promotions/         # [Mới] Chiến dịch Khuyến mãi động & Hạng thành viên Loyalty
+    │   │   ├── promotions/         # [Phase 1] Chiến dịch Khuyến mãi động & Hạng thành viên Loyalty
     │   │   ├── quotations/         # Báo giá B2B & chuyển đổi Quote-to-Order
     │   │   ├── returns/            # Đổi trả hàng RMA & kiểm định QC
     │   │   ├── sales/              # Đơn bán hàng B2B, bảng giá theo hạng & bàn giao 1-click
-    │   │   ├── settings/           # [Mới] Cấu hình doanh nghiệp, VietQR, Lương/Thuế, Loyalty & Chấm công
+    │   │   ├── settings/           # [Phase 1+6] Cấu hình doanh nghiệp, VietQR, Lương/Thuế, Loyalty, Chấm công & Cổng Tích Hợp
     │   │   ├── shipping/           # Vận đơn logistics, theo dõi trạng thái & COD
     │   │   ├── staff/              # Hồ sơ nhân sự
     │   │   ├── stock-adjustments/  # Phiếu kiểm kê cân bằng kho (hỗ trợ Camera QR/Barcode)
     │   │   ├── stock-ledger/       # Thẻ kho chi tiết & Báo cáo Xuất - Nhập - Tồn
     │   │   ├── traceability/       # Truy xuất lô sản xuất & hạn dùng FEFO
     │   │   ├── warehouse/          # Tồn kho tổng hợp thành phẩm & nguyên vật liệu
-    │   │   └── warehouses/         # [Mới] Quản lý Đa Kho, Vị trí kệ (Bin) & Điều chuyển kho nội bộ
+    │   │   └── warehouses/         # [Phase 3] Quản lý Đa Kho, Vị trí kệ (Bin) & Điều chuyển kho nội bộ
     │   └── actions/                # Next.js Server Actions chuẩn hóa tiếng Anh:
-    │       ├── settings.ts         # [Mới] Đọc & lưu cấu hình hệ thống
-    │       ├── promotions.ts       # [Mới] CRUD khuyến mãi, validate mã & tra cứu điểm Loyalty
-    │       ├── pos-shift.ts        # [Mới] Mở ca, kết ca kiểm quỹ & lịch sử ca POS
-    │       ├── hr-requests.ts      # [Mới] Đơn ESS, quỹ phép năm, sinh QR động & Smart Check-in
-    │       ├── warehouses.ts       # [Mới] Danh mục kho, tồn kho Bin & phiếu điều chuyển nội bộ
+    │       ├── settings.ts, promotions.ts, pos-shift.ts, hr-requests.ts, warehouses.ts,
+    │       ├── crm-pipeline.ts, procurement.ts, accounting-expansion.ts, ecommerce-sync.ts,
     │       └── approval.ts, ai-copilot.ts, automation.ts, cashbook.ts, contract.ts,
     │           dashboard.ts, financial.ts, order-sale.ts, partner.ts, payroll.ts,
     │           planning.ts, portal.ts, pos.ts, production.ts, quotation.ts, rma.ts, ...

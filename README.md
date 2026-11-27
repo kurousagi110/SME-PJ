@@ -47,17 +47,21 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 - **Khuyến Mãi & Loyalty (`/promotions`)**: Quản lý chiến dịch mã giảm giá động (CRUD, bật/tắt, giới hạn lượt dùng, ngày hết hạn) và bảng xếp hạng điểm tích lũy thành viên.
 - **Báo Giá B2B (`/quotations`)**: Lập báo giá chuyên nghiệp, tính VAT & chiết khấu, chuyển đổi 1-click Quote-to-Order.
 - **Đơn Bán Hàng (`/sales`)**: Phân tầng giá B2B, áp dụng voucher từ Promotion Engine, chặn vượt hạn mức tín dụng, bàn giao 1-click sang sản xuất hoặc vận chuyển, in hóa đơn A4.
-- **Hợp Đồng & Bảo Hành (`/contracts`)**: Hợp đồng Milestone billing (1-click sinh Phiếu Thu Sổ Quỹ) và Thẻ bảo hành điện tử theo Serial/SĐT + nhật ký bảo trì.
+- **Phễu Cơ Hội Bán Hàng (`/crm-pipeline`)**: Bảng Kanban 6 giai đoạn (`lead` → `qualified` → `proposal` → `negotiation` → `won` / `lost`), dự báo doanh số có trọng số (`Weighted Forecast`), tỷ lệ chốt thắng, nhật ký chăm sóc khách hàng & nút **1-Click chuyển sang Báo giá B2B**.
+- **Hợp Đồng & Bảo Hành (`/contracts`)**: Hợp đồng Milestone billing (1-click hoặc tự động gạch nợ qua Webhook ngân hàng SePay/Casso sinh Phiếu Thu Sổ Quỹ) và Thẻ bảo hành điện tử theo Serial/SĐT + nhật ký bảo trì.
 - **Đổi & Trả Hàng RMA (`/returns`)**: Kiểm soát số lượng hoàn trả, nghiệm thu QC (`nhap_lai_kho` / `phe_pham` / `can_sua_chua`) và tự động sinh Phiếu Chi hoàn tiền.
-- **Vận Chuyển (`/shipping`)**, **Khách Hàng & NCC (`/partners` — CRM 360° + RFM/Churn)**, **In Mã Vạch (`/barcode`)**, và **Cổng Khách Hàng (`/portal`)**.
+- **Vận Chuyển (`/shipping`) & Đồng Bộ Sàn TMĐT (`/ecommerce-sync`)**: Adapter vận chuyển GHN/GHTK/Viettel Post + Webhook tự động cập nhật trạng thái & đối soát thu hộ COD về Sổ Quỹ; kết nối gian hàng Shopee / TikTok Shop / Lazada, ánh xạ SKU kèm tồn kho đệm (`buffer_stock`) chống bán âm kho, kéo đơn và quyết toán doanh thu sau phí sàn vào Sổ Quỹ.
+- **Khách Hàng & NCC (`/partners` — CRM 360° + RFM/Churn)**, **In Mã Vạch (`/barcode`)**, và **Cổng Khách Hàng (`/portal`)**.
 
 ### 3. 📦 Kho & Sản Xuất
 - **Đa Kho & Chuyển Kho Nội Bộ (`/warehouses`)**: Danh sách kho (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC`...), phân bổ tồn kho theo kho & **vị trí kệ (`bin_location`)**, lập/xuất/nhận/hủy **Phiếu điều chuyển kho nội bộ** có ghi nhận hao hụt.
+- **Mua Hàng Nâng Cao PR / RFQ (`/procurement`)**: Quy trình Đề xuất mua hàng (**PR**, tích hợp duyệt tại `/approvals`) → Yêu cầu & Ma trận so sánh báo giá nhiều NCC (**RFQ**, tự động xếp hạng giá/tốc độ/công nợ) → **1-Click Chọn thầu tạo PO** → **Vendor Scorecard (`A/B/C/D`)** & công cụ **Đối soát 3 chiều (3-Way Matching: PO ↔ Nhập kho ↔ Hóa đơn NCC)**.
 - **Thành Phẩm & Xưởng Sản Xuất (`/product/catalog`, `/product/orders`)**: BOM định mức, Lệnh sản xuất, Bảng **Kanban 6 công đoạn**, ghi nhận phế phẩm & báo cáo Yield/Scrap Rate.
 - **Nguyên Vật Liệu (`/material/catalog`, `/material/orders`)**, **Tồn Kho Tổng Hợp (`/warehouse`)**, **Kiểm Kê Điều Chỉnh (`/stock-adjustments`)**, **Truy Xuất Lô FEFO (`/traceability`)**, và **Thẻ Kho & XNT (`/stock-ledger`)**.
 
 ### 4. 💰 Tài Chính & Nhân Sự
 - **Báo Cáo Tài Chính P&L (`/financial-reports`)**: P&L chuẩn VAS (COGS Moving Average), Dự báo dòng tiền 12 tuần, Đối soát sao kê ngân hàng, What-If Simulator, Hiệu quả sinh lời sản phẩm, Tuổi nợ (Aging Debt).
+- **Thuế GTGT (VAT) · Tài Sản Cố Định · Ngân Sách (`/fixed-assets`)**: Bảng kê Thuế GTGT đầu vào/đầu ra theo Tháng/Quý/Năm (xuất Excel chuẩn HTKK), Quản lý Tài sản cố định & chạy **Khấu hao đường thẳng hàng tháng** (chống trùng kỳ) + lịch bảo trì thiết bị, và **Dự toán Ngân sách theo phòng ban (Budget vs Actual)** cảnh báo ngưỡng 80% / vượt 100%.
 - **Sổ Quỹ & Công Nợ (`/cashbook`)**: Phiếu Thu/Chi tự động (`PT-...` / `PC-...`), đối soát công nợ 2 chiều, Khóa sổ kỳ kế toán (`Period Closing`).
 - **Bảng Lương KPI & Thuế (`/payroll`)**: Tự động tính lương cơ bản, Hoa hồng KD, Lương khoán SX, **Tiền tăng ca OT**, **Miễn phạt đi muộn** theo đơn duyệt, khấu trừ **BHXH/BHYT/BHTN & Thuế TNCN 7 bậc**, duyệt chi tự động sinh Phiếu Chi Sổ Quỹ và in phiếu lương A5.
 - **Đơn Từ Nhân Sự ESS (`/hr-requests`)**: Tự tạo đơn nghỉ phép năm (kiểm tra quỹ phép), đăng ký tăng ca OT (`150%/200%/300%`), đi muộn/về sớm, công tác, kèm **Chấm công QR động & GPS Geofencing**.
@@ -137,12 +141,12 @@ SME/
 │   ├── routes/v1/              # /settings, /promotions, /pos-shifts, /hr-requests, /warehouses, ...
 │   ├── services/               # paymentService, einvoiceService, logisticsService, telegramBotService...
 │   ├── utils/                  # promotionEngine, hrEssEngine, warehouseTransferEngine, payrollCalculator...
-│   ├── tests/                  # 23 file Unit & Integration Tests (107 test cases với node:test)
+│   ├── tests/                  # 26 file Unit & Integration Tests (117 test cases với node:test)
 │   └── API_DOCUMENTATION.md    # Tài liệu chi tiết toàn bộ REST API endpoints
 └── FrontEndSME/                # Next.js 16 + React 19 + TypeScript + Tailwind v4
     └── src/
-        ├── app/(modules)/      # settings, promotions, hr-requests, warehouses, pos, payroll, approvals...
-        ├── app/actions/        # Server Actions chuẩn hóa tiếng Anh (settings, promotions, pos-shift, hr-requests, warehouses...)
+        ├── app/(modules)/      # settings, promotions, hr-requests, warehouses, crm-pipeline, procurement, fixed-assets, ecommerce-sync...
+        ├── app/actions/        # Server Actions chuẩn hóa tiếng Anh (đầy đủ 40+ action modules)
         ├── components/         # app-sidebar, pos/pos-shift-bar, command-palette, ai-copilot-widget...
         └── lib/                # http, permissions, export, barcode, utils
 ```
@@ -152,7 +156,7 @@ SME/
 ## 🧪 Kiểm Thử & Quy Chuẩn Chất Lượng
 
 ```bash
-# Chạy toàn bộ bộ test Backend (23 file test — 107 test cases, không cần DB ngoài)
+# Chạy toàn bộ bộ test Backend (26 file test — 117 test cases, không cần DB ngoài)
 npm run test:backend
 
 # Chạy toàn bộ bộ kiểm thử (Backend Unit/Integration + Deep QA E2E)
@@ -166,7 +170,7 @@ npm run test:e2e
 ```
 
 **Husky Git Hooks tự động bảo vệ chất lượng trước mỗi commit / push:**
-- `.husky/pre-commit`: Chặn commit lên `main`/`dev`, kiểm tra merge conflict, kiểm tra cú pháp toàn bộ file JS (`node --check`), kiểm tra bảo mật tĩnh `$regex`, và chạy toàn bộ **107 test cases** Backend.
+- `.husky/pre-commit`: Chặn commit lên `main`/`dev`, kiểm tra merge conflict, kiểm tra cú pháp toàn bộ file JS (`node --check`), kiểm tra bảo mật tĩnh `$regex`, và chạy toàn bộ **117 test cases** Backend.
 - `.husky/commit-msg`: Bắt buộc chuẩn **Conventional Commits** (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`).
 - `.husky/pre-push`: Chặn push trực tiếp lên `main`/`dev`, chạy full Backend tests + Deep QA.
 
@@ -188,16 +192,16 @@ docker compose run --rm --entrypoint /bin/bash backup -c "/usr/local/bin/mongo-b
 
 ---
 
-## 🗺️ Trạng Thái Lộ Trình Mở Rộng (Expansion Roadmap)
+## 🗺️ Trạng Thái Lộ Trình Mở Rộng (Expansion Roadmap — Hoàn Tất 6/6 Giai Đoạn)
 
 | Giai đoạn | Phạm vi tính năng | Trạng thái |
 |---|---|---|
 | **Phase 1** | Cấu hình hệ thống (`/settings`), Promotion Engine & Loyalty (`/promotions`), Quản lý Ca Thu Ngân POS | ✅ Đã hoàn thành |
 | **Phase 2** | Cổng Nhân sự ESS (Nghỉ phép / OT), Tích hợp Approval Hub, BHXH & Thuế TNCN 7 bậc, Chấm công QR/GPS | ✅ Đã hoàn thành |
 | **Phase 3** | Quản lý Đa Kho, Vị trí kệ (`Bin Location`) & Điều chuyển kho nội bộ (`/warehouses`) | ✅ Đã hoàn thành |
-| **Phase 4** | CRM Sales Pipeline (Kanban Cơ hội bán hàng) & Mua hàng nâng cao (PR → RFQ → Vendor Scorecard) | 🔜 Kế tiếp |
-| **Phase 5** | Bảng kê Thuế GTGT (VAT), Tài sản cố định / Khấu hao & Dự toán Ngân sách (Budget vs Actual) | 🔜 Kế tiếp |
-| **Phase 6** | Provider Adapters thật (HĐĐT MISA/VNPT/Viettel, GHN/GHTK & COD Webhook, Đồng bộ sàn TMĐT) | 🔜 Kế tiếp |
+| **Phase 4** | CRM Sales Pipeline (`/crm-pipeline`) & Mua hàng nâng cao PR → RFQ → Vendor Scorecard (`/procurement`) | ✅ Đã hoàn thành |
+| **Phase 5** | Bảng kê Thuế GTGT (VAT), Tài sản cố định / Khấu hao & Dự toán Ngân sách (`/fixed-assets`) | ✅ Đã hoàn thành |
+| **Phase 6** | Provider Adapters HĐĐT (MISA/VNPT/Viettel), Adapter GHN/GHTK & COD Webhook, Payment Webhook Hợp đồng, Đồng bộ Sàn TMĐT (`/ecommerce-sync`) | ✅ Đã hoàn thành |
 
 ---
 

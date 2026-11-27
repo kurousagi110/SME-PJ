@@ -50,6 +50,7 @@ import WarehouseDAO          from "./models/warehouseDAO.js";
 import CrmPipelineDAO        from "./models/crmPipelineDAO.js";
 import ProcurementDAO        from "./models/procurementDAO.js";
 import FixedAssetDAO         from "./models/fixedAssetDAO.js";
+import EcommerceSyncDAO      from "./models/ecommerceSyncDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -142,6 +143,7 @@ async function main() {
       CrmPipelineDAO.injectDB(client),
       ProcurementDAO.injectDB(client),
       FixedAssetDAO.injectDB(client),
+      EcommerceSyncDAO.injectDB(client),
     ]);
 
 

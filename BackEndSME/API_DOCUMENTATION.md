@@ -1995,3 +1995,115 @@ All endpoints return one of the following shapes:
 ### POST /api/v1/warehouses/transfers/:id/cancel
 **Description:** Hủy phiếu điều chuyển (`draft` / `in_transit` → `cancelled`). Nếu hủy khi đang `in_transit`, tự động hoàn trả toàn bộ số lượng đã trừ về lại kho nguồn.  
 **Auth required:** Yes (Approver / Admin)
+
+---
+
+## 33. Phễu Cơ Hội Bán Hàng (CRM Sales Pipeline)
+
+### GET /api/v1/crm-pipeline
+**Description:** Lấy danh sách cơ hội bán hàng kèm bộ chỉ số phễu (`open_pipeline_value`, `weighted_forecast_value`, `win_rate_pct`, `overdue_follow_ups`). Hỗ trợ lọc `?stage=...&q=...&mine=true`.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline
+**Description:** Tạo cơ hội bán hàng mới (`title`, `customer_name`, `customer_phone`, `expected_value`, `stage`, `next_follow_up`).  
+**Auth required:** Yes
+
+### PUT /api/v1/crm-pipeline/:id/stage
+**Description:** Chuyển giai đoạn Kanban (`lead` | `qualified` | `proposal` | `negotiation` | `won` | `lost`) và cập nhật xác suất chốt.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline/:id/activities
+**Description:** Ghi nhận nhật ký chăm sóc khách hàng (`call` / `meeting` / `email` / `note`) và lịch nhắc follow-up tiếp theo.  
+**Auth required:** Yes
+
+### POST /api/v1/crm-pipeline/:id/convert-to-quotation
+**Description:** Chuyển 1-click cơ hội CRM sang Báo giá B2B (`/api/v1/quotations`) và tự động cập nhật trạng thái cơ hội sang `proposal`.  
+**Auth required:** Yes
+
+---
+
+## 34. Mua Hàng Nâng Cao (PR → RFQ Matrix → Vendor Scorecard & 3-Way Match)
+
+### GET /api/v1/procurement/prs & POST /api/v1/procurement/prs
+**Description:** Danh sách & tạo mới Đề xuất mua hàng (Purchase Request — tự đổ vào `/api/v1/approvals/pending`).  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/prs/:id/decide
+**Description:** Duyệt hoặc từ chối Đề xuất mua hàng (có chống tự duyệt `SELF_APPROVE_FORBIDDEN`).  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/procurement/rfqs & POST /api/v1/procurement/rfqs
+**Description:** Quản lý Yêu cầu báo giá nhiều NCC (tạo trực tiếp hoặc từ `pr_id` đã duyệt), tự động trả về `ranked_quotes` đã chấm điểm tổng hợp.  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/rfqs/:id/quotes
+**Description:** Nhập báo giá cạnh tranh từ một NCC (`vendor_name`, `total_price`, `lead_time_days`, `payment_terms_days`).  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/rfqs/:id/award
+**Description:** Chọn NCC thắng thầu trong RFQ và tự động sinh Đơn Mua Hàng (PO nháp) vào `don_hang`.  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/procurement/vendor-scorecard
+**Description:** Bảng xếp hạng NCC (điểm 0–100 & hạng `A/B/C/D`) tổng hợp từ lịch sử PO thực tế.  
+**Auth required:** Yes
+
+### POST /api/v1/procurement/three-way-match
+**Description:** Đối soát 3 chiều **PO ↔ Phiếu nhập kho (GRN) ↔ Hóa đơn NCC**, trả về trạng thái `MATCHED` | `QTY_MISMATCH` | `PRICE_MISMATCH` | `BOTH_MISMATCH`.  
+**Auth required:** Yes
+
+---
+
+## 35. Kế Toán Thuế GTGT (VAT), Tài Sản Cố Định & Dự Toán Ngân Sách
+
+### GET /api/v1/accounting/vat-report?year=2026&month=11
+**Description:** Bảng kê Thuế GTGT đầu ra / đầu vào theo Tháng, Quý (`quarter=1..4`) hoặc Năm, tính VAT phải nộp hoặc còn được khấu trừ kỳ sau.  
+**Auth required:** Yes (`finance.view`)
+
+### GET /api/v1/accounting/assets & POST /api/v1/accounting/assets
+**Description:** Quản lý danh mục Tài sản cố định / Máy móc kèm giá trị còn lại và mức khấu hao đường thẳng hàng tháng.  
+**Auth required:** Yes (`finance.view` / Finance Manager)
+
+### POST /api/v1/accounting/assets/:id/maintenance
+**Description:** Ghi nhận lịch sử & chi phí bảo trì máy móc thiết bị.  
+**Auth required:** Yes (`finance.view`)
+
+### POST /api/v1/accounting/assets/depreciate
+**Description:** Chạy trích khấu hao kỳ (`month`, `year`, tùy chọn `post_to_cashbook`), bảo vệ idempotent theo kỳ `YYYY-MM`.  
+**Auth required:** Yes (Finance Manager / Admin)
+
+### GET /api/v1/accounting/budgets & POST /api/v1/accounting/budgets
+**Description:** Thiết lập dự toán ngân sách theo phòng ban/hạng mục và báo cáo đối chiếu **Budget vs Actual** kèm cảnh báo vượt ngưỡng 80% / 100%.  
+**Auth required:** Yes (`finance.view` / Finance Manager)
+
+---
+
+## 36. Cổng Tích Hợp Thực Tế & Đồng Bộ Sàn TMĐT (Omnichannel & Webhooks)
+
+### POST /api/v1/shipping/webhook
+**Description:** Webhook công khai nhận cập nhật trạng thái vận đơn từ GHN / GHTK / Viettel Post (xác thực fail-closed bằng `SHIPPING_WEBHOOK_SECRET` + chống trùng idempotency). Tự động sinh **Phiếu Thu đối soát COD** vào Sổ Quỹ khi hãng xác nhận giao thành công / chuyển tiền COD.  
+**Auth required:** Webhook Secret Header (`x-webhook-secret` / `x-api-key`)
+
+### POST /api/v1/payments/webhook (Mở rộng Hợp đồng B2B)
+**Description:** Ngoài tự động gạch nợ đơn bán hàng (`DH-...`), nay hỗ trợ tự động gạch nợ **Đợt thanh toán Hợp đồng B2B (`HD-...`)** và bắn Socket.io realtime `payment:success`.  
+**Auth required:** Webhook Secret Header (`PAYMENT_WEBHOOK_SECRET`)
+
+### GET /api/v1/ecommerce-sync/overview
+**Description:** Tổng quan gian hàng Shopee/TikTok/Lazada, ánh xạ SKU, nhật ký đồng bộ và trạng thái Adapter HĐĐT (MISA/VNPT/Viettel) + Adapter vận chuyển (GHN/GHTK).  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels & POST /api/v1/ecommerce-sync/mappings
+**Description:** Cấu hình gian hàng TMĐT và ánh xạ SKU sàn ↔ sản phẩm SME kèm tồn kho đệm (`buffer_stock`) chống bán âm kho.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### POST /api/v1/ecommerce-sync/channels/:id/sync-inventory
+**Description:** Tính tồn kho an toàn (`max(0, physical - reserved - buffer)`) và đẩy cập nhật tồn kho cho toàn bộ SKU đã ánh xạ của gian hàng.  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels/:id/import-order
+**Description:** Tiếp nhận/kéo đơn hàng từ sàn TMĐT về hệ thống SME theo bảng ánh xạ SKU.  
+**Auth required:** Yes
+
+### POST /api/v1/ecommerce-sync/channels/:id/settle-payout
+**Description:** Quyết toán doanh thu sàn sau khi khấu trừ phí sàn, phí thanh toán, voucher shop & hàng hoàn, đồng thời tự động sinh **Phiếu Thu** vào Sổ Quỹ.  
+**Auth required:** Yes (Finance Manager / Admin)

@@ -41,6 +41,7 @@ import warehouseRoute         from "./warehouse.route.js";
 import crmPipelineRoute       from "./crm-pipeline.route.js";
 import procurementRoute       from "./procurement.route.js";
 import accountingExpRoute     from "./accounting-expansion.route.js";
+import ecommerceSyncRoute     from "./ecommerce-sync.route.js";
 
 const v1Router = Router();
 
@@ -84,6 +85,7 @@ v1Router.use("/warehouses",         warehouseRoute); // Multi-Warehouse, Bin & I
 v1Router.use("/crm-pipeline",       crmPipelineRoute); // CRM Sales Pipeline Kanban
 v1Router.use("/procurement",        procurementRoute); // PR, RFQ Matrix, Vendor Scorecard & 3-Way Match
 v1Router.use("/accounting",         accountingExpRoute); // VAT Report, Fixed Assets/Depreciation & Budgets
+v1Router.use("/ecommerce-sync",     ecommerceSyncRoute); // Omnichannel Shopee/TikTok/Lazada Sync & Settlement
 
 
 
