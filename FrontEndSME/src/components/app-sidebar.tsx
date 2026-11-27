@@ -133,6 +133,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             : null,
           canSeeSalesMenu
             ? {
+                title: "Phễu Cơ Hội (CRM)",
+                url: "/crm-pipeline",
+                icon: IconBriefcase,
+                badge: "Mới",
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
                 title: "Báo Giá B2B",
                 url: "/quotations",
                 icon: IconFileInvoice,
@@ -218,6 +226,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             title: "Đa Kho & Chuyển Kho",
             url: "/warehouses",
             icon: IconTruck,
+            badge: "Mới",
+          },
+          {
+            title: "Mua Hàng PR / RFQ",
+            url: "/procurement",
+            icon: IconScale,
             badge: "Mới",
           },
           {

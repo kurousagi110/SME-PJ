@@ -47,6 +47,8 @@ import PromotionDAO          from "./models/promotionDAO.js";
 import PosShiftDAO           from "./models/posShiftDAO.js";
 import HrRequestDAO          from "./models/hrRequestDAO.js";
 import WarehouseDAO          from "./models/warehouseDAO.js";
+import CrmPipelineDAO        from "./models/crmPipelineDAO.js";
+import ProcurementDAO        from "./models/procurementDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -136,6 +138,8 @@ async function main() {
       PosShiftDAO.injectDB(client),
       HrRequestDAO.injectDB(client),
       WarehouseDAO.injectDB(client),
+      CrmPipelineDAO.injectDB(client),
+      ProcurementDAO.injectDB(client),
     ]);
 
 

@@ -38,6 +38,8 @@ import promotionRoute         from "./promotion.route.js";
 import posShiftRoute          from "./pos-shift.route.js";
 import hrRequestRoute         from "./hr-request.route.js";
 import warehouseRoute         from "./warehouse.route.js";
+import crmPipelineRoute       from "./crm-pipeline.route.js";
+import procurementRoute       from "./procurement.route.js";
 
 const v1Router = Router();
 
@@ -78,6 +80,8 @@ v1Router.use("/promotions",         promotionRoute); // Dynamic Promotions & Loy
 v1Router.use("/pos-shifts",         posShiftRoute); // POS Cashier Shift Management
 v1Router.use("/hr-requests",        hrRequestRoute); // HR ESS Leave, OT & Smart Attendance
 v1Router.use("/warehouses",         warehouseRoute); // Multi-Warehouse, Bin & Internal Transfers
+v1Router.use("/crm-pipeline",       crmPipelineRoute); // CRM Sales Pipeline Kanban
+v1Router.use("/procurement",        procurementRoute); // PR, RFQ Matrix, Vendor Scorecard & 3-Way Match
 
 
 
