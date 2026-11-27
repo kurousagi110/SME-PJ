@@ -30,6 +30,8 @@ export interface PosCheckoutPayload {
   so_dien_thoai?: string;
   san_pham: PosOrderItemPayload[];
   giam_gia?: number;
+  coupon_code?: string;
+  loyalty_points_redeem?: number;
   thue_rate?: number;
   phi_vc?: number;
   phuong_thuc_tt?: "tien_mat" | "chuyen_khoan";
@@ -42,6 +44,12 @@ export interface PosCheckoutResponse {
   ma_dh: string;
   tien_khach_dua: number;
   tien_thoi: number;
+  loyalty?: {
+    earned: number;
+    redeemed: number;
+    redeem_discount: number;
+    balance: number | null;
+  };
 }
 
 /**

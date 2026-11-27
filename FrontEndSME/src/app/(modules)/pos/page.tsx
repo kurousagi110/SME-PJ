@@ -55,6 +55,12 @@ import {
 } from "@/app/actions/pos";
 import { printPosThermalReceipt, type PosReceiptData } from "@/lib/barcode";
 import { VietQRDialog } from "@/components/payment/vietqr-dialog";
+import { PosShiftBar } from "@/components/pos/pos-shift-bar";
+import {
+  validatePromotionAction,
+  lookupCustomerLoyaltyAction,
+  type CustomerLoyaltyLookup,
+} from "@/app/actions/promotions";
 
 interface CartItem {
   san_pham_id: string;
@@ -243,6 +249,45 @@ export default function PosCashierPage() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [shiftRefreshKey, setShiftRefreshKey] = useState<number>(0);
+  const [couponInput, setCouponInput] = useState<string>("");
+  const [appliedCoupon, setAppliedCoupon] = useState<string>("");
+  const [customerLoyalty, setCustomerLoyalty] = useState<CustomerLoyaltyLookup | null>(null);
+  const [redeemPoints, setRedeemPoints] = useState<number>(0);
+
+  // Tự động tra cứu điểm tích lũy Loyalty khi chọn khách hàng có SĐT
+  useEffect(() => {
+    if (!selectedCustomerPhone || selectedCustomerPhone.trim().length < 4) {
+      setCustomerLoyalty(null);
+      setRedeemPoints(0);
+      return;
+    }
+    lookupCustomerLoyaltyAction(selectedCustomerPhone.trim()).then((res) => {
+      if (res.success && res.data) {
+        setCustomerLoyalty(res.data);
+      } else {
+        setCustomerLoyalty(null);
+      }
+      setRedeemPoints(0);
+    });
+  }, [selectedCustomerPhone]);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code) return;
+    const res = await validatePromotionAction({
+      code,
+      orderAmount: subtotal,
+      customerKey: selectedCustomerPhone || selectedCustomerName,
+    });
+    if (res.success && res.data) {
+      setAppliedCoupon(res.data.code);
+      setDiscount(res.data.discountAmount);
+      toast.success(res.data.message || `Áp dụng mã ${res.data.code} thành công`);
+    } else {
+      toast.error(res.error || "Mã khuyến mãi không hợp lệ");
+    }
+  };
 
   // Success Dialog
   const [completedOrder, setCompletedOrder] = useState<PosReceiptData | null>(null);
@@ -452,6 +497,8 @@ export default function PosCashierPage() {
         so_dien_thoai: selectedCustomerPhone,
         san_pham: itemsPayload,
         giam_gia: discount,
+        coupon_code: appliedCoupon || undefined,
+        loyalty_points_redeem: redeemPoints > 0 ? redeemPoints : undefined,
         phuong_thuc_tt: paymentMethod,
         tien_khach_dua: finalCashGiven,
         ghi_chu: notes || "Bán lẻ tại quầy POS",
@@ -461,6 +508,14 @@ export default function PosCashierPage() {
         toast.error(res.message || "Thanh toán thất bại");
         return;
       }
+
+      if (res.data?.loyalty && res.data.loyalty.earned > 0) {
+        toast.info(`Đã cộng +${res.data.loyalty.earned} điểm tích lũy cho khách hàng`);
+      }
+      setAppliedCoupon("");
+      setCouponInput("");
+      setRedeemPoints(0);
+      setShiftRefreshKey((k) => k + 1);
 
       const orderCode = res.data?.ma_dh || "DH-POS";
 
@@ -590,6 +645,11 @@ export default function PosCashierPage() {
           </Button>
         </div>
       </header>
+
+      {/* POS Cashier Shift Management Bar (Mở ca / Kết ca / Kiểm quỹ) */}
+      <div className="px-4 py-1.5 bg-background border-b shrink-0">
+        <PosShiftBar refreshTrigger={shiftRefreshKey} />
+      </div>
 
       {/* POS Main Screen: 2 Columns */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-hidden">
@@ -877,6 +937,43 @@ export default function PosCashierPage() {
 
             {/* Calculation summary */}
             <div className="space-y-1.5 text-xs">
+              {/* Mã khuyến mãi động & Quy đổi điểm Loyalty */}
+              <div className="flex items-center gap-1.5 pb-1">
+                <Input
+                  placeholder="Mã voucher (VD: SME5)..."
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  className="h-7 text-xs font-mono"
+                />
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={handleApplyCoupon}>
+                  Áp mã
+                </Button>
+              </div>
+              {customerLoyalty && customerLoyalty.points > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded border border-amber-200 bg-amber-50/60 dark:bg-amber-950/20 px-2 py-1 text-[11px]">
+                  <span>
+                    🏆 {customerLoyalty.tier.label} · <b>{customerLoyalty.points}</b> điểm
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={customerLoyalty.points}
+                      value={redeemPoints}
+                      onChange={(e) => {
+                        const pts = Math.min(customerLoyalty.points, Math.max(0, Number(e.target.value) || 0));
+                        setRedeemPoints(pts);
+                        const vndPerPt = customerLoyalty.config?.vnd_per_redeem_point || 1000;
+                        const maxPct = customerLoyalty.config?.max_redeem_pct || 50;
+                        const maxDisc = Math.round((subtotal * maxPct) / 100);
+                        setDiscount(Math.min(maxDisc, pts * vndPerPt));
+                      }}
+                      className="h-6 w-16 text-xs text-right"
+                    />
+                    <span className="text-muted-foreground">đổi</span>
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between text-muted-foreground">
                 <span>Tổng tiền hàng:</span>
                 <span className="font-semibold text-foreground">

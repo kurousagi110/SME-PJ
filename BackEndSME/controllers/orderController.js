@@ -11,6 +11,8 @@ import ApiError from "../utils/ApiError.js";
 import logger from "../utils/logger.js";
 import SoQuyDAO from "../models/soQuyDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
+import PromotionDAO from "../models/promotionDAO.js";
+import PosShiftDAO from "../models/posShiftDAO.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
 import { isAdminUser } from "../middleware/auth.js";
@@ -37,9 +39,45 @@ export class OrderController {
     const tien_khach_dua = body.amount_paid ?? body.amountPaid ?? body.tien_khach_dua ?? 0;
     const ghi_chu = body.note ?? body.notes ?? body.ghi_chu ?? "Bán lẻ tại quầy (POS)";
     const so_dien_thoai = body.phone ?? body.phone_number ?? body.so_dien_thoai ?? "";
+    const coupon_code = String(body.coupon_code || body.couponCode || "").trim().toUpperCase();
+    const loyalty_points_redeem = Math.max(0, Math.floor(Number(body.loyalty_points_redeem || 0)));
 
     if (!san_pham || !san_pham.length) {
       throw ApiError.badRequest("Giỏ hàng POS cần ít nhất 1 sản phẩm", "EMPTY_CART");
+    }
+
+    const subtotalEstimate = san_pham.reduce(
+      (sum, it) => sum + Number(it.don_gia || 0) * Number(it.so_luong || 0),
+      0
+    );
+
+    // Xác thực mã khuyến mãi động (nếu có) và quy đổi điểm tích lũy trước khi tạo đơn
+    let totalDiscount = Math.max(0, Number(giam_gia) || 0);
+    let loyaltyDiscount = 0;
+    let loyaltyRedeemedPoints = 0;
+
+    if (coupon_code) {
+      const couponCheck = await PromotionDAO.validateCode({
+        code: coupon_code,
+        orderAmount: subtotalEstimate,
+        customerKey: so_dien_thoai || khach_hang_ten,
+      });
+      if (!couponCheck.valid) {
+        throw ApiError.badRequest(couponCheck.message || "Mã ưu đãi không hợp lệ", couponCheck.code || "INVALID_COUPON");
+      }
+      if (!totalDiscount) {
+        totalDiscount = couponCheck.discountAmount;
+      }
+    }
+
+    if (loyalty_points_redeem > 0 && so_dien_thoai && so_dien_thoai.trim()) {
+      const loyaltyLookup = await PromotionDAO.getCustomerLoyalty({ phone: so_dien_thoai.trim() });
+      if (loyaltyLookup.points < loyalty_points_redeem) {
+        throw ApiError.badRequest(
+          `Điểm tích lũy khả dụng không đủ (hiện có ${loyaltyLookup.points} điểm)`,
+          "INSUFFICIENT_LOYALTY_POINTS"
+        );
+      }
     }
 
     // 1. Create order with confirmed status
@@ -47,7 +85,7 @@ export class OrderController {
       loai_don: "sale",
       khach_hang_ten,
       san_pham,
-      giam_gia: Number(giam_gia) || 0,
+      giam_gia: totalDiscount,
       thue_rate: Number(thue_rate) || 0,
       phi_vc: Number(phi_vc) || 0,
       ghi_chu,
@@ -111,6 +149,45 @@ export class OrderController {
       }
     }
 
+    // 4.2 Ghi nhận lượt sử dụng voucher, quy đổi & tích điểm Loyalty, và cập nhật Ca thu ngân POS
+    let loyaltyEarned = 0;
+    let loyaltyBalance = null;
+    if (coupon_code) {
+      await PromotionDAO.recordUsage(coupon_code, so_dien_thoai || khach_hang_ten);
+    }
+    if (so_dien_thoai && so_dien_thoai.trim()) {
+      if (loyalty_points_redeem > 0) {
+        const redeemRes = await PromotionDAO.redeemPoints({
+          phone: so_dien_thoai.trim(),
+          pointsToRedeem: loyalty_points_redeem,
+          orderAmount: subtotalEstimate,
+          orderCode: ma_dh,
+          user: req.user,
+        });
+        if (redeemRes?.valid && redeemRes.pointsUsed > 0) {
+          loyaltyRedeemedPoints = redeemRes.pointsUsed;
+          loyaltyDiscount = redeemRes.discountAmount;
+          loyaltyBalance = redeemRes.balance;
+        }
+      }
+      const earnRes = await PromotionDAO.earnPoints({
+        phone: so_dien_thoai.trim(),
+        orderAmount: orderDoc.tong_tien || 0,
+        orderCode: ma_dh,
+        user: req.user,
+      });
+      loyaltyEarned = earnRes?.earned || 0;
+      if (earnRes?.balance !== undefined) loyaltyBalance = earnRes.balance;
+    }
+
+    await PosShiftDAO.recordTransaction({
+      cashierId: userId,
+      orderCode: ma_dh,
+      amount: orderDoc.tong_tien || 0,
+      paymentMethod: phuong_thuc_tt === "chuyen_khoan" ? "chuyen_khoan" : "tien_mat",
+      kind: "sale",
+    });
+
     const payload = { type: "SALE_COMPLETED", id: orderId, loai: "sale", created_by: performedBy };
     notifyAdmin(payload);
     notifyApprover(payload);
@@ -121,6 +198,12 @@ export class OrderController {
       ma_dh,
       tien_khach_dua: Number(tien_khach_dua) || orderDoc.tong_tien,
       tien_thoi: Math.max(0, (Number(tien_khach_dua) || orderDoc.tong_tien) - (orderDoc.tong_tien || 0)),
+      loyalty: {
+        earned: loyaltyEarned,
+        redeemed: loyaltyRedeemedPoints,
+        redeem_discount: loyaltyDiscount,
+        balance: loyaltyBalance,
+      },
     }, "Thanh toán đơn hàng POS thành công", 201);
   });
 
@@ -173,38 +256,25 @@ export class OrderController {
     return sendSuccess(res, data, "Tạo chứng từ thành công", 201);
   });
 
-  /* ─── VALIDATE COUPON / VOUCHER ─── */
+  /* ─── VALIDATE COUPON / VOUCHER (Dynamic DB-driven Promotion Engine) ─── */
   static validateCoupon = asyncHandler(async (req, res) => {
-    const { code = "", orderAmount = 0 } = req.body || {};
-    const cleanCode = String(code).trim().toUpperCase();
-    const amount = Number(orderAmount || 0);
+    const { code = "", orderAmount = 0, customerGroup = "", customerKey = "" } = req.body || {};
+    const result = await PromotionDAO.validateCode({
+      code,
+      orderAmount,
+      customerGroup,
+      customerKey,
+    });
 
-    let discount = 0;
-    let message = "";
-
-    if (cleanCode === "SME5") {
-      discount = Math.round(amount * 0.05);
-      message = "Áp dụng giảm 5% giá trị đơn hàng";
-    } else if (cleanCode === "SME10") {
-      if (amount < 10000000) {
-        throw ApiError.badRequest("Mã SME10 chỉ áp dụng cho đơn hàng từ 10.000.000 đ");
-      }
-      discount = Math.round(amount * 0.10);
-      message = "Áp dụng giảm 10% giá trị đơn hàng (Ưu đãi B2B)";
-    } else if (cleanCode === "VIP50K") {
-      discount = Math.min(amount, 50000);
-      message = "Áp dụng voucher giảm ngay 50.000 đ";
-    } else if (cleanCode === "FREESHIP") {
-      discount = 30000;
-      message = "Hỗ trợ phí vận chuyển 30.000 đ";
-    } else {
-      throw ApiError.badRequest("Mã ưu đãi không hợp lệ hoặc đã hết hạn", "INVALID_COUPON");
+    if (!result.valid) {
+      throw ApiError.badRequest(result.message || "Mã ưu đãi không hợp lệ hoặc đã hết hạn", result.code || "INVALID_COUPON");
     }
 
     return sendSuccess(res, {
-      code: cleanCode,
-      discountAmount: discount,
-      message,
+      code: result.code,
+      discountAmount: result.discountAmount,
+      message: result.message,
+      type: result.type,
     }, "Áp dụng mã ưu đãi thành công");
   });
 

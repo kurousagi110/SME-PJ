@@ -42,6 +42,9 @@ import BatchDAO              from "./models/batchDAO.js";
 import FinancialReportDAO    from "./models/financialReportDAO.js";
 import ContractDAO           from "./models/contractDAO.js";
 import WarrantyDAO           from "./models/warrantyDAO.js";
+import SystemSettingsDAO     from "./models/systemSettingsDAO.js";
+import PromotionDAO          from "./models/promotionDAO.js";
+import PosShiftDAO           from "./models/posShiftDAO.js";
 
 import { injectAuthDB } from "./middleware/auth.js";
 import { setDB } from "./config/database.js";
@@ -126,6 +129,9 @@ async function main() {
       FinancialReportDAO.injectDB(client),
       ContractDAO.injectDB(client),
       WarrantyDAO.injectDB(client),
+      SystemSettingsDAO.injectDB(client),
+      PromotionDAO.injectDB(client),
+      PosShiftDAO.injectDB(client),
     ]);
 
 

@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import logger from "../utils/logger.js";
 import { sanitizeNumber } from "../utils/number.js";
 import { computeKpiPayrollRow } from "../utils/payrollCalculator.js";
+import SystemSettingsDAO from "./systemSettingsDAO.js";
 import SoQuyDAO from "./soQuyDAO.js";
 import PeriodClosingDAO from "./periodClosingDAO.js";
 
@@ -429,6 +430,9 @@ export default class LuongDAO {
       });
       const prodStaffCount = prodStaffRecords.length;
 
+      // Đọc tham số tính lương động từ cấu hình hệ thống (company_settings)
+      const payrollConfig = await SystemSettingsDAO.getPayrollKpiConfig();
+
       const items = chamCongsRaw.map((r) => {
         const nv = nvMap.get(r._id) || nvMap.get(String(r._id)) || {};
         const candidateKeys = [
@@ -475,6 +479,7 @@ export default class LuongDAO {
           doanh_so_ban_hang,
           san_luong_sx,
           ghi_chu,
+          config: payrollConfig,
         });
       });
 

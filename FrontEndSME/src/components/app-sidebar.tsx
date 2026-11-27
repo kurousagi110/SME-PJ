@@ -31,6 +31,8 @@ import {
   IconRobot,
   IconChartBar,
   IconFileText,
+  IconDiscount2,
+  IconSettings,
 } from "@tabler/icons-react";
 
 import { NavMain, type NavGroup } from "@/components/nav-main";
@@ -142,6 +144,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Đơn Bán Hàng",
                 url: "/sales",
                 icon: IconListDetails,
+              }
+            : null,
+          canSeeSalesMenu
+            ? {
+                title: "Khuyến Mãi & Loyalty",
+                url: "/promotions",
+                icon: IconDiscount2,
+                badge: "Mới",
               }
             : null,
           canSeeSalesMenu
@@ -287,6 +297,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 title: "Tự Động Hóa & Bot",
                 url: "/automation",
                 icon: IconRobot,
+              }
+            : null,
+          isDirectorDepartment
+            ? {
+                title: "Cấu Hình Hệ Thống",
+                url: "/settings",
+                icon: IconSettings,
+                badge: "Admin",
               }
             : null,
         ].filter(Boolean) as any[],
