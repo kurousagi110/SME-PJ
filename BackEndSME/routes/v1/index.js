@@ -37,6 +37,7 @@ import settingsRoute          from "./settings.route.js";
 import promotionRoute         from "./promotion.route.js";
 import posShiftRoute          from "./pos-shift.route.js";
 import hrRequestRoute         from "./hr-request.route.js";
+import warehouseRoute         from "./warehouse.route.js";
 
 const v1Router = Router();
 
@@ -76,6 +77,7 @@ v1Router.use("/settings",           settingsRoute); // System & Company Settings
 v1Router.use("/promotions",         promotionRoute); // Dynamic Promotions & Loyalty Points
 v1Router.use("/pos-shifts",         posShiftRoute); // POS Cashier Shift Management
 v1Router.use("/hr-requests",        hrRequestRoute); // HR ESS Leave, OT & Smart Attendance
+v1Router.use("/warehouses",         warehouseRoute); // Multi-Warehouse, Bin & Internal Transfers
 
 
 

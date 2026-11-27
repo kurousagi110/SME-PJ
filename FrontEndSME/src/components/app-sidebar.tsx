@@ -215,6 +215,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             icon: IconPackages,
           },
           {
+            title: "Đa Kho & Chuyển Kho",
+            url: "/warehouses",
+            icon: IconTruck,
+            badge: "Mới",
+          },
+          {
             title: "Kiểm Kê Điều Chỉnh",
             url: "/stock-adjustments",
             icon: IconAdjustments,
