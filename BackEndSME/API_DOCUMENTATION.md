@@ -3,7 +3,7 @@
 **Base URL:** `/api/v1`
 **Authentication:** `Authorization: Bearer {JWT_TOKEN}` (obtained from `/api/v1/users/login`)
 **Content-Type:** `application/json`
-**Generated:** 2026-04-02
+**Updated:** 2026-11-27
 
 ---
 
@@ -1767,16 +1767,18 @@ All endpoints return one of the following shapes:
 
 ---
 
-## 25. Ưu Đãi B2B & Quản Lý Hạn Mức Tín Dụng (Tiered Pricing & Coupons)
+## 25. Ưu Đãi B2B & Promotion Engine Động (Tiered Pricing & Dynamic Coupons)
 
 ### POST /api/v1/orders/validate-coupon
-**Description:** Xác thực và áp dụng mã giảm giá / voucher khuyến mãi (SME5, SME10, VIP50K, FREESHIP).  
+**Description:** Xác thực và tính mức giảm cho mã khuyến mãi đọc động từ MongoDB `promotions` (tự động seed sẵn `SME5`, `SME10`, `VIP50K`, `FREESHIP` và hỗ trợ mọi chiến dịch tạo mới từ `/promotions`).  
 **Auth required:** Yes  
 **Request Body:**
 ```json
 {
   "code": "SME10",
-  "orderAmount": 25000000
+  "orderAmount": 25000000,
+  "customerGroup": "vip",
+  "customerKey": "0901234567"
 }
 ```
 
@@ -1836,3 +1838,160 @@ All endpoints return one of the following shapes:
 **Auth required:** Yes
 
 
+
+---
+
+## 28. Cấu Hình Doanh Nghiệp & Hệ Thống Tập Trung (System Settings)
+
+### GET /api/v1/settings
+**Description:** Lấy cấu hình hệ thống hiện tại (thông tin pháp nhân, VietQR mặc định, tham số tính lương KPI/BHXH/TNCN, quy tắc tích điểm Loyalty, tọa độ GPS & chu kỳ xoay QR chấm công, cấu hình tích hợp).  
+**Auth required:** Yes
+
+### PUT /api/v1/settings
+**Description:** Cập nhật từng phân mục cấu hình hệ thống (`company`, `vietqr`, `payroll`, `loyalty`, `attendance`, `integrations`). Ghi nhận Audit Log kèm Visual Diff (`before` ↔ `after`).  
+**Auth required:** Yes (Admin / Ban Giám Đốc)
+
+---
+
+## 29. Khuyến Mãi Động & Tích Điểm Thành Viên (Promotions & Loyalty)
+
+### GET /api/v1/promotions
+**Description:** Lấy danh sách chương trình khuyến mãi/voucher (hỗ trợ tìm kiếm `?q=...&activeOnly=true`).  
+**Auth required:** Yes
+
+### POST /api/v1/promotions
+**Description:** Tạo mới chương trình khuyến mãi (`type`: `percent` | `fixed` | `freeship`, hỗ trợ `max_discount`, `min_order_amount`, `max_usage`, `per_customer_limit`, `customer_groups`, `start_date`, `end_date`).  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### PUT /api/v1/promotions/:id
+**Description:** Cập nhật thông tin hoặc bật/tắt trạng thái kích hoạt (`is_active`) mã khuyến mãi.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### DELETE /api/v1/promotions/:id
+**Description:** Xóa mềm chương trình khuyến mãi.  
+**Auth required:** Yes (Sales Manager / Admin)
+
+### POST /api/v1/promotions/validate
+**Description:** Xác thực điều kiện áp dụng và tính số tiền giảm của mã khuyến mãi.  
+**Auth required:** Yes
+
+### GET /api/v1/promotions/loyalty/members
+**Description:** Danh sách khách hàng kèm điểm khả dụng, tổng điểm tích lũy trọn đời và hạng thành viên (`bronze` / `silver` / `gold` / `platinum`).  
+**Auth required:** Yes
+
+### GET /api/v1/promotions/loyalty/lookup?phone=...&partnerId=...
+**Description:** Tra cứu điểm tích lũy, hạng thành viên và lịch sử cộng/trừ điểm của một khách hàng.  
+**Auth required:** Yes
+
+---
+
+## 30. Quản Lý Ca Thu Ngân POS (POS Shift Management)
+
+### GET /api/v1/pos-shifts/active
+**Description:** Lấy thông tin ca thu ngân đang mở của nhân viên hiện tại kèm thống kê realtime (số đơn, doanh thu tiền mặt, chuyển khoản/QR, tiền mặt lý thuyết trong két).  
+**Auth required:** Yes
+
+### POST /api/v1/pos-shifts/open
+**Description:** Mở ca thu ngân mới với tiền mặt đầu ca (`opening_cash`) và tên quầy (`register_name`).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "opening_cash": 1000000,
+  "register_name": "Quầy POS #1",
+  "notes": "Nhận bàn giao ca sáng"
+}
+```
+
+### POST /api/v1/pos-shifts/:id/close
+**Description:** Kết ca thu ngân & đối chiếu kiểm quỹ thực tế (`actual_cash`) so với két lý thuyết (`expected_cash`), tính chênh lệch thừa/thiếu (`variance`).  
+**Auth required:** Yes
+
+### GET /api/v1/pos-shifts
+**Description:** Lịch sử các ca thu ngân (Admin xem tất cả, thu ngân xem ca của mình).  
+**Auth required:** Yes
+
+---
+
+## 31. Cổng Nhân Sự Tự Phục Vụ ESS & Chấm Công Thông Minh QR/GPS
+
+### GET /api/v1/hr-requests
+**Description:** Danh sách đơn từ nhân sự (nghỉ phép, tăng ca OT, đi muộn/về sớm, công tác). Hỗ trợ lọc `?status=pending&type=overtime&mine=true`.  
+**Auth required:** Yes
+
+### GET /api/v1/hr-requests/leave-balance?year=2026
+**Description:** Lấy quỹ phép năm hiện tại của nhân viên (`total_annual`, `used_days`, `pending_days`, `remaining_days`).  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests
+**Description:** Tạo đơn từ nhân sự mới (`loai_don`: `leave` | `overtime` | `late_early` | `business_trip`). Tự động kiểm tra số ngày phép năm còn lại nếu chọn nghỉ phép năm. Đổ thẳng vào hàng đợi `/api/v1/approvals/pending`.  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests/:id/decide
+**Description:** Phê duyệt (`approve`) hoặc từ chối (`reject`) đơn từ nhân sự (có chống tự duyệt `SELF_APPROVE_FORBIDDEN`). Cũng hỗ trợ duyệt tập trung qua `POST /api/v1/approvals/action` với `loai: "hr_request"`.  
+**Auth required:** Yes (HR Manager / Admin)
+
+### GET /api/v1/hr-requests/attendance/qr-token
+**Description:** Sinh mã QR chấm công xoay vòng ký HMAC-SHA256 theo chu kỳ cấu hình (`qr_rotation_seconds`).  
+**Auth required:** Yes
+
+### POST /api/v1/hr-requests/attendance/smart-check-in
+**Description:** Chấm công vào ca (`check_in`) hoặc tan ca (`check_out`) tự phục vụ kèm xác thực mã QR động và kiểm tra bán kính GPS Geofencing (Haversine).  
+**Auth required:** Yes  
+**Request Body:**
+```json
+{
+  "mode": "check_in",
+  "qr_token": "SMEQR-14166666-A1B2C3D4E5F6",
+  "lat": 21.0286,
+  "lng": 105.8049
+}
+```
+
+---
+
+## 32. Quản Lý Đa Kho, Vị Trí Kệ (Bin) & Điều Chuyển Kho Nội Bộ
+
+### GET /api/v1/warehouses
+**Description:** Danh sách các kho (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC` và các kho chi nhánh) kèm thống kê số SKU, tổng tồn và số mặt hàng chạm ngưỡng tối thiểu.  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses
+**Description:** Tạo mới kho / chi nhánh lưu trữ.  
+**Auth required:** Yes (Approver / Admin)
+
+### PUT /api/v1/warehouses/:id
+**Description:** Cập nhật thông tin kho (tên, loại, địa chỉ, người phụ trách, trạng thái hoạt động).  
+**Auth required:** Yes (Approver / Admin)
+
+### GET /api/v1/warehouses/stocks
+**Description:** Tra cứu tồn kho phân bổ theo từng kho & vị trí kệ (`?warehouseCode=KHO-TONG&itemType=san_pham&q=...`).  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/stocks/sync-initial
+**Description:** Đồng bộ khởi tạo tồn kho từ danh mục `san_pham` (vào `KHO-TONG`) và `nguyen_lieu` (vào `KHO-XUONG`) cho các mặt hàng chưa phân bổ.  
+**Auth required:** Yes (Approver / Admin)
+
+### PUT /api/v1/warehouses/stocks/bin
+**Description:** Cập nhật mã vị trí kệ/ô (`bin_location`) và tồn kho tối thiểu (`min_stock`) tại từng kho.  
+**Auth required:** Yes
+
+### GET /api/v1/warehouses/transfers
+**Description:** Danh sách phiếu điều chuyển kho nội bộ (`?status=in_transit&warehouseCode=...`).  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/transfers
+**Description:** Tạo phiếu điều chuyển kho nháp (`draft`), tự động xác thực kho nguồn khác kho đích và đủ tồn kho nguồn.  
+**Auth required:** Yes
+
+### POST /api/v1/warehouses/transfers/:id/dispatch
+**Description:** Xuất chuyển kho (`draft` → `in_transit`): trừ tồn kho nguồn, ghi nhận Thẻ kho (`xuat_chuyen_kho`) và gửi thông báo Socket.io cho thủ kho đích.  
+**Auth required:** Yes (Approver / Admin)
+
+### POST /api/v1/warehouses/transfers/:id/receive
+**Description:** Xác nhận nhập kho đích (`in_transit` → `received`): cộng tồn kho đích theo số lượng thực nhận (`received_items`), tự động tính hao hụt vận chuyển và đồng bộ tồn kho tổng nếu phát sinh hao hụt.  
+**Auth required:** Yes (Approver / Admin)
+
+### POST /api/v1/warehouses/transfers/:id/cancel
+**Description:** Hủy phiếu điều chuyển (`draft` / `in_transit` → `cancelled`). Nếu hủy khi đang `in_transit`, tự động hoàn trả toàn bộ số lượng đã trừ về lại kho nguồn.  
+**Auth required:** Yes (Approver / Admin)

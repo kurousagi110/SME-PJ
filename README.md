@@ -1,37 +1,26 @@
 # SME Management System — ERP Doanh Nghiệp Vừa & Nhỏ
 
-Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME ERP**) toàn diện, chuẩn hóa kiến trúc Full-stack hiện đại, chạy trọn gói và triển khai tự động trên **Docker**. Tích hợp đầy đủ các luồng nghiệp vụ khép kín (**Closed-Loop**): Bán hàng đa kênh & POS, Báo giá B2B, Thẻ kho & Báo cáo Xuất - Nhập - Tồn (XNT), Sản xuất & Định mức vật tư (BOM/MRP), Kế toán dòng tiền & Chốt sổ kỳ kế toán, Đổi trả hàng (RMA), Quản lý đối tác 360° (CRM), Bảng lương nhân sự, Trung tâm duyệt việc thống nhất (Unified Approval Hub) và Luồng bàn giao liên ban bộ 1-Click Handover.
+Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME ERP**) toàn diện, chuẩn hóa kiến trúc Full-stack hiện đại, chạy trọn gói và triển khai tự động trên **Docker**. Tích hợp đầy đủ các luồng nghiệp vụ khép kín (**Closed-Loop**): Bán hàng đa kênh & POS (Multi-cart, Ca thu ngân, Margin Guard, Khuyến mãi động & Loyalty), Báo giá B2B, Hợp đồng Milestone & Bảo hành, Đa kho & Điều chuyển kho nội bộ, Thẻ kho & Xuất - Nhập - Tồn (XNT), Sản xuất Kanban & BOM/MRP, Kế toán dòng tiền & Chốt sổ kỳ kế toán, Đổi trả hàng (RMA/QC), CRM 360° (RFM & Churn), Nhân sự ESS (Nghỉ phép/OT, Chấm công QR/GPS) & Bảng lương KPI/BHXH/Thuế TNCN, Trung tâm duyệt việc thống nhất (Unified Approval Hub) và Cấu hình hệ thống tập trung.
 
 ---
 
 ## 🌟 Điểm Nổi Bật Của Hệ Thống
 
-- 🚀 **Kiến trúc Full-stack Hiện đại & Chuẩn Hóa**: Next.js 16 (App Router, Turbopack, Server Actions), Express 5 ESM, MongoDB 7 Native Aggregation, Nginx Reverse Proxy. Hệ thống mã nguồn và API được chuẩn hóa 100% tiếng Anh đồng bộ, hỗ trợ backward compatibility cho các định danh legacy.
-- 💰 **Dự Báo Dòng Tiền & Đối Soát Sao Kê Ngân Hàng (Cash Flow Forecasting & Bank Reconciliation)**: Dự báo dòng tiền 12 tuần (Inflows từ đơn bán & công nợ phải thu, Outflows từ đơn mua, tiền lương, OPEX), tính Monthly Burn Rate và Runway Months. Tự động so khớp đối soát các dòng giao dịch sao kê ngân hàng với Sổ Quỹ SME.
-- 🏭 **Bảng Kanban Sản Xuất & Quản Lý Hao Hụt (Production Kanban & Scrap Tracking)**: Giám sát tiến độ xưởng trực quan qua 6 công đoạn (`raw_material_prep` $\to$ `machining` $\to$ `finishing` $\to$ `assembly_qc` $\to$ `completed`), hỗ trợ quét mã vạch Barcode, bắn realtime Socket.io và xuất báo cáo tỷ lệ đạt chuẩn Yield Rate (%) cùng tỷ lệ phế phẩm Scrap Rate (%).
-- 📑 **Hợp Đồng Kinh Tế B2B & Vòng Đời Bảo Hành (Contracts & Warranty Lifecycle)**: Quản lý hợp đồng B2B với thanh toán theo đợt (Milestone billing) — 1-click "Thu Tiền Đợt Này" tự động sinh ngay Phiếu Thu vào Sổ Quỹ. Cấp thẻ bảo hành điện tử theo Serial/SĐT, hỗ trợ tra cứu tức thì và ghi nhận nhật ký bảo dưỡng định kỳ.
-- 🤖 **Tự Động Hóa Đa Kênh Telegram & Zalo OA/ZNS/Webhook (`/automation`)**: Cấu hình trực quan từ Admin; tự động chạy Cron Scheduler gửi Báo cáo sáng (Morning Briefing), Cảnh báo tồn kho thấp & lô cận hạn FEFO, Nhắc nợ quá hạn/hợp đồng đến hạn, và Cảnh báo tắc nghẽn sản xuất/phế phẩm QC vượt ngưỡng.
-- 🌐 **Cổng Khách Hàng Tự Phục Vụ (`/portal`) & VietQR**: Khách hàng tra cứu tiến độ đơn hàng, tiến độ sản xuất/vận chuyển, đợt thanh toán hợp đồng B2B kèm mã **VietQR**, và thẻ bảo hành điện tử chỉ với Mã tra cứu + 4 số cuối SĐT (không cần đăng nhập, có bảo vệ rate limit).
-- 🧠 **Agentic AI Copilot & OCR Hóa Đơn + Camera Barcode/QR + PWA**: Trợ lý AI nhận diện ý định hành động 1-click (`CREATE_MRP_PO`, `CHECK_LOW_STOCK`, v.v.), bóc tách dòng hóa đơn nhập hàng (OCR), quét mã vạch/QR bằng Camera thiết bị (`CameraBarcodeScanner`), và hỗ trợ cài đặt ứng dụng PWA (`manifest.json`).
-- 📦 **Quản Lý Lô Hàng FEFO & Kiểm Định Chất Lượng (QC / RMA)**: Quản lý lô sản xuất (`lo_san_xuat`), gợi ý xuất kho chuẩn **FEFO (First-Expired, First-Out)**, theo dõi Yield Rate / Scrap Rate sản xuất, và quy trình đổi trả hàng lỗi RMA phân loại nhập lại kho hay xuất hủy phế phẩm.
-- 🔐 **Phân Quyền RBAC 12 Vai Trò & Bảo Mật Đa Tầng**: Kế thừa quyền động (`Role Defaults` ∪ `Chức vụ` ∪ `User`), Nhật ký kiểm toán trực quan **Visual Diff (`Trước ↔ Sau`)** kèm mức độ nghiêm trọng (`info`/`warning`/`critical`), xác thực Webhook fail-closed (`timingSafeEqualStrings`), chống SSRF (`validateExternalWebhookUrl`), chống ReDoS (`escapeSafeRegexPattern`) và chống XSS (`escapeHtml`).
-- 🏷️ **Phân Hạng Giá B2B, Voucher & Chặn Nợ Quá Hạn (Tiered Pricing & Credit Limits)**: Phân tầng nhóm giá khách hàng (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), xác thực mã ưu đãi B2B (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), và cơ chế chặn nhân viên tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`).
-- 📋 **Báo Giá B2B & Chuyển Đổi Đơn Hàng 1-Click (Quote-to-Order)**: Lập báo giá chuyên nghiệp, tính thuế VAT & chiết khấu thương mại, theo dõi trạng thái vòng đời (`draft` $\to$ `sent` $\to$ `accepted` $\to$ `converted`) và tự động chuyển hóa thành Đơn Bán Hàng chỉ với 1 click.
-- 📦 **Thẻ Kho & Báo Cáo Xuất - Nhập - Tồn (Stock Movement Ledger)**: Báo cáo biến động kho chi tiết từng mặt hàng và tổng hợp XNT theo khoảng thời gian thực tế, phân tách rõ ràng nguồn gốc chứng từ (Đơn bán, Đơn mua, Sản xuất, Bàn giao kho, Điều chỉnh kiểm kê, Đổi trả RMA).
-- 🔄 **Luồng Nghiệp Vụ Khép Kín (Closed-Loop Integrity)**:
-  - Bán lẻ tại quầy POS tự động sinh Phiếu Thu trong Sổ Quỹ.
-  - Phê duyệt chi lương tự động sinh Phiếu Chi trong Sổ Quỹ.
-  - Hợp đồng B2B thu tiền từng đợt tự động sinh Phiếu Thu trong Sổ Quỹ.
-  - Quy trình Đổi Trả Hàng (RMA): Trình duyệt $\to$ Kiểm định QC nghiệm thu $\to$ Nhập hoàn kho $\to$ Tự động sinh Phiếu Chi hoàn tiền.
-  - Niêm phong & Khóa sổ kỳ kế toán (`Period Closing`): Chặn hoàn toàn hành vi ghi nhận, sửa đổi hoặc hủy chứng từ tài chính trong kỳ đã chốt sổ.
-- 🤝 **Trung Tâm Phê Duyệt Thống Nhất & Bàn Giao 1-Click (Handover Hub)**:
-  - *Unified Approval Hub (`/approvals`)*: Gom toàn bộ chứng từ chờ duyệt (Mua hàng, Điều chỉnh kho, Chiết khấu đơn bán, Bảng lương) về một nơi, ngăn chặn tự duyệt (anti self-approve).
-  - *Inter-Department Handover*: Bàn giao mượt mà từ Kinh Doanh $\to$ Sản Xuất $\to$ Nhập Kho Thành Phẩm $\to$ Vận Đơn Logistics, tích hợp hệ thống Thảo luận & @Mention gửi thông báo realtime tức thì.
-- 📊 **Demand Planning & Kênh TMĐT**: Dự báo nhu cầu bán hàng Moving Average, tính toán định mức MRP, phân tích ma trận ABC Pareto, máy tính khấu hao phí sàn Shopee, TikTok Shop, Lazada.
-- 📈 **Báo Cáo Tăng Trưởng Cùng Kỳ (YoY Growth)**: Phân tích so sánh Doanh thu, Chi phí, Lợi nhuận gộp theo từng tháng giữa các năm.
-- ⚡ **Điều Hướng Thông Minh & Command Palette (`Ctrl + K`)**: Toàn bộ tính năng phân tầng mạch lạc, phím tắt tìm kiếm và kích hoạt nhanh form tác vụ.
-- 🔔 **Thông Báo Thời Gian Thực (Socket.io)**: Chuông thông báo realtime theo phòng ban/vai trò và huy hiệu cảnh báo kho an toàn trên Header.
-- 🖨️ **Xuất Báo Cáo Excel (UTF-8 BOM) & In Ấn Chuẩn Kế Toán**: In Hóa đơn A4/A5, Phiếu Thu/Chi A5, Phiếu Lương A5, Vận Đơn Logistics A6/75x100mm, Tem Mã Vạch Barcode (Code 128 / QR).
+- 🚀 **Kiến trúc Full-stack Hiện đại & Chuẩn Hóa**: Next.js 16 (App Router, Turbopack, Server Actions), Express 5 ESM, MongoDB 7 Native Aggregation, Nginx Reverse Proxy. Mã nguồn và API được chuẩn hóa 100% tiếng Anh đồng bộ, hỗ trợ backward compatibility cho các định danh legacy.
+- ⚙️ **Cấu Hình Doanh Nghiệp & Hệ Thống Tập Trung (`/settings`)**: Quản trị động thông tin pháp nhân (in hóa đơn/phiếu), tài khoản nhận tiền **VietQR**, tham số tính lương KPI/BHXH/Thuế TNCN, quy tắc tích điểm **Loyalty**, giờ làm & tọa độ **GPS/QR chấm công** — khử hoàn toàn tham số hardcode.
+- 🏷️ **Promotion Engine Động & Khách Hàng Thân Thiết (`/promotions`)**: CRUD chiến dịch mã ưu đãi linh hoạt (giảm `%` có mức trần, giảm tiền cố định, freeship, đơn tối thiểu, thời hạn, giới hạn lượt dùng, nhóm khách hàng; tự động seed sẵn `SME5`, `SME10`, `VIP50K`, `FREESHIP`). Tích điểm tự động khi mua hàng, đổi điểm trừ tiền trực tiếp tại POS, phân hạng thành viên (`Đồng / Bạc / Vàng / Bạch Kim`) và hiển thị điểm trên `/portal`.
+- 🏪 **Quầy Thu Ngân POS Thế Hệ Mới (`/pos`)**: Hỗ trợ lưu tạm **Multi-Cart** (tối đa 5 hóa đơn), quản lý **Ca Thu Ngân (Mở ca – Kết ca – Kiểm quỹ chênh lệch – Lịch sử ca)**, gợi ý mua kèm thông minh (**Cross-sell**) & cảnh báo biên lợi nhuận (**Margin Guard**), VietQR, âm thanh quét mã vạch, áp mã khuyến mãi động & quy đổi điểm Loyalty.
+- 🏢 **Quản Lý Đa Kho, Vị Trí Kệ (Bin) & Điều Chuyển Nội Bộ (`/warehouses`)**: Hỗ trợ nhiều kho vận hành (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC` và tạo kho chi nhánh mới), gán mã vị trí kệ (`bin_location`) & ngưỡng tồn tối thiểu riêng cho từng kho, cùng quy trình **Phiếu điều chuyển kho nội bộ** (`draft` $\to$ `in_transit` $\to$ `received` / `cancelled`) ghi nhận đồng bộ Thẻ kho và kiểm soát hao hụt vận chuyển.
+- 🧑‍💼 **Cổng Nhân Sự Tự Phục Vụ ESS & Chấm Công QR/GPS (`/hr-requests`)**: Nhân viên tự gửi đơn nghỉ phép năm (tự động kiểm soát quỹ phép còn lại), đăng ký tăng ca **OT (150% / 200% / 300%)**, xin đi muộn/về sớm, công tác — đổ thẳng vào **Unified Approval Hub (`/approvals`)** để quản lý phê duyệt (có chống tự duyệt). Tích hợp **Chấm công QR động** xoay vòng ký HMAC-SHA256 chống chụp ảnh gửi hộ và **GPS Geofencing** (Haversine).
+- 💵 **Bảng Lương KPI + OT + BHXH & Thuế TNCN Lũy Tiến (`/payroll`)**: Tự động tổng hợp chấm công, cộng **Hoa hồng KD**, **Lương khoán SX**, **Tiền tăng ca OT** từ đơn đã duyệt, tự động **miễn phạt đi muộn** cho buổi có đơn duyệt, tính **BHXH (8%) / BHYT (1.5%) / BHTN (1%)**, phần DN đóng (**21.5%**) có áp trần và **Thuế TNCN lũy tiến 7 bậc** chuẩn luật Việt Nam.
+- 💰 **Tài Chính Thông Minh: P&L, Dự Báo Dòng Tiền 12 Tuần, What-If & Đối Soát Ngân Hàng (`/financial-reports`)**: Báo cáo P&L (COGS Moving Average), dự báo dòng tiền 12 tuần (Burn Rate, Runway Months), trình mô phỏng **What-If Simulator**, tự động đối soát sao kê ngân hàng với Sổ Quỹ SME và quản lý tuổi nợ (Aging Debt) + chặn nợ vượt hạn mức (`CREDIT_LIMIT_EXCEEDED`).
+- 🏭 **Bảng Kanban Sản Xuất & Quản Lý Hao Hụt (`/product/orders`)**: Giám sát tiến độ xưởng trực quan qua 6 công đoạn (`raw_material_prep` $\to$ `machining` $\to$ `finishing` $\to$ `assembly_qc` $\to$ `completed`), hỗ trợ quét Barcode, bắn realtime Socket.io, báo cáo Yield Rate (%) / Scrap Rate (%), truy xuất lô **FEFO** (`/traceability`) và kiểm định đổi trả **RMA/QC** (`/returns`).
+- 📑 **Hợp Đồng Kinh Tế B2B, Báo Giá & Bảo Hành (`/contracts`, `/quotations`)**: Báo giá B2B chuyển đổi 1-click thành Đơn bán; Hợp đồng thanh toán theo đợt (Milestone billing) 1-click sinh Phiếu Thu vào Sổ Quỹ; Thẻ bảo hành điện tử theo Serial/SĐT & nhật ký bảo dưỡng định kỳ.
+- 🧠 **Agentic AI Copilot v2, Anomaly Detection & CRM RFM/Churn**: Trợ lý AI hội thoại đa lượt có lọc công cụ theo RBAC, OCR hóa đơn thông minh, cảnh báo bất thường (doanh thu giảm, phế phẩm QC tăng đột biến, chiết khấu bất thường, Z-score OPEX), phân khúc khách hàng **RFM** & dự đoán nguy cơ rời bỏ (**Churn Risk**).
+- 🤖 **Tự Động Hóa Đa Kênh Telegram & Zalo + Auto-Reorder (`/automation`)**: Cron Scheduler chạy nền gửi Báo cáo sáng, Cảnh báo tồn kho thấp & lô cận hạn FEFO, Nhắc nợ/hợp đồng, Cảnh báo bất thường và tự động tạo **PO nháp tái đặt hàng (Auto-Reorder)** đưa vào hàng đợi duyệt.
+- 🌐 **Cổng Khách Hàng Tự Phục Vụ (`/portal`) & VietQR**: Tra cứu công khai đơn hàng, tiến độ SX/giao nhận, điểm thưởng Loyalty, hợp đồng B2B kèm mã **VietQR** và bảo hành bằng Mã + 4 số cuối SĐT.
+- 🔐 **Bảo Mật Doanh Nghiệp Đa Tầng & 2FA TOTP**: Phân quyền **RBAC 12 vai trò**, xác thực hai yếu tố **TOTP 2FA** (RFC 6238) kèm mã khôi phục dùng 1 lần, Nhật ký kiểm toán **Visual Diff (`Trước ↔ Sau`)**, xác thực Webhook fail-closed (`timingSafeEqualStrings`), chống SSRF, ReDoS và XSS.
+- ⚡ **Trải Nghiệm Người Dùng Hiện Đại**: Tìm kiếm toàn cục **Omni-Search (`Ctrl + K`)**, chuyển đổi giao diện Sáng/Tối (Theme Toggle), duyệt hàng loạt & xem nhanh trên `/approvals`, PWA (`manifest.json`), quét Camera Barcode/QR, xuất Excel UTF-8 BOM và in ấn chuẩn kế toán.
 
 ---
 
@@ -39,69 +28,44 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 
 | Tầng | Công nghệ & Thư viện chính |
 |---|---|
-| **Frontend** | Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · TanStack Query v5 · Shadcn UI / Radix UI · Tabler Icons · Recharts |
-| **Backend** | Node.js 20 (ESM) · Express 5 · Socket.io 4 · JWT Auth (Xoay vòng Refresh Token an toàn) · Winston Logger · Native MongoDB Aggregation |
-| **Cơ sở dữ liệu** | MongoDB 7 (Compound Indexes, Aggregation Pipelines tối ưu hóa tốc độ cao, Session Transactions) |
-| **Hạ tầng** | Docker Compose · Nginx Alpine (Reverse Proxy, Gzip Compression, WebSocket Proxy, Strict Security Headers) |
+| **Frontend** | Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · TanStack Query v5 · TanStack Table v8 · Shadcn UI / Radix UI · Tabler Icons & Lucide · Recharts |
+| **Backend** | Node.js 20 (ESM) · Express 5 · Socket.io 4 · JWT Auth (Refresh Token Rotation + Optional TOTP 2FA) · Winston Logger · Native MongoDB Aggregation |
+| **Cơ sở dữ liệu** | MongoDB 7 (Compound Indexes, Aggregation Pipelines, Session Transactions, Automated `mongodump` Backup) |
+| **Hạ tầng** | Docker Compose · Nginx Alpine (Reverse Proxy, Gzip, WebSocket Proxy, Strict Security Headers) |
 
 ---
 
 ## 📋 Cấu Trúc Phân Hệ Nghiệp Vụ (Modules)
 
 ### 1. 📊 Tổng Quan & Kế Hoạch
-- **Bảng Điều Khiển (`/dashboard`)**: KPI tài chính tổng thể, biểu đồ tương tác Doanh thu vs Chi phí (theo VNĐ hoặc số đơn), phân tích tăng trưởng cùng kỳ năm trước & năm nay (YoY).
-- **Demand Planning & Kênh TMĐT (`/planning`)**:
-  - *Dự báo nhu cầu bán hàng*: Dự báo lượng bán 30 ngày tới theo mô hình Moving Average & độ biến động.
-  - *Kế hoạch đặt hàng MRP*: Bóc tách định mức BOM, tự động tính số lượng NVL cần mua dựa trên đơn hàng và tồn kho hiện tại.
-  - *Phân tích ABC Pareto*: Phân loại sản phẩm Nhóm A (Doanh số cao 80%), B, C để tối ưu hóa vốn lưu động.
-  - *Cảnh báo tồn kho an toàn*: Phát hiện mặt hàng sắp chạm ngưỡng tối thiểu để bổ sung kịp thời.
-  - *Kế hoạch bán hàng TMĐT*: Máy tính khấu hao phí sàn Shopee, TikTok Shop, Lazada (phí cố định, thanh toán, freeship, hoa hồng affiliate, tỷ lệ hoàn đơn, chi phí đóng gói) $\to$ tính chuẩn xác biên lợi nhuận ròng và lập kế hoạch Mega Sale.
+- **Bảng Điều Khiển (`/dashboard`)**: KPI tài chính tổng thể, biểu đồ Doanh thu vs Chi phí, so sánh tăng trưởng cùng kỳ (YoY) và cảnh báo bất thường.
+- **Trình Ký & Phê Duyệt (`/approvals`)**: Hàng đợi tập trung duyệt Đơn mua vật tư (gồm PO tự động tái đặt hàng), Kiểm kê kho, Đơn bán hàng, Đổi trả RMA, **Đơn từ Nhân sự ESS (Nghỉ phép / OT)** và Chi lương tháng — hỗ trợ duyệt hàng loạt, xem trước nhanh và chặn tự duyệt.
+- **Demand Planning & Kênh TMĐT (`/planning`)**: Dự báo nhu cầu v2 (lọc outlier Mega Sale, khoảng tin cậy), MRP bóc tách BOM, tồn kho an toàn động, ma trận ABC Pareto, ước tính ngày giao **ATP** theo lead-time thực tế, bảng điểm NCC và máy tính biên lợi nhuận sàn Shopee / TikTok Shop / Lazada.
 
 ### 2. 🛒 Kinh Doanh & Bán Hàng
-- **Quầy Thu Ngân POS (`/pos`)**: Giao diện bán hàng tại quầy cảm ứng, hỗ trợ máy quét mã vạch, thanh toán tiền mặt/chuyển khoản, tự động đồng bộ sinh phiếu thu sổ quỹ và in hóa đơn nhiệt tức thì.
-- **Báo Giá B2B (`/quotations`)**: Lập và quản lý báo giá đối tác, tính thuế VAT & chiết khấu, theo dõi trạng thái gửi duyệt, và chuyển đổi 1-click thành Đơn Bán Hàng.
-- **Hợp Đồng B2B & Bảo Hành (`/contracts`)**:
-  - *Quản lý Hợp Đồng Kinh Tế*: Quản lý tiến độ nghiệm thu và thanh toán chia đợt (Milestone billing). Thao tác 1-click "Thu Tiền Đợt Này" tự động sinh ngay **Phiếu Thu** vào Sổ Quỹ SME với mã chứng từ tương ứng.
-  - *Vòng Đời Bảo Hành Điện Tử*: Cấp thẻ bảo hành điện tử theo Serial / IMEI, tra cứu nhanh trạng thái và thời hạn bảo hành theo SĐT khách hàng hoặc mã serial, ghi nhận nhật ký kỹ thuật & bảo dưỡng định kỳ kèm chi phí phát sinh.
-- **Đơn Bán Hàng (`/sales`)**: Lập và theo dõi đơn xuất bán, chọn nhanh đối tác từ CRM, tích hợp phân nhóm giá B2B (Đại lý C1, Đại lý C2, Khách VIP, Khách lẻ), áp dụng mã ưu đãi voucher (`SME5`, `SME10`, `VIP50K`, `FREESHIP`), cơ chế kiểm soát và chặn tạo đơn khi khách nợ vượt hạn mức tín dụng (`CREDIT_LIMIT_EXCEEDED`), xuất Excel UTF-8 BOM, in hóa đơn A4 chuẩn đẹp, bàn giao 1-click sang xưởng sản xuất hoặc giao nhận logistics.
-- **Đổi Trả Hàng RMA (`/returns`)**: Quản lý yêu cầu bảo hành/đổi trả hàng, kiểm soát số lượng đổi trả so với đơn gốc, nghiệm thu QC (`nhap_lai_kho` / `phe_pham` / `can_sua_chua`) và tự sinh phiếu chi hoàn tiền.
-- **Cổng Khách Hàng Tự Phục Vụ (`/portal`)**: Khách hàng tra cứu công khai đơn hàng, hợp đồng B2B (kèm mã VietQR) và bảo hành bằng Mã + 4 số cuối SĐT.
-- **Vận Chuyển & Giao Hàng (`/shipping`)**: Quản lý vòng đời đơn giao hàng qua các đơn vị vận chuyển (GHN, GHTK, Viettel Post, J&T Express), theo dõi trạng thái, tiền thu hộ COD và **in phiếu vận đơn chuẩn logistics A6 / 75x100mm**.
-- **Khách Hàng & Nhà Cung Cấp (`/partners`)**: Mini CRM quản lý đối tác 360°, phân loại khách VIP/khách buôn, tự động tổng hợp doanh số LTV, lịch sử mua hàng và công nợ 2 chiều.
-- **In Mã Vạch (`/barcode`)**: Tạo và in tem nhãn mã vạch (Code 128 / QR) dán lên sản phẩm xuất xưởng.
+- **Quầy Thu Ngân POS (`/pos`)**: Multi-cart 5 tab, **Quản lý Ca Thu Ngân (Mở ca / Kết ca / Kiểm quỹ)**, mã khuyến mãi động, tích & đổi điểm Loyalty, Cross-sell, Margin Guard, VietQR và in hóa đơn nhiệt tức thì.
+- **Khuyến Mãi & Loyalty (`/promotions`)**: Quản lý chiến dịch mã giảm giá động (CRUD, bật/tắt, giới hạn lượt dùng, ngày hết hạn) và bảng xếp hạng điểm tích lũy thành viên.
+- **Báo Giá B2B (`/quotations`)**: Lập báo giá chuyên nghiệp, tính VAT & chiết khấu, chuyển đổi 1-click Quote-to-Order.
+- **Đơn Bán Hàng (`/sales`)**: Phân tầng giá B2B, áp dụng voucher từ Promotion Engine, chặn vượt hạn mức tín dụng, bàn giao 1-click sang sản xuất hoặc vận chuyển, in hóa đơn A4.
+- **Hợp Đồng & Bảo Hành (`/contracts`)**: Hợp đồng Milestone billing (1-click sinh Phiếu Thu Sổ Quỹ) và Thẻ bảo hành điện tử theo Serial/SĐT + nhật ký bảo trì.
+- **Đổi & Trả Hàng RMA (`/returns`)**: Kiểm soát số lượng hoàn trả, nghiệm thu QC (`nhap_lai_kho` / `phe_pham` / `can_sua_chua`) và tự động sinh Phiếu Chi hoàn tiền.
+- **Vận Chuyển (`/shipping`)**, **Khách Hàng & NCC (`/partners` — CRM 360° + RFM/Churn)**, **In Mã Vạch (`/barcode`)**, và **Cổng Khách Hàng (`/portal`)**.
 
 ### 3. 📦 Kho & Sản Xuất
-- **Thẻ Kho & Báo Cáo XNT (`/stock-ledger`)**: Thẻ kho chi tiết theo từng sản phẩm/nguyên vật liệu và bảng cân đối Xuất - Nhập - Tồn theo kỳ với giá trị thành tiền chính xác.
-- **Kho Thành Phẩm & Xưởng Sản Xuất (`/product/catalog`, `/product/orders`)**:
-  - *Danh Mục & Định Mức BOM*: Cấu hình định mức nguyên vật liệu sản xuất (BOM) và tạo lệnh sản xuất.
-  - *Bảng Kanban Tiến Độ Xưởng (`/product/orders` tab Kanban)*: Giám sát trực quan luồng sản xuất qua 6 công đoạn: Chuẩn bị vật tư (`raw_material_prep`) $\to$ Gia công cắt/CNC (`machining`) $\to$ Xử lý bề mặt (`finishing`) $\to$ Lắp ráp & KCS (`assembly_qc`) $\to$ Hoàn thành (`completed`). Hỗ trợ quét Barcode để chọn nhanh lệnh và đồng bộ realtime Socket.io (`PRODUCTION_STAGE_CHANGED`).
-  - *Theo Dõi Hao Hụt & Báo Cáo Yield Rate*: Ghi nhận số lượng phế phẩm và lý do hao hụt tại từng công đoạn; tự động tính toán tỷ lệ đạt chuẩn **Yield Rate (%)** và tỷ lệ phế phẩm **Scrap Rate (%)**.
-- **Kho Nguyên Vật Liệu (`/material/catalog`, `/material/orders`)**: Danh mục vật tư (gỗ tấm, nẹp, ốc vít, bản lề, sơn...), đơn mua hàng nhập kho và đối soát nhà cung cấp.
-- **Tồn Kho Tổng Hợp (`/warehouse`)**: Báo cáo tổng thể Nhập - Xuất - Tồn và giá trị tồn kho.
-- **Kiểm Kê & Điều Chỉnh Kho (`/stock-adjustments`)**: Phiếu cân bằng tồn kho thực tế sau kiểm kê kèm quy trình duyệt an toàn chống trừ kho trùng lặp.
+- **Đa Kho & Chuyển Kho Nội Bộ (`/warehouses`)**: Danh sách kho (`KHO-TONG`, `KHO-XUONG`, `KHO-SHOWROOM`, `KHO-QC`...), phân bổ tồn kho theo kho & **vị trí kệ (`bin_location`)**, lập/xuất/nhận/hủy **Phiếu điều chuyển kho nội bộ** có ghi nhận hao hụt.
+- **Thành Phẩm & Xưởng Sản Xuất (`/product/catalog`, `/product/orders`)**: BOM định mức, Lệnh sản xuất, Bảng **Kanban 6 công đoạn**, ghi nhận phế phẩm & báo cáo Yield/Scrap Rate.
+- **Nguyên Vật Liệu (`/material/catalog`, `/material/orders`)**, **Tồn Kho Tổng Hợp (`/warehouse`)**, **Kiểm Kê Điều Chỉnh (`/stock-adjustments`)**, **Truy Xuất Lô FEFO (`/traceability`)**, và **Thẻ Kho & XNT (`/stock-ledger`)**.
 
 ### 4. 💰 Tài Chính & Nhân Sự
-- **Báo Cáo Tài Chính & Giá Vốn P&L (`/financial-reports`)**:
-  - *Báo cáo P&L (VAS)*: Doanh thu thuần, Giá vốn hàng bán (COGS Moving Average), Lợi nhuận gộp, Chi phí hoạt động OPEX (Lương, Vận chuyển, Chi phí thuê & quản lý), Lợi nhuận ròng.
-  - *Dự Báo Dòng Tiền & Ngân Quỹ (Cash Flow)*: Dự phóng dòng tiền 12 tuần với 4 thẻ KPI động (Số dư tiền mặt, Monthly Burn Rate, Runway Months, Cảnh báo an toàn ngân quỹ), biểu đồ tương tác Inflows vs Outflows (Recharts), Top khoản phải thu/phải trả sắp đến hạn.
-  - *Đối Soát Sao Kê Ngân Hàng*: Hộp thoại tự động so khớp các dòng giao dịch từ ngân hàng với các khoản Thu/Chi trong Sổ Quỹ SME.
-  - *Hiệu quả sinh lời sản phẩm*: Phân tích biên lợi nhuận từng mã hàng, tự động gắn nhãn Ngôi sao / Cash Cow / Biên lợi nhuận thấp.
-  - *Quản lý Tuổi nợ (Aging Debt)*: Phân tầng công nợ 0-30 ngày, 31-60 ngày, 61-90 ngày và cảnh báo nợ xấu >90 ngày, thiết lập hạn mức tín dụng (`Credit Limit`) chống bán vượt hạn mức.
-  - *Xuất Excel (UTF-8 BOM) & In Báo Cáo P&L*: Xuất báo cáo tài chính chuẩn kế toán.
-- **Sổ Quỹ & Công Nợ (`/cashbook`)**: Quản lý dòng tiền Thu - Chi, quỹ tiền mặt và tài khoản ngân hàng, sinh mã tự động `PT-...` / `PC-...`, đối soát công nợ 2 chiều, in Phiếu Thu/Chi A5 chuẩn kế toán.
-- **Khóa Sổ Kỳ Kế Toán (`/cashbook` tab Kỳ Kế Toán)**: Chốt sổ định kỳ (tháng/quý/năm), phong tỏa dữ liệu ngăn chặn sửa đổi chứng từ quá khứ để bảo vệ số liệu báo cáo tài chính.
-- **Trung Tâm Duyệt Việc (`/approvals`)**: Hàng đợi phê duyệt tập trung cho Ban Giám Đốc và Quản lý cấp phòng ban.
-- **Bảng Lương KPI Tự Động (`/payroll`)**: Tự động tổng hợp chấm công, cộng **Hoa hồng KD (2%)** + **Lương khoán SX** - **Phạt đi trễ**, phê duyệt chi lương khép kín tự sinh phiếu chi sổ quỹ, in phiếu lương A5 an toàn XSS (`escapeHtml`) và xuất Excel.
-- **Bảng Chấm Công (`/check-in`)**: Theo dõi lịch sử vào/ra ca làm, tự động tính tổng giờ công và trừ thời gian đi muộn.
-- **Hồ Sơ Nhân Sự (`/staff`)**: Quản lý danh sách nhân viên, mức lương cơ bản, chức danh và thông tin hợp đồng.
-- **Phòng Ban & Chức Vụ (`/department`)**: Thiết lập sơ đồ cơ cấu tổ chức công ty.
+- **Báo Cáo Tài Chính P&L (`/financial-reports`)**: P&L chuẩn VAS (COGS Moving Average), Dự báo dòng tiền 12 tuần, Đối soát sao kê ngân hàng, What-If Simulator, Hiệu quả sinh lời sản phẩm, Tuổi nợ (Aging Debt).
+- **Sổ Quỹ & Công Nợ (`/cashbook`)**: Phiếu Thu/Chi tự động (`PT-...` / `PC-...`), đối soát công nợ 2 chiều, Khóa sổ kỳ kế toán (`Period Closing`).
+- **Bảng Lương KPI & Thuế (`/payroll`)**: Tự động tính lương cơ bản, Hoa hồng KD, Lương khoán SX, **Tiền tăng ca OT**, **Miễn phạt đi muộn** theo đơn duyệt, khấu trừ **BHXH/BHYT/BHTN & Thuế TNCN 7 bậc**, duyệt chi tự động sinh Phiếu Chi Sổ Quỹ và in phiếu lương A5.
+- **Đơn Từ Nhân Sự ESS (`/hr-requests`)**: Tự tạo đơn nghỉ phép năm (kiểm tra quỹ phép), đăng ký tăng ca OT (`150%/200%/300%`), đi muộn/về sớm, công tác, kèm **Chấm công QR động & GPS Geofencing**.
+- **Chấm Công (`/check-in`)**, **Hồ Sơ Nhân Sự (`/staff`)**, **Phòng Ban & Chức Vụ (`/department`)**, **Tài Khoản & Bảo Mật 2FA (`/account`)**.
 
 ### 5. ⚙️ Hệ Thống & Tiện Ích
-- **Tự Động Hóa Đa Kênh Telegram & Zalo (`/automation`, `/api/v1/bot`)**: Cấu hình lịch chạy Cron nền (Morning Briefing, Cảnh báo tồn kho & FEFO, Nhắc nợ/Hợp đồng, Tắc nghẽn sản xuất & QC), hỗ trợ Telegram Bot và Zalo OA/ZNS/Webhook.
-- **Trợ Lý Agentic AI SME Copilot & OCR (Widget toàn cục)**: Chatbot trí tuệ nhân tạo hỏi đáp số liệu, gợi ý 1-click Action Cards (ví dụ tạo PO cho vật tư thiếu MRP) và bóc tách hóa đơn nhập hàng (`POST /api/v1/ai-copilot/ocr-invoice`).
-- **Nhập Dữ Liệu Excel (`/import`)**: Nhập hàng loạt danh mục hàng hóa, nhân sự từ file Excel.
-- **Nhật Ký Hệ Thống (`/audit-log`)**: Ghi nhận toàn bộ thao tác nghiệp vụ quan trọng phục vụ kiểm toán và truy vết bảo mật.
-- **Hộp Lệnh Nhanh (`Ctrl + K`)**: Tìm kiếm tính năng và mở form thao tác tắt chỉ với vài phím gõ.
+- **Cấu Hình Hệ Thống (`/settings`)**: Cấu hình pháp nhân, tài khoản VietQR mặc định, tham số lương KPI/BHXH/TNCN, quy tắc tích điểm Loyalty, và tọa độ/thời gian xoay mã QR chấm công.
+- **Tự Động Hóa & Bot (`/automation`)**, **Trợ Lý Agentic AI Copilot v2 & OCR**, **Nhập Excel (`/import`)**, **Nhật Ký Hệ Thống Visual Diff (`/audit-log`)**, và **Omni-Search (`Ctrl + K`)**.
 
 ---
 
@@ -109,10 +73,6 @@ Hệ sinh thái phần mềm quản trị doanh nghiệp vừa và nhỏ (**SME 
 
 Hệ thống được đóng gói hoàn chỉnh bằng Docker. **Không cần cài đặt Node.js hay MongoDB trên máy host.**
 
-### 1. Yêu cầu chuẩn bị
-- Đã cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop/) hoặc Docker Engine & Docker Compose v2 (Linux, macOS, Windows).
-
-### 2. Khởi chạy hệ thống
 ```bash
 # 1. Clone repository
 git clone https://github.com/kurousagi110/SME-PJ.git
@@ -120,15 +80,12 @@ cd SME-PJ
 
 # 2. Khởi động toàn bộ cụm dịch vụ qua Docker Compose
 docker compose up -d
-```
 
-> **Lưu ý**: Lần đầu tiên chạy, Docker sẽ build image frontend/backend và tự động seed sẵn kho dữ liệu thực tế (260+ đơn hàng, 170+ phiếu thu chi, danh mục sản phẩm/vật tư, nhân viên, đối tác). Bạn chỉ cần chờ ~1–2 phút cho các container chuyển sang trạng thái `healthy`.
-
-### 3. Kiểm tra trạng thái container
-```bash
+# 3. Kiểm tra trạng thái container (sme_nginx, sme_frontend, sme_api, sme_db, sme_backup)
 docker compose ps
 ```
-Cả 4 container (`sme_nginx`, `sme_frontend`, `sme_api`, `sme_db`) đều ở trạng thái `Up (healthy)`.
+
+> **Lưu ý**: Lần đầu chạy, hệ thống tự động seed dữ liệu mẫu thực tế (đơn hàng, sổ quỹ, sản phẩm/vật tư, nhân sự, đối tác, 4 kho mặc định, 4 mã khuyến mãi mặc định và cấu hình hệ thống chuẩn).
 
 ---
 
@@ -136,11 +93,12 @@ Cả 4 container (`sme_nginx`, `sme_frontend`, `sme_api`, `sme_db`) đều ở t
 
 | Dịch vụ | URL | Chức năng |
 |---|---|---|
-| **Cổng Web Ứng Dụng** | [http://localhost](http://localhost) | Giao diện phần mềm ERP (truy cập qua Nginx port 80) |
-| **REST API Backend** | `http://localhost/api/v1` | Cổng API backend cho hệ thống |
+| **Cổng Web Ứng Dụng** | [http://localhost](http://localhost) | Giao diện phần mềm ERP (qua Nginx port 80) |
+| **Cổng Khách Hàng** | [http://localhost/portal](http://localhost/portal) | Tra cứu đơn hàng, hợp đồng VietQR, bảo hành & điểm Loyalty |
+| **REST API Backend** | `http://localhost/api/v1` | Cổng API RESTful v1 |
 | **Tài liệu API Swagger** | [http://localhost/api-docs](http://localhost/api-docs) | Tài liệu tra cứu & test API tương tác |
 | **WebSocket Realtime** | `ws://localhost/socket.io/` | Kênh đẩy thông báo tức thời Socket.io |
-| **Cơ sở dữ liệu MongoDB** | `localhost:27017` | Cổng kết nối CSDL (dùng cho MongoDB Compass / GUI) |
+| **Cơ sở dữ liệu MongoDB** | `localhost:27017` | Cổng kết nối MongoDB Compass / GUI |
 
 ---
 
@@ -150,17 +108,17 @@ Mật khẩu mặc định cho **tất cả tài khoản**: **`123456`**
 
 | Tài khoản | Phòng ban | Chức vụ | Quyền hạn chính |
 |---|---|---|---|
-| **`admin`** | Ban Giám Đốc | Giám đốc | Toàn quyền quản trị hệ thống, xem Audit Log, duyệt lương, chốt sổ kỳ kế toán |
-| **`truongkd`** | Phòng Kinh Doanh | Trưởng phòng | Quản lý đơn bán hàng, báo giá B2B, duyệt chiết khấu, xem báo cáo doanh thu, CRM |
-| **`sale`** | Phòng Kinh Doanh | Nhân viên | Lập báo giá, lập đơn bán hàng, thao tác quầy thu ngân POS, gửi yêu cầu RMA |
-| **`ketoantr`** | Phòng Kế Toán | Kế toán trưởng | Quản lý sổ quỹ, chốt sổ kỳ kế toán, tính & chi lương, đối soát công nợ |
-| **`ketoan`** | Phòng Kế Toán | Nhân viên kế toán | Lập phiếu thu/chi, theo dõi phiếu thanh toán, xuất báo cáo tài chính |
-| **`thukho`** | Phòng Kho | Thủ kho | Duyệt phiếu kiểm kê điều chỉnh kho, thẻ kho & XNT, duyệt đơn mua NVL, nghiệm thu QC |
-| **`nhanvienkho`**| Phòng Kho | Nhân viên kho | Quét mã vạch, theo dõi tồn kho thành phẩm & NVL, tạo phiếu kiểm kê |
-| **`nhansutr`** | Phòng Nhân Sự | Trưởng phòng | Quản lý hợp đồng, hồ sơ nhân sự, phòng ban |
-| **`nhansu`** | Phòng Nhân Sự | Nhân viên nhân sự | Quản lý chấm công, ghi nhận ca làm việc |
-| **`truongxuong`**| Phòng Sản Xuất | Quản đốc xưởng | Lập kế hoạch sản xuất, bóc tách định mức vật tư BOM, bàn giao thành phẩm |
-| **`sanxuat`** | Phòng Sản Xuất | Công nhân | Xem danh mục sản phẩm, lệnh sản xuất và quy cách kỹ thuật |
+| **`admin`** | Ban Giám Đốc | Giám đốc | Toàn quyền quản trị, `/settings`, Audit Log, duyệt tất cả chứng từ, chốt sổ kỳ kế toán |
+| **`truongkd`** | Phòng Kinh Doanh | Trưởng phòng | Đơn bán, báo giá B2B, quản lý khuyến mãi (`/promotions`), duyệt chiết khấu, CRM |
+| **`sale`** | Phòng Kinh Doanh | Nhân viên | Lập báo giá, đơn bán, POS (Mở/Kết ca), gửi yêu cầu RMA, tạo đơn ESS |
+| **`ketoantr`** | Phòng Kế Toán | Kế toán trưởng | Sổ quỹ, chốt sổ kỳ kế toán, tính & chi lương (BHXH/TNCN), báo cáo tài chính |
+| **`ketoan`** | Phòng Kế Toán | Nhân viên kế toán | Lập phiếu thu/chi, theo dõi thanh toán, báo cáo tài chính |
+| **`thukho`** | Phòng Kho | Thủ kho | Đa kho & duyệt điều chuyển kho (`/warehouses`), kiểm kê, thẻ kho XNT, duyệt đơn mua, QC RMA |
+| **`nhanvienkho`** | Phòng Kho | Nhân viên kho | Quản lý vị trí kệ Bin, tạo phiếu chuyển kho/kiểm kê, quét mã vạch |
+| **`nhansutr`** | Phòng Nhân Sự | Trưởng phòng | Quản lý hồ sơ nhân sự, duyệt đơn nghỉ phép/OT (ESS), phòng ban, lương |
+| **`nhansu`** | Phòng Nhân Sự | Nhân viên nhân sự | Chấm công, sinh mã QR điểm danh, quản lý ca làm |
+| **`truongxuong`** | Phòng Sản Xuất | Quản đốc xưởng | Kế hoạch sản xuất, BOM, Kanban xưởng, bàn giao thành phẩm |
+| **`sanxuat`** | Phòng Sản Xuất | Công nhân | Xem lệnh sản xuất, cập nhật công đoạn, gửi đơn ESS & chấm công |
 
 ---
 
@@ -168,99 +126,81 @@ Mật khẩu mặc định cho **tất cả tài khoản**: **`123456`**
 
 ```
 SME/
-├── docker-compose.yml          # Cấu hình orchestration 4 containers (nginx, frontend, api, db)
+├── docker-compose.yml          # Orchestration: nginx, frontend, api, db, backup
 ├── .env.example                # Mẫu biến môi trường
-├── nginx/
-│   └── default.conf            # Reverse proxy, cân bằng tải, WebSocket, CSP & Gzip
-├── BackEndSME/                 # RESTful API Backend (Node.js Express 5 ESM)
-│   ├── controllers/            # Controller classes (contract, telegramBot, warranty, production, financial, order...)
-│   ├── models/                 # Model DAOs (contractDAO, warrantyDAO, financialReportDAO, soQuyDAO, orderDAO...)
-│   ├── routes/v1/              # Endpoint RESTful API `/api/v1/*` (contracts, warranty, bot, production, financial...)
-│   ├── services/               # Logic nghiệp vụ nâng cao (telegramBotService, MRP, Forecast, Closed-Loop...)
-│   ├── middleware/             # Xác thực JWT, phân quyền vai trò, validate Joi, rate limit
-│   ├── utils/                  # Audit logger, Socket.io manager, Winston structured logs
-│   ├── seed.js                 # Bộ kịch bản tạo dữ liệu thực tế mẫu
-│   └── index.js                # Bootstrap Express server, DAO injection & kết nối MongoDB
-└── FrontEndSME/                # Giao diện người dùng (Next.js 16 + React 19 + TypeScript)
-    ├── src/
-    │   ├── app/
-    │   │   ├── (auth)/         # Màn hình đăng nhập & bảo vệ phiên làm việc
-    │   │   ├── (modules)/      # Các phân hệ: contracts, financial-reports, product/orders, sales, dashboard...
-    │   │   └── actions/        # Server Actions (contract, warranty, bot, production, financial, order-sale...)
-    │   ├── components/         # UI Components: app-sidebar, nav-main, command-palette, production-kanban...
-    │   ├── hooks/              # Custom hooks: useSocket, useAuth, useProductBOM, useStockAdjustment...
-    │   └── lib/                # Tiện ích: format tiền tệ, xuất Excel UTF-8 BOM, in ấn hóa đơn/phiếu/barcode
-    └── Dockerfile              # Quy trình đóng gói Multi-stage build tối ưu cho Next.js
+├── AGENTS.md                   # Quy chuẩn mã nguồn, Git flow & kiểm thử
+├── nginx/default.conf          # Reverse proxy, WebSocket, CSP & Gzip
+├── scripts/                    # mongo-backup.sh & restore.sh
+├── BackEndSME/                 # RESTful API Backend (Node.js 20 ESM + Express 5)
+│   ├── controllers/            # settings, promotion, posShift, hrRequest, warehouse, order, financial...
+│   ├── models/                 # systemSettingsDAO, promotionDAO, posShiftDAO, hrRequestDAO, warehouseDAO...
+│   ├── routes/v1/              # /settings, /promotions, /pos-shifts, /hr-requests, /warehouses, ...
+│   ├── services/               # paymentService, einvoiceService, logisticsService, telegramBotService...
+│   ├── utils/                  # promotionEngine, hrEssEngine, warehouseTransferEngine, payrollCalculator...
+│   ├── tests/                  # 23 file Unit & Integration Tests (107 test cases với node:test)
+│   └── API_DOCUMENTATION.md    # Tài liệu chi tiết toàn bộ REST API endpoints
+└── FrontEndSME/                # Next.js 16 + React 19 + TypeScript + Tailwind v4
+    └── src/
+        ├── app/(modules)/      # settings, promotions, hr-requests, warehouses, pos, payroll, approvals...
+        ├── app/actions/        # Server Actions chuẩn hóa tiếng Anh (settings, promotions, pos-shift, hr-requests, warehouses...)
+        ├── components/         # app-sidebar, pos/pos-shift-bar, command-palette, ai-copilot-widget...
+        └── lib/                # http, permissions, export, barcode, utils
 ```
 
 ---
 
-## 🛠️ Các Lệnh Thao Tác Thường Dùng
+## 🧪 Kiểm Thử & Quy Chuẩn Chất Lượng
 
 ```bash
-# Khởi động dịch vụ ở chế độ chạy ngầm
-docker compose up -d
-
-# Xem logs thời gian thực của backend API
-docker compose logs -f api
-
-# Xem logs thời gian thực của frontend
-docker compose logs -f frontend
-
-# Cập nhật backend trực tiếp vào container đang chạy (không cần rebuild)
-docker cp BackEndSME/. sme_api:/app/ && docker restart sme_api
-
-# Build lại container sau khi chỉnh sửa frontend
-docker compose build frontend
-docker compose up -d frontend
-
-# Chạy toàn bộ bộ kiểm thử (63 Unit/Integration tests + Deep QA 7 hành trình người dùng)
-npm test
-
-# Chạy riêng bộ test Backend (12 file test)
+# Chạy toàn bộ bộ test Backend (23 file test — 107 test cases, không cần DB ngoài)
 npm run test:backend
 
-# Chạy riêng bộ test Kiểm kê Kho, Lô FEFO, Thẻ kho & Kiểm soát Chất lượng QC/RMA
+# Chạy toàn bộ bộ kiểm thử (Backend Unit/Integration + Deep QA E2E)
+npm test
+
+# Chạy riêng nhóm test Kho, Lô FEFO & QC/RMA
 npm run test:inventory-qc
 
-# Chạy kiểm thử E2E & Kiến trúc (hỗ trợ --live với gstack Headless Browser $B)
+# Chạy kiểm thử E2E & Kiến trúc
 npm run test:e2e
-node scratch/gstack_deep_qa_tester.js --live
-
-# Husky Git Hooks tự động bảo vệ chất lượng trước mỗi commit / push:
-# - .husky/pre-commit : Chặn commit lên main/dev, check conflict, syntax JS, static security, chạy 12 file unit test
-# - .husky/commit-msg : Kiểm tra chuẩn Conventional Commits (feat:, fix:, test:, refactor:, docs:, chore:)
-# - .husky/pre-push   : Chặn push lên main/dev, chạy full Backend tests + Deep QA verification
-
-# Tạm dừng hệ thống (giữ nguyên dữ liệu)
-docker compose down
-
-# Xóa bỏ hoàn toàn containers và reset database về trạng thái ban đầu
-docker compose down -v
-docker compose up -d
 ```
+
+**Husky Git Hooks tự động bảo vệ chất lượng trước mỗi commit / push:**
+- `.husky/pre-commit`: Chặn commit lên `main`/`dev`, kiểm tra merge conflict, kiểm tra cú pháp toàn bộ file JS (`node --check`), kiểm tra bảo mật tĩnh `$regex`, và chạy toàn bộ **107 test cases** Backend.
+- `.husky/commit-msg`: Bắt buộc chuẩn **Conventional Commits** (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`).
+- `.husky/pre-push`: Chặn push trực tiếp lên `main`/`dev`, chạy full Backend tests + Deep QA.
 
 ---
 
 ## 💾 Sao Lưu & Khôi Phục Dữ Liệu (MongoDB Backup & Restore)
 
 Hệ thống tích hợp sẵn service `sme_backup` trong [docker-compose.yml](docker-compose.yml) dùng `mongodump --archive --gzip`:
-- **Lịch chạy tự động**: mặc định `0 2 * * *` (02:00 sáng hàng ngày), tùy chỉnh qua biến `BACKUP_CRON`.
-- **Xoay vòng lưu trữ**: mặc định giữ bản sao lưu trong `14` ngày (`BACKUP_RETENTION_DAYS`), lưu tại thư mục `./backups/` (được loại trừ khỏi Git).
+- **Lịch chạy tự động**: mặc định `0 2 * * *` (02:00 sáng hàng ngày, tùy chỉnh qua `BACKUP_CRON`).
+- **Xoay vòng lưu trữ**: giữ bản sao lưu `14` ngày (`BACKUP_RETENTION_DAYS`) trong `./backups/`.
 
 ```bash
-# Chạy sao lưu thủ công ngay lập tức (1 lần)
+# Chạy sao lưu thủ công ngay lập tức
 docker compose run --rm --entrypoint /bin/bash backup -c "/usr/local/bin/mongo-backup.sh --once"
 
-# Khôi phục vào database tạm để kiểm tra (an toàn, không ghi đè DB chính)
+# Khôi phục vào DB tạm để kiểm tra an toàn
 ./scripts/restore.sh backups/sme_backup_YYYYMMDD_HHMMSS.archive.gz --target-db=SME_restore_verify
-
-# Khôi phục đè toàn bộ vào database chính
-./scripts/restore.sh backups/sme_backup_YYYYMMDD_HHMMSS.archive.gz
 ```
+
+---
+
+## 🗺️ Trạng Thái Lộ Trình Mở Rộng (Expansion Roadmap)
+
+| Giai đoạn | Phạm vi tính năng | Trạng thái |
+|---|---|---|
+| **Phase 1** | Cấu hình hệ thống (`/settings`), Promotion Engine & Loyalty (`/promotions`), Quản lý Ca Thu Ngân POS | ✅ Đã hoàn thành |
+| **Phase 2** | Cổng Nhân sự ESS (Nghỉ phép / OT), Tích hợp Approval Hub, BHXH & Thuế TNCN 7 bậc, Chấm công QR/GPS | ✅ Đã hoàn thành |
+| **Phase 3** | Quản lý Đa Kho, Vị trí kệ (`Bin Location`) & Điều chuyển kho nội bộ (`/warehouses`) | ✅ Đã hoàn thành |
+| **Phase 4** | CRM Sales Pipeline (Kanban Cơ hội bán hàng) & Mua hàng nâng cao (PR → RFQ → Vendor Scorecard) | 🔜 Kế tiếp |
+| **Phase 5** | Bảng kê Thuế GTGT (VAT), Tài sản cố định / Khấu hao & Dự toán Ngân sách (Budget vs Actual) | 🔜 Kế tiếp |
+| **Phase 6** | Provider Adapters thật (HĐĐT MISA/VNPT/Viettel, GHN/GHTK & COD Webhook, Đồng bộ sàn TMĐT) | 🔜 Kế tiếp |
 
 ---
 
 ## 📄 Bản Quyền & Giấy Phép
 
-Dự án được xây dựng và tối ưu hóa phục vụ quản lý doanh nghiệp vừa và nhỏ Việt Nam. Phát hành theo giấy phép mã nguồn mở MIT License.
+Dự án phát hành theo giấy phép mã nguồn mở **MIT License**.
