@@ -5,6 +5,7 @@ import PosShiftDAO from "../models/posShiftDAO.js";
 import { logAction } from "../utils/auditLogger.js";
 import { performedByOf } from "../utils/auditIdentity.js";
 import { isAdminUser } from "../middleware/auth.js";
+import { hasPermission } from "../utils/permissions.js";
 
 export default class PosShiftController {
   /** GET /api/v1/pos-shifts/active */
@@ -39,13 +40,18 @@ export default class PosShiftController {
   /** POST /api/v1/pos-shifts/:id/close */
   static close = asyncHandler(async (req, res) => {
     const { actual_cash = 0, notes = "" } = req.body || {};
+    const allowOverride = isAdminUser(req.user) || hasPermission(req.user, "sales.approve");
     const result = await PosShiftDAO.closeShift({
       shiftId: req.params.id,
       cashier: req.user,
       actualCash: actual_cash,
       notes,
+      allowOverride,
     });
-    if (result?.error) throw ApiError.badRequest(result.error.message);
+    if (result?.error) {
+      if (result.forbidden) throw ApiError.forbidden(result.error.message, "POS_SHIFT_FORBIDDEN");
+      throw ApiError.badRequest(result.error.message);
+    }
 
     const variance = result.doc.summary?.variance || 0;
     logAction(

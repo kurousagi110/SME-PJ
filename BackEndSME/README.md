@@ -91,7 +91,7 @@ BackEndSME/
 │   ├── payrollCalculator.js         # Tính lương KPI + OT + miễn phạt đi muộn + BHXH/TNCN
 │   ├── anomalyEngine.js, bankReconcileEngine.js, crmIntelligence.js, salesRecommendationEngine.js,
 │   │   planningEngine.js, reorderEngine.js, aiAgentParser.js, totp.js, securityHelpers.js, ...
-└── tests/                           # 26 file Unit & Integration Tests (117 test cases với node:test)
+└── tests/                           # 27 file Unit & Integration Tests (123 test cases với node:test)
 ```
 
 ---
@@ -123,10 +123,10 @@ cd BackEndSME && npm install && npm run dev
 
 ---
 
-## 🧪 Bộ Kịch Bản Kiểm Thử (26 Suites · 117 Test Cases)
+## 🧪 Bộ Kịch Bản Kiểm Thử (27 Suites · 123 Test Cases)
 
 ```bash
-# Chạy toàn bộ 26 file Unit & Integration Test (117 test cases, chạy nhanh không cần DB ngoài)
+# Chạy toàn bộ 27 file Unit & Integration Test (123 test cases, chạy nhanh không cần DB ngoài)
 cd BackEndSME && npm test
 
 # Chạy riêng bộ test Kho, Lô FEFO & QC/RMA

@@ -113,12 +113,17 @@ export default class PosShiftDAO {
     }
   }
 
-  static async closeShift({ shiftId, cashier, actualCash = 0, notes = "" }) {
+  static async closeShift({ shiftId, cashier, actualCash = 0, notes = "", allowOverride = false }) {
     try {
       if (!ObjectId.isValid(shiftId)) return { error: new Error("ID ca thu ngân không hợp lệ") };
       const shift = await posShiftsCol.findOne({ _id: new ObjectId(shiftId) });
       if (!shift) return { error: new Error("Không tìm thấy ca thu ngân") };
       if (shift.status !== "open") return { error: new Error("Ca thu ngân này đã được đóng trước đó") };
+
+      const actorId = String(cashier?._id || cashier?.id || "");
+      if (!allowOverride && shift.cashier_id && actorId !== String(shift.cashier_id)) {
+        return { error: new Error("Bạn không có quyền kết ca thu ngân của nhân viên khác"), forbidden: true };
+      }
 
       const summary = computePosShiftSummary({
         openingCash: shift.opening_cash,

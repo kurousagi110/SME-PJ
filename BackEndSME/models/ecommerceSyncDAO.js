@@ -187,6 +187,23 @@ export default class EcommerceSyncDAO {
       if (!channel) return { error: new Error("Không tìm thấy gian hàng TMĐT") };
 
       const normalized = normalizeExternalChannelOrder(channel.platform, rawOrder);
+
+      // Chống kéo trùng đơn sàn (Idempotency Guard theo channel_id + external_order_id)
+      const existingImport = await syncLogsCol.findOne({
+        channel_id: String(channel._id),
+        action: "order_import",
+        external_order_id: normalized.external_order_id,
+      });
+      if (existingImport) {
+        return {
+          ok: true,
+          idempotent: true,
+          external_order_id: normalized.external_order_id,
+          sme_order_code: existingImport.sme_order_code || null,
+          message: `Đơn hàng sàn ${normalized.external_order_id} đã được đồng bộ trước đó`,
+        };
+      }
+
       const mappings = await mappingsCol.find({ channel_id: String(channel._id) }).toArray();
       const mapBySku = new Map(mappings.map((m) => [m.channel_sku, m]));
 

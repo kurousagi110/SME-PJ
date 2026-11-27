@@ -13,6 +13,7 @@ import SoQuyDAO from "../models/soQuyDAO.js";
 import DoiTacDAO from "../models/doiTacDAO.js";
 import PromotionDAO from "../models/promotionDAO.js";
 import PosShiftDAO from "../models/posShiftDAO.js";
+import { calculateLoyaltyRedeem } from "../utils/promotionEngine.js";
 import { getDB } from "../config/database.js";
 import { ObjectId } from "mongodb";
 import { isAdminUser } from "../middleware/auth.js";
@@ -51,8 +52,9 @@ export class OrderController {
       0
     );
 
-    // Xác thực mã khuyến mãi động (nếu có) và quy đổi điểm tích lũy trước khi tạo đơn
-    let totalDiscount = Math.max(0, Number(giam_gia) || 0);
+    // Xác thực mã khuyến mãi động (nếu có) và quy đổi điểm tích lũy phía server trước khi tạo đơn
+    let couponDiscount = 0;
+    let loyaltyDiscountPreview = 0;
     let loyaltyDiscount = 0;
     let loyaltyRedeemedPoints = 0;
 
@@ -65,20 +67,29 @@ export class OrderController {
       if (!couponCheck.valid) {
         throw ApiError.badRequest(couponCheck.message || "Mã ưu đãi không hợp lệ", couponCheck.code || "INVALID_COUPON");
       }
-      if (!totalDiscount) {
-        totalDiscount = couponCheck.discountAmount;
-      }
+      couponDiscount = couponCheck.discountAmount;
     }
 
     if (loyalty_points_redeem > 0 && so_dien_thoai && so_dien_thoai.trim()) {
       const loyaltyLookup = await PromotionDAO.getCustomerLoyalty({ phone: so_dien_thoai.trim() });
-      if (loyaltyLookup.points < loyalty_points_redeem) {
+      const loyaltyCalc = calculateLoyaltyRedeem(
+        loyalty_points_redeem,
+        loyaltyLookup.points,
+        subtotalEstimate,
+        loyaltyLookup.config
+      );
+      if (!loyaltyCalc.valid) {
         throw ApiError.badRequest(
-          `Điểm tích lũy khả dụng không đủ (hiện có ${loyaltyLookup.points} điểm)`,
+          loyaltyCalc.message || `Điểm tích lũy khả dụng không đủ (hiện có ${loyaltyLookup.points} điểm)`,
           "INSUFFICIENT_LOYALTY_POINTS"
         );
       }
+      loyaltyDiscountPreview = loyaltyCalc.discountAmount;
     }
+
+    const clientDiscount = Math.max(0, Number(giam_gia) || 0);
+    const computedServerDiscount = couponDiscount + loyaltyDiscountPreview;
+    const totalDiscount = Math.min(subtotalEstimate, Math.max(clientDiscount, computedServerDiscount));
 
     // 1. Create order with confirmed status
     const createResult = await DonHangService.create({

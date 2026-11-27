@@ -1,6 +1,6 @@
 import express from "express";
 import HrRequestController from "../../controllers/hrRequestController.js";
-import { verifyToken } from "../../middleware/auth.js";
+import { verifyToken, verifyAttendanceManager } from "../../middleware/auth.js";
 
 const router = express.Router();
 
@@ -11,8 +11,8 @@ router.get("/leave-balance", HrRequestController.getLeaveBalance);
 router.post("/", HrRequestController.create);
 router.post("/:id/decide", HrRequestController.decide);
 
-// Smart Attendance: Dynamic QR & GPS Geofencing
-router.get("/attendance/qr-token", HrRequestController.generateQrToken);
+// Smart Attendance: chỉ Quản lý chấm công / Nhân sự / Admin mới được sinh mã QR động tại quầy
+router.get("/attendance/qr-token", verifyAttendanceManager, HrRequestController.generateQrToken);
 router.post("/attendance/smart-check-in", HrRequestController.smartCheckIn);
 
 export default router;

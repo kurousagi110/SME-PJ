@@ -69,7 +69,7 @@ function fmtDate(iso?: string) {
   }
 }
 
-type ApprovalKind = "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "hr_request";
+type ApprovalKind = "purchase" | "stock_adjustment" | "sale" | "payroll" | "return_order" | "hr_request" | "purchase_request";
 
 interface SelectedApprovalItem {
   key: string;
@@ -366,9 +366,10 @@ export default function ApprovalsPage() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-2 md:grid-cols-8 w-full">
           <TabsTrigger value="all">Tất cả ({pending.totalPending})</TabsTrigger>
           <TabsTrigger value="purchases">Đơn Mua ({pending.purchases.length})</TabsTrigger>
+          <TabsTrigger value="pr">Đề xuất PR ({pending.purchaseRequests?.length || 0})</TabsTrigger>
           <TabsTrigger value="stock">Kiểm Kê ({pending.stockAdjustments.length})</TabsTrigger>
           <TabsTrigger value="sales">Đơn Bán ({pending.sales.length})</TabsTrigger>
           <TabsTrigger value="rma">RMA ({pending.returnOrders?.length || 0})</TabsTrigger>
@@ -950,6 +951,63 @@ export default function ApprovalsPage() {
                           variant="outline"
                           className="text-red-600 h-8"
                           onClick={() => handleReject("return_order", r.ma_rma, `Phiếu đổi trả ${r.ma_rma}`)}
+                        >
+                          Từ Chối
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* TAB PURCHASE REQUESTS (PR) */}
+        <TabsContent value="pr" className="mt-4">
+          <Card className="p-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Mã PR</TableHead>
+                  <TableHead>Tiêu đề / Phòng ban</TableHead>
+                  <TableHead>Người lập</TableHead>
+                  <TableHead className="text-right">Dự toán</TableHead>
+                  <TableHead>Ngày tạo</TableHead>
+                  <TableHead className="text-right">Thao tác</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(!pending.purchaseRequests || pending.purchaseRequests.length === 0) ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Không có đề xuất mua hàng (PR) nào chờ duyệt
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pending.purchaseRequests.map((pr: any) => (
+                    <TableRow key={pr._id}>
+                      <TableCell className="font-mono text-xs font-semibold">{pr.ma_pr}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{pr.title}</div>
+                        <div className="text-xs text-muted-foreground">{pr.department || "-"}</div>
+                      </TableCell>
+                      <TableCell className="text-xs">{pr.created_by?.ho_ten || "-"}</TableCell>
+                      <TableCell className="text-right font-medium">{toVND(pr.estimated_budget || 0)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{fmtDate(pr.created_at)}</TableCell>
+                      <TableCell className="text-right space-x-2">
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8"
+                          onClick={() => handleApprove("purchase_request", pr._id, `Đề xuất mua hàng ${pr.ma_pr}`)}
+                        >
+                          Duyệt
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 h-8"
+                          onClick={() => handleReject("purchase_request", pr._id, `Đề xuất mua hàng ${pr.ma_pr}`)}
                         >
                           Từ Chối
                         </Button>

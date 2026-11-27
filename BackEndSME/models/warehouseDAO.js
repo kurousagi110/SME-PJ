@@ -337,7 +337,25 @@ export default class WarehouseDAO {
         return { error: new Error(`Không thể xuất chuyển phiếu ở trạng thái "${transfer.trang_thai}"`) };
       }
 
-      // Kiểm tra lại tồn kho nguồn trước khi trừ
+      // Trừ tồn kho nguồn có bảo vệ compensation rollback nếu bất kỳ dòng nào không đủ tồn hoặc race condition
+      const deductedItems = [];
+      const rollbackDeducted = async () => {
+        for (const d of deductedItems) {
+          try {
+            await stocksCol.updateOne(
+              {
+                warehouse_code: transfer.from_warehouse,
+                item_type: d.item_type,
+                item_id: String(d.item_id),
+              },
+              { $inc: { so_luong: d.quantity }, $set: { updated_at: new Date() } }
+            );
+          } catch (rbErr) {
+            logger.error("WarehouseDAO.dispatchTransfer rollback failed", { error: rbErr.message, item: d });
+          }
+        }
+      };
+
       for (const it of transfer.items) {
         const resDec = await stocksCol.updateOne(
           {
@@ -349,8 +367,10 @@ export default class WarehouseDAO {
           { $inc: { so_luong: -it.quantity }, $set: { updated_at: new Date() } }
         );
         if (resDec.modifiedCount === 0) {
+          await rollbackDeducted();
           return { error: new Error(`Kho ${transfer.from_warehouse} không đủ tồn cho ${it.item_name || it.item_code}`) };
         }
+        deductedItems.push(it);
       }
 
       const now = new Date();
@@ -366,6 +386,10 @@ export default class WarehouseDAO {
         },
         { returnDocument: "after" }
       );
+      if (!updated) {
+        await rollbackDeducted();
+        return { error: new Error("Phiếu chuyển kho đã thay đổi trạng thái bởi phiên khác, đã hoàn tồn kho nguồn") };
+      }
 
       // Ghi nhận Thẻ Kho (Stock Ledger) không làm lỗi giao dịch nếu ledger chưa sẵn sàng
       for (const it of transfer.items) {

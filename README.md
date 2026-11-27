@@ -141,7 +141,7 @@ SME/
 │   ├── routes/v1/              # /settings, /promotions, /pos-shifts, /hr-requests, /warehouses, ...
 │   ├── services/               # paymentService, einvoiceService, logisticsService, telegramBotService...
 │   ├── utils/                  # promotionEngine, hrEssEngine, warehouseTransferEngine, payrollCalculator...
-│   ├── tests/                  # 26 file Unit & Integration Tests (117 test cases với node:test)
+│   ├── tests/                  # 27 file Unit & Integration Tests (123 test cases với node:test)
 │   └── API_DOCUMENTATION.md    # Tài liệu chi tiết toàn bộ REST API endpoints
 └── FrontEndSME/                # Next.js 16 + React 19 + TypeScript + Tailwind v4
     └── src/
@@ -156,7 +156,7 @@ SME/
 ## 🧪 Kiểm Thử & Quy Chuẩn Chất Lượng
 
 ```bash
-# Chạy toàn bộ bộ test Backend (26 file test — 117 test cases, không cần DB ngoài)
+# Chạy toàn bộ bộ test Backend (27 file test — 123 test cases, không cần DB ngoài)
 npm run test:backend
 
 # Chạy toàn bộ bộ kiểm thử (Backend Unit/Integration + Deep QA E2E)
@@ -170,7 +170,7 @@ npm run test:e2e
 ```
 
 **Husky Git Hooks tự động bảo vệ chất lượng trước mỗi commit / push:**
-- `.husky/pre-commit`: Chặn commit lên `main`/`dev`, kiểm tra merge conflict, kiểm tra cú pháp toàn bộ file JS (`node --check`), kiểm tra bảo mật tĩnh `$regex`, và chạy toàn bộ **117 test cases** Backend.
+- `.husky/pre-commit`: Chặn commit lên `main`/`dev`, kiểm tra merge conflict, kiểm tra cú pháp toàn bộ file JS (`node --check`), kiểm tra bảo mật tĩnh `$regex`, và chạy toàn bộ **123 test cases** Backend.
 - `.husky/commit-msg`: Bắt buộc chuẩn **Conventional Commits** (`feat:`, `fix:`, `test:`, `refactor:`, `docs:`, `chore:`).
 - `.husky/pre-push`: Chặn push trực tiếp lên `main`/`dev`, chạy full Backend tests + Deep QA.
 
